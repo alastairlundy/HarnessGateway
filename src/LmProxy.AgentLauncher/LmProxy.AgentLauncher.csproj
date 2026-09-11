@@ -8,6 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="LmProxy.AgentLauncher.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
       <PackageReference Include="CliInvoke" Version="3.0.0-beta.3" />
       <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.12" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
