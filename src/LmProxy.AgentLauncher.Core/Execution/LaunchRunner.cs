@@ -4,7 +4,7 @@ using LmProxy.AgentLauncher.Core.Launch;
 
 namespace LmProxy.AgentLauncher.Core.Execution;
 
-public sealed class LaunchRunner
+public sealed class LaunchRunner : ILaunchRunner
 {
     public async Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
     {

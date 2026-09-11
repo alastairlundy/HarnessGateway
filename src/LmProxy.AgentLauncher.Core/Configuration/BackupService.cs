@@ -50,7 +50,7 @@ public sealed class BackupService
     {
         foreach (var record in _currentLaunchBackups)
         {
-            if (persistConfig && record.Persisted)
+            if (persistConfig)
             {
                 var backupPath = GetBackupPath(record.TargetPath);
                 if (File.Exists(backupPath))
