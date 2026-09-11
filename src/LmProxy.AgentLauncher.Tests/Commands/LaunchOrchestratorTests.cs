@@ -75,16 +75,24 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_unavailable_harness_returns_exit_code_4()
     {
-        var adapter = CreateTestAdapter(isAvailable: false);
+        var adapter = CreateTestAdapter(isAvailable: false, installHint: "Install via: npm install -g test");
         var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
+            var originalError = Console.Error;
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null, null, null, [],
                 tempDir);
 
+            Console.SetError(originalError);
+            var errorOutput = errorWriter.ToString();
+
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.HarnessUnavailable);
+            await Assert.That(errorOutput).Contains("Install via: npm install -g test");
         }
         finally
         {
