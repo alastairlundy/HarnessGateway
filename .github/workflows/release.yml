@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-latest
+            runtime: osx-x64
+          - os: macos-latest
+            runtime: osx-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Publish binary (${{ matrix.runtime }})
+        run: >
+          dotnet publish src/LmProxy.AgentLauncher/LmProxy.AgentLauncher.csproj
+          -c Release
+          -r ${{ matrix.runtime }}
+          --self-contained
+          -o publish/${{ matrix.runtime }}
+
+      - name: Package binary
+        shell: bash
+        run: |
+          cd publish/${{ matrix.runtime }}
+          if [[ "${{ matrix.runtime }}" == win-* ]]; then
+            7z a ../lmlaunch-${{ matrix.runtime }}.zip .
+          else
+            cd ../
+            tar -czf lmlaunch-${{ matrix.runtime }}.tar.gz -C ${{ matrix.runtime }} .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lmlaunch-${{ matrix.runtime }}
+          path: publish/lmlaunch-${{ matrix.runtime }}.*
+
+  build-nuget:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Pack NuGet tool
+        run: dotnet pack src/LmProxy.AgentLauncher/LmProxy.AgentLauncher.csproj -c Release -o artifacts
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: lmlaunch-nuget
+          path: artifacts/*.nupkg
+
+  release:
+    needs: [build-binaries, build-nuget]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/*
