@@ -89,11 +89,11 @@ public class KiloAdapterTests
     public async Task PlanLaunch_with_model_sets_cli_args()
     {
         var adapter = new KiloAdapter();
-        var request = CreateRequest(model: "claude-3-opus");
+        var request = CreateRequest(model: "claude-sonnet-5");
 
         var plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.Arguments).Contains("--model");
-        await Assert.That(plan.Process.Arguments).Contains("claude-3-opus");
+        await Assert.That(plan.Process.Arguments).Contains("claude-sonnet-5");
     }
 }

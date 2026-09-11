@@ -48,8 +48,8 @@ public class ModelCatalogClientTests
         {
             data = new[]
             {
-                new { id = "claude-3-opus", display_name = "Claude 3 Opus" },
-                new { id = "claude-3-sonnet", display_name = "Claude 3 Sonnet" }
+                new { id = "claude-sonnet-5", display_name = "Claude Sonnet 5" },
+                new { id = "claude-haiku-4", display_name = "Claude Haiku 4" }
             }
         };
 
@@ -68,10 +68,10 @@ public class ModelCatalogClientTests
         var catalog = await catalogClient.FetchModelsAsync(backend);
 
         await Assert.That(catalog.Models).Count().IsEqualTo(2);
-        await Assert.That(catalog.Models[0].Id).IsEqualTo("claude-3-opus");
-        await Assert.That(catalog.Models[0].DisplayName).IsEqualTo("Claude 3 Opus");
-        await Assert.That(catalog.Models[1].Id).IsEqualTo("claude-3-sonnet");
-        await Assert.That(catalog.Models[1].DisplayName).IsEqualTo("Claude 3 Sonnet");
+        await Assert.That(catalog.Models[0].Id).IsEqualTo("claude-sonnet-5");
+        await Assert.That(catalog.Models[0].DisplayName).IsEqualTo("Claude Sonnet 5");
+        await Assert.That(catalog.Models[1].Id).IsEqualTo("claude-haiku-4");
+        await Assert.That(catalog.Models[1].DisplayName).IsEqualTo("Claude Haiku 4");
     }
 
     [Test]
