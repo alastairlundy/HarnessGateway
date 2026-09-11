@@ -15,4 +15,8 @@
       <PackageReference Include="System.CommandLine" Version="2.0.12" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\LmProxy.AgentLauncher.Core\LmProxy.AgentLauncher.Core.csproj" />
+    </ItemGroup>
+
 </Project>
