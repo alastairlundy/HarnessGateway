@@ -1,5 +1,4 @@
 using CliInvoke;
-using CliInvoke.Core;
 using LmProxy.AgentLauncher.Core.Launch;
 
 namespace LmProxy.AgentLauncher.Core.Execution;
@@ -8,7 +7,7 @@ public sealed class LaunchRunner : ILaunchRunner
 {
     public async Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
     {
-        var config = new ProcessConfiguration(plan.Process.TargetFilePath)
+        ProcessConfiguration config = new ProcessConfiguration(plan.Process.TargetFilePath)
         {
             Arguments = plan.Process.Arguments,
             ArgumentList = plan.Process.ArgumentList,
@@ -20,7 +19,7 @@ public sealed class LaunchRunner : ILaunchRunner
             RedirectStandardInput = plan.Process.RedirectStandardInput
         };
 
-        var result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+        ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
         return result.ExitCode;
     }
 }

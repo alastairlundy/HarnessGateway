@@ -41,8 +41,8 @@ public sealed class LaunchCommand : Command
 
         Validators.Add(result =>
         {
-            var endpoint = result.GetValue(EndpointOption);
-            var protocol = result.GetValue(ProtocolOption);
+            string? endpoint = result.GetValue(EndpointOption);
+            string? protocol = result.GetValue(ProtocolOption);
 
             if (endpoint is not null && protocol is null)
             {
@@ -59,14 +59,14 @@ public sealed class LaunchCommand : Command
                 result.AddError($"Invalid protocol '{protocol}'. Must be one of: openai-chat, openai-responses, anthropic");
             }
 
-            var persistValues = result.GetValue(PersistOption);
+            string[]? persistValues = result.GetValue(PersistOption);
             if (persistValues is not null)
             {
-                foreach (var value in persistValues)
+                foreach (string value in persistValues)
                 {
-                    foreach (var part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    foreach (string part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
                     {
-                        var trimmed = part.Trim();
+                        string trimmed = part.Trim();
                         if (trimmed is not ("config" or "model"))
                         {
                             result.AddError($"Invalid persist value '{trimmed}'. Must be one of: config, model");
@@ -93,12 +93,12 @@ public sealed class LaunchCommand : Command
 
     public static IReadOnlyList<string> ParsePersistValues(string[] values)
     {
-        var result = new List<string>();
-        foreach (var value in values)
+        List<string> result = new();
+        foreach (string value in values)
         {
-            foreach (var part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            foreach (string part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
-                var trimmed = part.Trim();
+                string trimmed = part.Trim();
                 if (trimmed is "config" or "model")
                 {
                     result.Add(trimmed);

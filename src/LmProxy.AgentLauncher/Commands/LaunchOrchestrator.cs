@@ -37,39 +37,39 @@ public sealed class LaunchOrchestrator
     {
         try
         {
-            var settings = _settingsStore.Load();
+            LauncherSettings settings = _settingsStore.Load();
 
-            var backend = ResolveBackend(settings, endpoint, protocol);
+            Backend? backend = ResolveBackend(settings, endpoint, protocol);
 
             await _backupService.SelfHealAsync(cancellationToken);
 
-            var adapter = FindAdapter(agentName);
+            IHarnessAdapter? adapter = FindAdapter(agentName);
             if (adapter is null)
             {
                 Console.Error.WriteLine($"Unknown agent: {agentName}");
                 return (int)LaunchExitCode.UnknownAgent;
             }
 
-            var isAvailable = await adapter.IsAvailableAsync(cancellationToken);
+            bool isAvailable = await adapter.IsAvailableAsync(cancellationToken);
             if (!isAvailable)
             {
                 Console.Error.WriteLine(adapter.Metadata.InstallHint);
                 return (int)LaunchExitCode.HarnessUnavailable;
             }
 
-            var resolvedModel = ResolveModel(model, backend, adapter, persistValues);
+            string? resolvedModel = ResolveModel(model, backend, adapter, persistValues);
 
-            var request = new LaunchRequest(backend, resolvedModel, workingDirectory);
-            var plan = await adapter.PlanLaunchAsync(request, cancellationToken);
+            LaunchRequest request = new(backend, resolvedModel, workingDirectory);
+            LaunchPlan plan = await adapter.PlanLaunchAsync(request, cancellationToken);
 
-            foreach (var action in plan.ConfigurationActions)
+            foreach (ConfigurationAction action in plan.ConfigurationActions)
             {
                 await ExecuteConfigurationActionAsync(action, cancellationToken);
             }
 
-            var exitCode = await _runner.RunAsync(plan, cancellationToken);
+            int exitCode = await _runner.RunAsync(plan, cancellationToken);
 
-            var persistConfig = persistValues.Contains("config");
+            bool persistConfig = persistValues.Contains("config");
             await _backupService.RestoreOnExitAsync(persistConfig, cancellationToken);
 
             if (persistValues.Contains("model") && resolvedModel is not null)
@@ -90,9 +90,9 @@ public sealed class LaunchOrchestrator
     {
         if (endpoint is not null && protocol is not null)
         {
-            var parsedProtocol = LaunchCommand.ParseProtocol(protocol);
-            var parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
-            return new Backend
+            ProtocolKind parsedProtocol = LaunchCommand.ParseProtocol(protocol);
+            Uri parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
+            return new()
             {
                 Name = "override",
                 BaseUri = parsedEndpoint,
@@ -115,7 +115,7 @@ public sealed class LaunchOrchestrator
 
     private string? ResolveModel(string? model, Backend? backend, IHarnessAdapter adapter, IReadOnlyList<string> persistValues)
     {
-        var resolvedModel = model;
+        string? resolvedModel = model;
 
         if (resolvedModel is null && backend?.DefaultModel is not null)
         {
@@ -135,7 +135,7 @@ public sealed class LaunchOrchestrator
         switch (action)
         {
             case ConfigFileWriteAction fileWrite:
-                var directory = Path.GetDirectoryName(fileWrite.TargetPath);
+                string? directory = Path.GetDirectoryName(fileWrite.TargetPath);
                 if (!string.IsNullOrEmpty(directory))
                 {
                     Directory.CreateDirectory(directory);
@@ -157,8 +157,8 @@ public sealed class LaunchOrchestrator
     {
         if (backend is null) return;
 
-        var updatedBackend = backend with { DefaultModel = model };
-        var index = settings.Backends.FindIndex(b =>
+        Backend updatedBackend = backend with { DefaultModel = model };
+        int index = settings.Backends.FindIndex(b =>
             string.Equals(b.Name, backend.Name, StringComparison.OrdinalIgnoreCase));
 
         if (index >= 0)

@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace LmProxy.AgentLauncher.Core.Backends.Models;
@@ -32,26 +31,26 @@ public sealed class ModelCatalogClient
 
     private async Task<ModelCatalog> FetchOpenAiModelsAsync(Backend backend, CancellationToken cancellationToken)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/v1/models");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "/v1/models");
 
         if (!string.IsNullOrEmpty(backend.ApiKey))
         {
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", backend.ApiKey);
         }
 
-        var response = await _httpClient.SendAsync(request, cancellationToken);
+        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        var openAiResponse = await response.Content.ReadFromJsonAsync<OpenAiModelsResponse>(cancellationToken: cancellationToken);
+        OpenAiModelsResponse? openAiResponse = await response.Content.ReadFromJsonAsync<OpenAiModelsResponse>(cancellationToken: cancellationToken);
 
-        var models = openAiResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.Id)).ToList() ?? [];
+        List<ModelCatalogEntry> models = openAiResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.Id)).ToList() ?? [];
 
         return new ModelCatalog(models, DateTimeOffset.UtcNow);
     }
 
     private async Task<ModelCatalog> FetchAnthropicModelsAsync(Backend backend, CancellationToken cancellationToken)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/v1/models");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "/v1/models");
         request.Headers.Add("anthropic-version", "2023-06-01");
 
         if (!string.IsNullOrEmpty(backend.ApiKey))
@@ -59,12 +58,12 @@ public sealed class ModelCatalogClient
             request.Headers.Add("x-api-key", backend.ApiKey);
         }
 
-        var response = await _httpClient.SendAsync(request, cancellationToken);
+        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        var anthropicResponse = await response.Content.ReadFromJsonAsync<AnthropicModelsResponse>(cancellationToken: cancellationToken);
+        AnthropicModelsResponse? anthropicResponse = await response.Content.ReadFromJsonAsync<AnthropicModelsResponse>(cancellationToken: cancellationToken);
 
-        var models = anthropicResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.DisplayName)).ToList() ?? [];
+        List<ModelCatalogEntry> models = anthropicResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.DisplayName)).ToList() ?? [];
 
         return new ModelCatalog(models, DateTimeOffset.UtcNow);
     }

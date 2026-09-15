@@ -1,5 +1,4 @@
 using CliInvoke.Core;
-using TUnit;
 using LmProxy.AgentLauncher.Commands;
 using LmProxy.AgentLauncher.Core.Adapters;
 using LmProxy.AgentLauncher.Core.Backends;
@@ -302,7 +301,7 @@ public class LaunchOrchestratorTests
                 requiresModel,
                 installHint,
                 DetectionCommand: null,
-                ConfigFileCandidates: []);
+                []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
@@ -333,7 +332,7 @@ public class LaunchOrchestratorTests
             RequiresModel: false,
             InstallHint: "N/A",
             DetectionCommand: null,
-            ConfigFileCandidates: []);
+            []);
 
         public ConfigWritingAdapter(string configFile)
         {

@@ -1,5 +1,5 @@
-using TUnit;
 using LmProxy.AgentLauncher.Core.Adapters;
+using LmProxy.AgentLauncher.Core.Adapters.Implementations;
 using LmProxy.AgentLauncher.Core.Backends;
 using LmProxy.AgentLauncher.Core.Configuration;
 using LmProxy.AgentLauncher.Core.Launch;
@@ -22,7 +22,7 @@ public class PiAdapterTests
                 ApiKey = apiKey
             },
             Model: model,
-            WorkingDirectory: Path.GetTempPath());
+            Path.GetTempPath());
     }
 
     [Test]

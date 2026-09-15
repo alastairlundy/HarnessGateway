@@ -15,7 +15,7 @@ public sealed class SettingsStore
 
     public SettingsStore(string? settingsDirectory = null)
     {
-        var directory = settingsDirectory ?? GetPlatformConfigDirectory();
+        string directory = settingsDirectory ?? GetPlatformConfigDirectory();
         _settingsFilePath = Path.Combine(directory, "lmproxy-launcher.json");
         _configuration = BuildConfiguration(directory);
     }
@@ -29,21 +29,21 @@ public sealed class SettingsStore
             return new LauncherSettings();
         }
 
-        var json = File.ReadAllText(_settingsFilePath);
-        var settings = JsonSerializer.Deserialize<LauncherSettings>(json, SerializerOptions);
+        string json = File.ReadAllText(_settingsFilePath);
+        LauncherSettings? settings = JsonSerializer.Deserialize<LauncherSettings>(json, SerializerOptions);
 
         return settings ?? new LauncherSettings();
     }
 
     public void Save(LauncherSettings settings)
     {
-        var directory = Path.GetDirectoryName(_settingsFilePath);
+        string? directory = Path.GetDirectoryName(_settingsFilePath);
         if (!string.IsNullOrEmpty(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(settings, SerializerOptions);
+        string json = JsonSerializer.Serialize(settings, SerializerOptions);
         File.WriteAllText(_settingsFilePath, json);
     }
 
@@ -54,9 +54,9 @@ public sealed class SettingsStore
 
     private static IConfiguration BuildConfiguration(string settingsDirectory)
     {
-        var builder = new ConfigurationBuilder();
+        ConfigurationBuilder builder = new ConfigurationBuilder();
 
-        var settingsFile = Path.Combine(settingsDirectory, "lmproxy-launcher.json");
+        string settingsFile = Path.Combine(settingsDirectory, "lmproxy-launcher.json");
         if (File.Exists(settingsFile))
         {
             builder.AddJsonFile(settingsFile, optional: true, reloadOnChange: false);
@@ -71,24 +71,24 @@ public sealed class SettingsStore
     {
         if (OperatingSystem.IsWindows())
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             return Path.Combine(appData, "LmProxy");
         }
 
         if (OperatingSystem.IsMacOS())
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             return Path.Combine(home, "Library", "Application Support", "LmProxy");
         }
 
         // Linux and others
-        var xdgConfig = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        string? xdgConfig = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
         if (!string.IsNullOrEmpty(xdgConfig))
         {
             return Path.Combine(xdgConfig, "lmproxy");
         }
 
-        var linuxHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string linuxHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(linuxHome, ".config", "lmproxy");
     }
 }

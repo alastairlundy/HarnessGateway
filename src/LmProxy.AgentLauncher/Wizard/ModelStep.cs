@@ -41,7 +41,7 @@ public sealed class ModelStep
             }
         }
 
-        var hasCatalog = catalog is { Models.Count: > 0 };
+        bool hasCatalog = catalog is { Models.Count: > 0 };
 
         if (!hasCatalog)
         {
@@ -57,26 +57,26 @@ public sealed class ModelStep
         string? savedDefaultModel,
         CancellationToken cancellationToken)
     {
-        var choices = new List<ConsoleChoice>();
+        List<ConsoleChoice> choices = new();
 
         if (!requiresModel)
         {
-            choices.Add(new ConsoleChoice("[skip]", "do not set a model"));
+            choices.Add(new("[skip]", "do not set a model"));
         }
 
-        foreach (var model in catalog.Models)
+        foreach (ModelCatalogEntry model in catalog.Models)
         {
-            var annotation = string.Equals(model.Id, savedDefaultModel, StringComparison.OrdinalIgnoreCase)
+            string? annotation = string.Equals(model.Id, savedDefaultModel, StringComparison.OrdinalIgnoreCase)
                 ? "(saved default)"
                 : null;
-            choices.Add(new ConsoleChoice(model.Id, annotation));
+            choices.Add(new(model.Id, annotation));
         }
 
-        var title = requiresModel
+        string title = requiresModel
             ? "Select a model (required):"
             : "Select a model (or skip):";
 
-        var selected = await _console.PromptChoiceAsync(title, choices, cancellationToken);
+        string selected = await _console.PromptChoiceAsync(title, choices, cancellationToken);
 
         if (selected == "[skip]")
         {
@@ -99,13 +99,13 @@ public sealed class ModelStep
 
         if (requiresModel)
         {
-            var model = await _console.PromptTextAsync("Enter model name (required):", cancellationToken: cancellationToken);
+            string model = await _console.PromptTextAsync("Enter model name (required):", cancellationToken: cancellationToken);
             return string.IsNullOrWhiteSpace(model) ? null : model.Trim();
         }
 
-        var skip = await _console.PromptChoiceAsync("Model catalog unavailable:", [
-            new ConsoleChoice("[skip]", "do not set a model"),
-            new ConsoleChoice("[manual]", "enter a model name manually")
+        string skip = await _console.PromptChoiceAsync("Model catalogue unavailable:", [
+            new("[skip]", "do not set a model"),
+            new("[manual]", "enter a model name manually")
         ], cancellationToken);
 
         if (skip == "[skip]")
@@ -113,7 +113,7 @@ public sealed class ModelStep
             return null;
         }
 
-        var manualModel = await _console.PromptTextAsync("Enter model name:", cancellationToken: cancellationToken);
+        string manualModel = await _console.PromptTextAsync("Enter model name:", cancellationToken: cancellationToken);
         return string.IsNullOrWhiteSpace(manualModel) ? null : manualModel.Trim();
     }
 }

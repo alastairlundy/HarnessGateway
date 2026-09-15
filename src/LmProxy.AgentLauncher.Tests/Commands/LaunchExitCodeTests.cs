@@ -1,4 +1,3 @@
-using TUnit;
 using LmProxy.AgentLauncher.Commands;
 
 namespace LmProxy.AgentLauncher.Tests.Commands;

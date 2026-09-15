@@ -18,11 +18,11 @@ public sealed class ConfigCommand : Command
     {
         _settingsStore = settingsStore;
 
-        var showVerb = new Command("show", "Display the current default backend configuration");
-        var setEndpointVerb = CreateSetDefaultEndpointCommand();
-        var setKeyVerb = CreateSetSavedKeyCommand();
-        var clearKeyVerb = new Command("clear-saved-key", "Remove the saved API key from the default backend");
-        var setModelVerb = CreateSetDefaultModelCommand();
+        Command showVerb = new("show", "Display the current default backend configuration");
+        Command setEndpointVerb = CreateSetDefaultEndpointCommand();
+        Command setKeyVerb = CreateSetSavedKeyCommand();
+        Command clearKeyVerb = new("clear-saved-key", "Remove the saved API key from the default backend");
+        Command setModelVerb = CreateSetDefaultModelCommand();
 
         Add(showVerb);
         Add(setEndpointVerb);
@@ -32,8 +32,8 @@ public sealed class ConfigCommand : Command
 
         showVerb.SetAction((result) =>
         {
-            var settings = _settingsStore.Load();
-            var backend = ResolveDefaultBackend(settings);
+            LauncherSettings settings = _settingsStore.Load();
+            Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
             {
@@ -51,8 +51,8 @@ public sealed class ConfigCommand : Command
 
         clearKeyVerb.SetAction((result) =>
         {
-            var settings = _settingsStore.Load();
-            var backend = ResolveDefaultBackend(settings);
+            LauncherSettings settings = _settingsStore.Load();
+            Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
             {
@@ -60,7 +60,7 @@ public sealed class ConfigCommand : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            var updated = backend with { ApiKey = null };
+            Backend updated = backend with { ApiKey = null };
             UpdateBackend(settings, updated);
             _settingsStore.Save(settings);
             Console.WriteLine("Saved key cleared.");
@@ -70,23 +70,23 @@ public sealed class ConfigCommand : Command
 
     private Command CreateSetDefaultEndpointCommand()
     {
-        var endpointArg = new Argument<string>("endpoint")
+        Argument<string> endpointArg = new("endpoint")
         {
             Description = "The backend endpoint URL"
         };
-        var protocolArg = new Argument<string>("protocol")
+        Argument<string> protocolArg = new("protocol")
         {
             Description = "The protocol (openai-chat, openai-responses, anthropic)"
         };
 
-        var cmd = new Command("set-default-endpoint", "Set the default backend endpoint and protocol");
+        Command cmd = new("set-default-endpoint", "Set the default backend endpoint and protocol");
         cmd.Add(endpointArg);
         cmd.Add(protocolArg);
 
         cmd.SetAction((result) =>
         {
-            var endpoint = result.GetRequiredValue(endpointArg);
-            var protocol = result.GetRequiredValue(protocolArg);
+            string endpoint = result.GetRequiredValue(endpointArg);
+            string protocol = result.GetRequiredValue(protocolArg);
 
             if (!LaunchCommand.IsValidProtocol(protocol))
             {
@@ -94,15 +94,15 @@ public sealed class ConfigCommand : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            var parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
-            var parsedProtocol = LaunchCommand.ParseProtocol(protocol);
+            Uri parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
+            ProtocolKind parsedProtocol = LaunchCommand.ParseProtocol(protocol);
 
-            var settings = _settingsStore.Load();
+            LauncherSettings settings = _settingsStore.Load();
 
-            var existingBackend = ResolveDefaultBackend(settings);
-            var name = existingBackend?.Name ?? "default";
+            Backend? existingBackend = ResolveDefaultBackend(settings);
+            string name = existingBackend?.Name ?? "default";
 
-            var updated = new Backend
+            Backend updated = new()
             {
                 Name = name,
                 BaseUri = parsedEndpoint,
@@ -127,19 +127,19 @@ public sealed class ConfigCommand : Command
 
     private Command CreateSetSavedKeyCommand()
     {
-        var keyArg = new Argument<string>("key")
+        Argument<string> keyArg = new("key")
         {
             Description = "The API key to save"
         };
 
-        var cmd = new Command("set-saved-key", "Save an API key for the default backend");
+        Command cmd = new("set-saved-key", "Save an API key for the default backend");
         cmd.Add(keyArg);
 
         cmd.SetAction((result) =>
         {
-            var key = result.GetRequiredValue(keyArg);
-            var settings = _settingsStore.Load();
-            var backend = ResolveDefaultBackend(settings);
+            string key = result.GetRequiredValue(keyArg);
+            LauncherSettings settings = _settingsStore.Load();
+            Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
             {
@@ -147,7 +147,7 @@ public sealed class ConfigCommand : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            var updated = backend with { ApiKey = key };
+            Backend updated = backend with { ApiKey = key };
             UpdateBackend(settings, updated);
             _settingsStore.Save(settings);
             Console.WriteLine("Saved key updated.");
@@ -159,19 +159,19 @@ public sealed class ConfigCommand : Command
 
     private Command CreateSetDefaultModelCommand()
     {
-        var modelArg = new Argument<string>("model")
+        Argument<string> modelArg = new("model")
         {
             Description = "The default model name"
         };
 
-        var cmd = new Command("set-default-model", "Set the default model for the default backend");
+        Command cmd = new("set-default-model", "Set the default model for the default backend");
         cmd.Add(modelArg);
 
         cmd.SetAction((result) =>
         {
-            var model = result.GetRequiredValue(modelArg);
-            var settings = _settingsStore.Load();
-            var backend = ResolveDefaultBackend(settings);
+            string model = result.GetRequiredValue(modelArg);
+            LauncherSettings settings = _settingsStore.Load();
+            Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
             {
@@ -179,7 +179,7 @@ public sealed class ConfigCommand : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            var updated = backend with { DefaultModel = model };
+            Backend updated = backend with { DefaultModel = model };
             UpdateBackend(settings, updated);
             _settingsStore.Save(settings);
             Console.WriteLine($"Default model set to {model}.");
@@ -202,7 +202,7 @@ public sealed class ConfigCommand : Command
 
     internal static void UpdateBackend(LauncherSettings settings, Backend updated)
     {
-        var index = settings.Backends.FindIndex(b =>
+        int index = settings.Backends.FindIndex(b =>
             string.Equals(b.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
 
         if (index >= 0)

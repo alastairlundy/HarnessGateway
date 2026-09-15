@@ -1,7 +1,6 @@
-using TUnit;
 using LmProxy.AgentLauncher.Core.Adapters;
+using LmProxy.AgentLauncher.Core.Adapters.Implementations;
 using LmProxy.AgentLauncher.Core.Backends;
-using LmProxy.AgentLauncher.Core.Configuration;
 using LmProxy.AgentLauncher.Core.Launch;
 
 namespace LmProxy.AgentLauncher.Tests.Adapters;
@@ -22,7 +21,7 @@ public class OpenCodeAdapterTests
                 ApiKey = apiKey
             },
             Model: model,
-            WorkingDirectory: Path.GetTempPath());
+            Path.GetTempPath());
     }
 
     [Test]

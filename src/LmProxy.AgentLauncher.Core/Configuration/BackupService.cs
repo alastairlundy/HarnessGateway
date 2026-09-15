@@ -38,21 +38,21 @@ public sealed class BackupService
             originalBytes = await File.ReadAllBytesAsync(targetPath, cancellationToken);
         }
 
-        var record = new BackupRecord(targetPath, originalBytes, Persisted: false);
+        BackupRecord record = new BackupRecord(targetPath, originalBytes, Persisted: false);
         _currentLaunchBackups.Add(record);
 
-        var backupPath = GetBackupPath(targetPath);
-        var json = JsonSerializer.Serialize(record, SerializerOptions);
+        string backupPath = GetBackupPath(targetPath);
+        string json = JsonSerializer.Serialize(record, SerializerOptions);
         await File.WriteAllTextAsync(backupPath, json, cancellationToken);
     }
 
     public async Task RestoreOnExitAsync(bool persistConfig, CancellationToken cancellationToken = default)
     {
-        foreach (var record in _currentLaunchBackups)
+        foreach (BackupRecord record in _currentLaunchBackups)
         {
             if (persistConfig)
             {
-                var backupPath = GetBackupPath(record.TargetPath);
+                string backupPath = GetBackupPath(record.TargetPath);
                 if (File.Exists(backupPath))
                 {
                     File.Delete(backupPath);
@@ -62,7 +62,7 @@ public sealed class BackupService
 
             await RestoreRecordAsync(record, cancellationToken);
 
-            var backupFilePath = GetBackupPath(record.TargetPath);
+            string backupFilePath = GetBackupPath(record.TargetPath);
             if (File.Exists(backupFilePath))
             {
                 File.Delete(backupFilePath);
@@ -79,11 +79,11 @@ public sealed class BackupService
             return;
         }
 
-        var backupFiles = Directory.GetFiles(_backupsDirectory, "*.json");
-        foreach (var backupFile in backupFiles)
+        string[] backupFiles = Directory.GetFiles(_backupsDirectory, "*.json");
+        foreach (string backupFile in backupFiles)
         {
-            var json = await File.ReadAllTextAsync(backupFile, cancellationToken);
-            var record = JsonSerializer.Deserialize<BackupRecord>(json, SerializerOptions);
+            string json = await File.ReadAllTextAsync(backupFile, cancellationToken);
+            BackupRecord? record = JsonSerializer.Deserialize<BackupRecord>(json, SerializerOptions);
             if (record is null)
             {
                 continue;
@@ -101,7 +101,7 @@ public sealed class BackupService
 
     public void RegisterSignalHandlers(CancellationTokenSource linkedCts)
     {
-        var restored = false;
+        bool restored = false;
 
         Console.CancelKeyPress += (_, e) =>
         {
@@ -124,7 +124,7 @@ public sealed class BackupService
 
     private async Task RestoreRecordAsync(BackupRecord record, CancellationToken cancellationToken)
     {
-        var directory = Path.GetDirectoryName(record.TargetPath);
+        string? directory = Path.GetDirectoryName(record.TargetPath);
         if (!string.IsNullOrEmpty(directory))
         {
             Directory.CreateDirectory(directory);
@@ -142,7 +142,7 @@ public sealed class BackupService
 
     private string GetBackupPath(string targetPath)
     {
-        var sanitized = Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(targetPath))
+        string sanitized = Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(targetPath))
             .Replace("/", "_")
             .Replace("\\", "_");
         return Path.Combine(_backupsDirectory, $"{sanitized}.json");

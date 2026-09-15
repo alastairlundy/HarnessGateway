@@ -1,3 +1,4 @@
+using LmProxy.AgentLauncher.Core.Adapters;
 using LmProxy.AgentLauncher.Core.Backends;
 using LmProxy.AgentLauncher.Core.Settings;
 
@@ -72,11 +73,11 @@ public static class WizardTestHelper
             _isAvailable = isAvailable;
             Metadata = new Core.Adapters.HarnessMetadata(
                 name,
-                Core.Adapters.HarnessKind.Cli,
+                HarnessKind.Cli,
                 requiresModel,
-                InstallHint: $"Install {name}",
+                $"Install {name}",
                 DetectionCommand: null,
-                ConfigFileCandidates: []);
+                []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

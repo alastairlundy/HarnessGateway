@@ -1,4 +1,3 @@
-using TUnit;
 using LmProxy.AgentLauncher.Core.Adapters;
 using LmProxy.AgentLauncher.Core.Configuration;
 using LmProxy.AgentLauncher.Core.Launch;
@@ -16,7 +15,7 @@ public class HarnessMetadataTests
             RequiresModel: true,
             InstallHint: "Install via: npm install -g @anthropic-ai/opencode",
             DetectionCommand: "opencode --version",
-            ConfigFileCandidates: [".opencode/config.json", "~/.config/opencode/config.json"]
+            [".opencode/config.json", "~/.config/opencode/config.json"]
         );
 
         await Assert.That(metadata.Name).IsEqualTo("opencode");
@@ -36,7 +35,7 @@ public class HarnessMetadataTests
             RequiresModel: false,
             InstallHint: "Install from kilo.dev",
             DetectionCommand: null,
-            ConfigFileCandidates: []
+            []
         );
 
         await Assert.That(metadata.DetectionCommand).IsNull();

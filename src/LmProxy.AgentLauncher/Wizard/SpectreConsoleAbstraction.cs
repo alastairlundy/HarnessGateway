@@ -6,23 +6,23 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
 {
     public Task<string> PromptChoiceAsync(string title, IReadOnlyList<ConsoleChoice> choices, CancellationToken cancellationToken = default)
     {
-        var selection = new SelectionPrompt<string>()
+        SelectionPrompt<string> selection = new SelectionPrompt<string>()
             .Title(title)
             .PageSize(10);
 
-        foreach (var choice in choices)
+        foreach (ConsoleChoice choice in choices)
         {
-            var display = choice.Annotation is not null
+            string display = choice.Annotation is not null
                 ? $"{choice.Name} [dim]({choice.Annotation})[/]"
                 : choice.Name;
             selection.AddChoice(display);
         }
 
-        var result = AnsiConsole.Prompt(selection);
+        string result = AnsiConsole.Prompt(selection);
 
-        foreach (var choice in choices)
+        foreach (ConsoleChoice choice in choices)
         {
-            var display = choice.Annotation is not null
+            string display = choice.Annotation is not null
                 ? $"{choice.Name} [dim]({choice.Annotation})[/]"
                 : choice.Name;
             if (result == display)
@@ -36,7 +36,7 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
 
     public Task<string> PromptTextAsync(string prompt, string? defaultValue = null, bool secret = false, CancellationToken cancellationToken = default)
     {
-        var textPrompt = new TextPrompt<string>(prompt)
+        TextPrompt<string> textPrompt = new TextPrompt<string>(prompt)
             .AllowEmpty();
 
         if (defaultValue is not null)
@@ -49,7 +49,7 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
             textPrompt.Secret();
         }
 
-        var result = AnsiConsole.Prompt(textPrompt);
+        string result = AnsiConsole.Prompt(textPrompt);
         return Task.FromResult(result);
     }
 

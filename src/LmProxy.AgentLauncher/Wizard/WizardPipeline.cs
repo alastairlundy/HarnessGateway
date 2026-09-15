@@ -27,34 +27,34 @@ public sealed class WizardPipeline
 
     public async Task<WizardResult?> RunAsync(CancellationToken cancellationToken = default)
     {
-        var settings = _settingsStore.Load();
-        var defaultBackend = ConfigCommand.ResolveDefaultBackend(settings);
+        LauncherSettings settings = _settingsStore.Load();
+        Backend? defaultBackend = ConfigCommand.ResolveDefaultBackend(settings);
 
-        var harnessName = await RunHarnessStepAsync(cancellationToken);
+        string? harnessName = await RunHarnessStepAsync(cancellationToken);
         if (harnessName is null) return null;
 
-        var adapter = _adapters.FirstOrDefault(a =>
+        IHarnessAdapter? adapter = _adapters.FirstOrDefault(a =>
             string.Equals(a.Metadata.Name, harnessName, StringComparison.OrdinalIgnoreCase));
 
-        var endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken);
+        (string? endpoint, ProtocolKind protocol) endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken);
         if (endpointResult.endpoint is null) return null;
 
-        var effectiveBackend = new Backend
+        Backend effectiveBackend = new()
         {
             Name = "wizard",
-            BaseUri = new Uri(endpointResult.endpoint),
+            BaseUri = new(endpointResult.endpoint),
             Protocol = endpointResult.protocol,
             ApiKey = defaultBackend?.ApiKey
         };
 
-        var apiKey = await RunKeyStepAsync(effectiveBackend, defaultBackend, cancellationToken);
+        string? apiKey = await RunKeyStepAsync(effectiveBackend, defaultBackend, cancellationToken);
 
-        var modelStep = new ModelStep(_console, _catalogClient, effectiveBackend);
-        var requiresModel = adapter?.Metadata.RequiresModel ?? false;
-        var savedDefaultModel = defaultBackend?.DefaultModel;
-        var model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken);
+        ModelStep modelStep = new(_console, _catalogClient, effectiveBackend);
+        bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
+        string? savedDefaultModel = defaultBackend?.DefaultModel;
+        string? model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken);
 
-        return new WizardResult(
+        return new(
             AgentName: harnessName,
             Endpoint: endpointResult.endpoint!,
             Protocol: endpointResult.protocol,
@@ -64,13 +64,13 @@ public sealed class WizardPipeline
 
     private async Task<string?> RunHarnessStepAsync(CancellationToken cancellationToken)
     {
-        var choices = new List<ConsoleChoice>();
+        List<ConsoleChoice> choices = new();
 
-        foreach (var adapter in _adapters)
+        foreach (IHarnessAdapter adapter in _adapters)
         {
-            var isAvailable = await adapter.IsAvailableAsync(cancellationToken);
-            var annotation = isAvailable ? null : "(not installed)";
-            choices.Add(new ConsoleChoice(adapter.Metadata.Name, annotation));
+            bool isAvailable = await adapter.IsAvailableAsync(cancellationToken);
+            string? annotation = isAvailable ? null : "(not installed)";
+            choices.Add(new(adapter.Metadata.Name, annotation));
         }
 
         if (choices.Count == 0)
@@ -86,8 +86,8 @@ public sealed class WizardPipeline
         Backend? defaultBackend,
         CancellationToken cancellationToken)
     {
-        var defaultValue = defaultBackend?.BaseUri.ToString().TrimEnd('/');
-        var input = await _console.PromptTextAsync(
+        string? defaultValue = defaultBackend?.BaseUri.ToString().TrimEnd('/');
+        string input = await _console.PromptTextAsync(
             "Endpoint URL:",
             defaultValue: defaultValue,
             cancellationToken: cancellationToken);
@@ -96,7 +96,7 @@ public sealed class WizardPipeline
 
         input = input.Trim();
 
-        var protocol = defaultBackend?.Protocol ?? ProtocolKind.OpenAiChat;
+        ProtocolKind protocol = defaultBackend?.Protocol ?? ProtocolKind.OpenAiChat;
 
         if (defaultBackend is not null &&
             string.Equals(input, defaultValue, StringComparison.OrdinalIgnoreCase))
@@ -104,15 +104,15 @@ public sealed class WizardPipeline
             return (input, protocol);
         }
 
-        var protocolChoices = new List<ConsoleChoice>
+        List<ConsoleChoice> protocolChoices = new()
         {
             new("openai-chat"),
             new("openai-responses"),
             new("anthropic")
         };
 
-        var protocolStr = await _console.PromptChoiceAsync("Protocol:", protocolChoices, cancellationToken);
-        var parsedProtocol = protocolStr switch
+        string protocolStr = await _console.PromptChoiceAsync("Protocol:", protocolChoices, cancellationToken);
+        ProtocolKind parsedProtocol = protocolStr switch
         {
             "openai-chat" => ProtocolKind.OpenAiChat,
             "openai-responses" => ProtocolKind.OpenAiResponses,
@@ -133,7 +133,7 @@ public sealed class WizardPipeline
             return savedBackend.ApiKey;
         }
 
-        var needsKey = effectiveBackend.Protocol switch
+        bool needsKey = effectiveBackend.Protocol switch
         {
             ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses =>
                 Environment.GetEnvironmentVariable("OPENAI_API_KEY") is null,
@@ -147,7 +147,7 @@ public sealed class WizardPipeline
             return null;
         }
 
-        var key = await _console.PromptTextAsync(
+        string key = await _console.PromptTextAsync(
             "API key (will not be saved):",
             secret: true,
             cancellationToken: cancellationToken);
