@@ -1,3 +1,4 @@
+using CliInvoke;
 using CliInvoke.Core;
 using LmProxy.AgentLauncher.Core.Backends;
 using LmProxy.AgentLauncher.Core.Configuration;
@@ -76,21 +77,14 @@ public sealed class PiAdapter : IHarnessAdapter
     {
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo
+            var fileName = OperatingSystem.IsWindows() ? "where" : "which";
+            var config = new ProcessConfiguration(fileName, command)
             {
-                FileName = OperatingSystem.IsWindows() ? "where" : "which",
-                Arguments = command,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
+                OutputRedirection = true
             };
 
-            using var process = System.Diagnostics.Process.Start(psi);
-            if (process is null) return null;
-
-            await process.WaitForExitAsync(cancellationToken);
-            return process.ExitCode == 0 ? command : null;
+            var result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+            return result.ExitCode == 0 ? command : null;
         }
         catch
         {
