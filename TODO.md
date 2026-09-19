@@ -1,4 +1,4 @@
-# TODO — LmProxy.HarnessLauncher
+# TODO — HarnessGateway.Launcher
 
 Deferred decisions and future work, each citing the Decision Ledger (`docs/decisions/DECISIONS-LmProxy-agent-launcher.md#<id>`). Backed by `IMPLEMENTATION-HarnessLauncher.md` §6.
 
@@ -34,7 +34,7 @@ Deferred decisions and future work, each citing the Decision Ledger (`docs/decis
 
 ## Packaging and CLI identity
 
-- [ ] Resolve root-command name (working name `lmlaunch`; `lmproxy` is taken; candidates discussed: `lmp`, `lmcli`) [`#D017`]
+- [ ] Resolve root-command name (working name `harnessgateway`; `lmproxy` is taken; candidates discussed: `lmp`, `lmcli`) [`#D017`]
 - [ ] Unified-CLI rename when proxy-server verbs are added (rename trigger) [`#D017`]
 - [ ] Build and verify two artifact kinds per release in CI (NuGet tool + per-OS binaries) [`#T003`]
 

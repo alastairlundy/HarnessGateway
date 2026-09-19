@@ -1,30 +1,30 @@
-# LmProxy
+# HarnessGateway
 
 ## Installation
 
 ### NuGet tool (cross-platform)
 
 ```bash
-dotnet tool install --global lmlaunch
+dotnet tool install --global harnessgateway
 ```
 
 ### Per-OS binaries
 
-Download the archive for your platform from [GitHub Releases](https://github.com/alast/LmProxy/releases):
+Download the archive for your platform from [GitHub Releases](https://github.com/alast/HarnessGateway/releases):
 
 | Platform | Archive |
 |----------|---------|
-| Linux x64 | `lmlaunch-linux-x64.tar.gz` |
-| Windows x64 | `lmlaunch-win-x64.zip` |
-| macOS x64 | `lmlaunch-osx-x64.tar.gz` |
-| macOS ARM64 | `lmlaunch-osx-arm64.tar.gz` |
+| Linux x64 | `harnessgateway-linux-x64.tar.gz` |
+| Windows x64 | `harnessgateway-win-x64.zip` |
+| macOS x64 | `harnessgateway-osx-x64.tar.gz` |
+| macOS ARM64 | `harnessgateway-osx-arm64.tar.gz` |
 
 Extract the archive and add the directory to your `PATH`.
 
 ## Usage
 
 ```bash
-lmlaunch launch <agent> [--endpoint URL --protocol PROTOCOL] [--model MODEL] [--persist config|model]
+harnessgateway launch <agent> [--endpoint URL --protocol PROTOCOL] [--model MODEL] [--persist config|model]
 ```
 
 ## Exit codes

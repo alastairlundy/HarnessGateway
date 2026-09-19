@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="HarnessGateway.Launcher/HarnessGateway.Launcher.csproj" />
+  <Project Path="HarnessGateway.Launcher.Core/HarnessGateway.Launcher.Core.csproj" />
+  <Project Path="HarnessGateway.Launcher.Tests/HarnessGateway.Launcher.Tests.csproj" />
+</Solution>

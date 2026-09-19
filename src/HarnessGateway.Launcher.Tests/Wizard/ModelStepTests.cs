@@ -1,0 +1,170 @@
+using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Wizard;
+
+namespace HarnessGateway.Launcher.Tests.Wizard;
+
+public class ModelStepTests
+{
+    private static Backend CreateBackend(
+        string endpoint = "https://api.example.com/v1",
+        ProtocolKind protocol = ProtocolKind.OpenAiChat)
+    {
+        return new Backend
+        {
+            Name = "test",
+            BaseUri = new Uri(endpoint),
+            Protocol = protocol
+        };
+    }
+
+    private static Func<Backend, CancellationToken, Task<ModelCatalog>> CreateCatalogFetcher(ModelCatalog catalog)
+    {
+        return (_, _) => Task.FromResult(catalog);
+    }
+
+    [Test]
+    public async Task RunAsync_with_catalog_allows_skip_when_not_required()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+        var catalog = new ModelCatalog(
+        [
+            new ModelCatalogEntry("gpt-4", "GPT-4"),
+            new ModelCatalogEntry("gpt-3.5-turbo", "GPT-3.5 Turbo")
+        ], DateTimeOffset.UtcNow);
+
+        var step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
+        console.EnqueueChoice("[skip]");
+
+        var model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+
+        await Assert.That(model).IsNull();
+    }
+
+    [Test]
+    public async Task RunAsync_with_catalog_blocks_skip_when_required()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+        var catalog = new ModelCatalog(
+        [
+            new ModelCatalogEntry("gpt-4", "GPT-4"),
+            new ModelCatalogEntry("gpt-3.5-turbo", "GPT-3.5 Turbo")
+        ], DateTimeOffset.UtcNow);
+
+        var step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
+        console.EnqueueChoice("gpt-4");
+
+        var model = await step.RunAsync(requiresModel: true, savedDefaultModel: null);
+
+        await Assert.That(model).IsEqualTo("gpt-4");
+    }
+
+    [Test]
+    public async Task RunAsync_with_catalog_prefills_saved_default()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+        var catalog = new ModelCatalog(
+        [
+            new ModelCatalogEntry("gpt-4", "GPT-4"),
+            new ModelCatalogEntry("claude-sonnet-5", "Claude Sonnet")
+        ], DateTimeOffset.UtcNow);
+
+        var step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
+        console.EnqueueChoice("gpt-4");
+
+        var model = await step.RunAsync(requiresModel: false, savedDefaultModel: "gpt-4");
+
+        await Assert.That(model).IsEqualTo("gpt-4");
+    }
+
+    [Test]
+    public async Task RunAsync_degraded_with_saved_default_returns_saved()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+
+        var step = new ModelStep(console, fetchModels: null, backend);
+
+        var model = await step.RunAsync(requiresModel: false, savedDefaultModel: "saved-model");
+
+        await Assert.That(model).IsEqualTo("saved-model");
+        await Assert.That(console.WrittenMessages.Count).IsGreaterThan(0);
+    }
+
+    [Test]
+    public async Task RunAsync_degraded_requires_model_asks_for_input()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+
+        var step = new ModelStep(console, fetchModels: null, backend);
+        console.EnqueueText("manual-model");
+
+        var model = await step.RunAsync(requiresModel: true, savedDefaultModel: null);
+
+        await Assert.That(model).IsEqualTo("manual-model");
+    }
+
+    [Test]
+    public async Task RunAsync_degraded_no_model_required_offers_skip()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+
+        var step = new ModelStep(console, fetchModels: null, backend);
+        console.EnqueueChoice("[skip]");
+
+        var model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+
+        await Assert.That(model).IsNull();
+    }
+
+    [Test]
+    public async Task RunAsync_degraded_manual_entry_returns_model()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+
+        var step = new ModelStep(console, fetchModels: null, backend);
+        console.EnqueueChoice("[manual]");
+        console.EnqueueText("my-custom-model");
+
+        var model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+
+        await Assert.That(model).IsEqualTo("my-custom-model");
+    }
+
+    [Test]
+    public async Task RunAsync_null_fetchModels_degrades_gracefully()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+
+        var step = new ModelStep(console, fetchModels: null, backend);
+        console.EnqueueChoice("[skip]");
+
+        var model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+
+        await Assert.That(model).IsNull();
+    }
+
+    [Test]
+    public async Task RunAsync_fetch_failure_degrades_gracefully()
+    {
+        var console = new TestConsole();
+        var backend = CreateBackend();
+        Func<Backend, CancellationToken, Task<ModelCatalog>> failingFetcher = (_, _) =>
+            throw new HttpRequestException("Connection refused");
+
+        var step = new ModelStep(console, failingFetcher, backend);
+        console.EnqueueChoice("[skip]");
+
+        var model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+
+        await Assert.That(model).IsNull();
+        await Assert.That(console.ErrorMessages).IsNotEmpty();
+    }
+}

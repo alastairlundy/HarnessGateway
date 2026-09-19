@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\HarnessGateway.Launcher.Core\HarnessGateway.Launcher.Core.csproj" />
+        <ProjectReference Include="..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj" />
+    </ItemGroup>
+
+</Project>

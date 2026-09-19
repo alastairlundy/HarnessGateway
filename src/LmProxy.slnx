@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="LmProxy.AgentLauncher/LmProxy.AgentLauncher.csproj" />
-  <Project Path="LmProxy.AgentLauncher.Core/LmProxy.AgentLauncher.Core.csproj" />
-  <Project Path="LmProxy.AgentLauncher.Tests/LmProxy.AgentLauncher.Tests.csproj" />
-</Solution>

@@ -35,7 +35,7 @@ jobs:
 
       - name: Publish binary (${{ matrix.runtime }})
         run: >
-          dotnet publish src/LmProxy.AgentLauncher/LmProxy.AgentLauncher.csproj
+          dotnet publish src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj
           -c Release
           -r ${{ matrix.runtime }}
           --self-contained
@@ -46,17 +46,17 @@ jobs:
         run: |
           cd publish/${{ matrix.runtime }}
           if [[ "${{ matrix.runtime }}" == win-* ]]; then
-            7z a ../lmlaunch-${{ matrix.runtime }}.zip .
+            7z a ../harnessgateway-${{ matrix.runtime }}.zip .
           else
             cd ../
-            tar -czf lmlaunch-${{ matrix.runtime }}.tar.gz -C ${{ matrix.runtime }} .
+            tar -czf harnessgateway-${{ matrix.runtime }}.tar.gz -C ${{ matrix.runtime }} .
           fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: lmlaunch-${{ matrix.runtime }}
-          path: publish/lmlaunch-${{ matrix.runtime }}.*
+          name: harnessgateway-${{ matrix.runtime }}
+          path: publish/harnessgateway-${{ matrix.runtime }}.*
 
   build-nuget:
     runs-on: ubuntu-latest
@@ -70,12 +70,12 @@ jobs:
           global-json-file: global.json
 
       - name: Pack NuGet tool
-        run: dotnet pack src/LmProxy.AgentLauncher/LmProxy.AgentLauncher.csproj -c Release -o artifacts
+        run: dotnet pack src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj -c Release -o artifacts
 
       - name: Upload NuGet package
         uses: actions/upload-artifact@v4
         with:
-          name: lmlaunch-nuget
+          name: harnessgateway-nuget
           path: artifacts/*.nupkg
 
   release:
