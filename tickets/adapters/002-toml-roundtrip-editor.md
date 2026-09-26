@@ -80,7 +80,3 @@ Verify: all round-trip assertions hold on provided fixtures.
 All dependencies are tracked via the `blocked_by` field.
 
 **Blocked by** - None - can start immediately.
-
-## Resolution notes
-
-- **Mechanism (Step 1 owner decision, 2026-09-26): Tomlyn.** The repo owner chose the Tomlyn package over a hand-rolled structural editor. CPM implications honoured: a single `<PackageVersion Include="Tomlyn" Version="2.10.1" />` entry in `src/Directory.Packages.props` plus a versionless `<PackageReference Include="Tomlyn" />` in `src/HarnessGateway.Launcher.Core/HarnessGateway.Launcher.Core.csproj` - no `Version=` on the PackageReference. Implementation: `src/HarnessGateway.Launcher.Core/Toml/TomlDocumentEditor.cs`, built on Tomlyn's full-fidelity `SyntaxParser` tree (`DocumentSyntax`), whose `ToString()` reproduces the source text, so untouched sections round-trip byte-for-byte and edits become a minimal diff.

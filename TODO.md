@@ -34,15 +34,8 @@ Deferred decisions and future work, each citing the Decision Ledger (`docs/decis
 
 ## Packaging and CLI identity
 
-- [ ] Resolve root-command name (working name `harnessgateway`; `lmproxy` is taken; candidates discussed: `lmp`, `lmcli`) [`#D017`]
 - [ ] Unified-CLI rename when proxy-server verbs are added (rename trigger) [`#D017`]
 - [ ] Build and verify two artifact kinds per release in CI (NuGet tool + per-OS binaries) [`#T003`]
-
-## Ecosystem (considered, deliberately not built)
-
-- [ ] Known-backends registry/tree (product names prefilling URL + protocol) layered over the protocol-endpoint model [`#D008`]
-- [ ] JSON-descriptor (data-driven) harness adapters for community contributions [`#T005`], [`#T002`]
-- [ ] Publish adapters as a separate NuGet package when community harnesses arrive [`#T002`]
 
 ## Session housekeeping
 

@@ -570,6 +570,180 @@ Created: 2026-09-09
 - **Normalized Requirement**: Adapters shall accept a LaunchRequest(Backend, Model?, WorkingDirectory) and return a LaunchPlan(CliInvoke ProcessConfiguration, ConfigurationActions), which Core executes directly.
 - **Constraints**: Launch types are coupled to CliInvoke 3.0.0-beta.3's API shape; beta churn re-opens this record.
 
-<!-- next-d: D022 -->
-<!-- next-t: T025 -->
-<!-- next-i: I037 -->
+### [D022] - continuation session goal: Phase 2 scope
+
+- **Driver**: Five TODO items (Codex adapter, Claude Code adapter, warn-and-launch confirmation, `--backend <name>` resolution, backend profile commands + profile-aware handling) were previously grilled but the ledger left them partially or fully open; a new implementation blueprint needs them resolved.
+- **Resolved Answer**: Continue this ledger with Phase 2 grilling for exactly those items, reusing locked architecture records (T005–T024) without re-grilling them; output feeds a new implementation blueprint.
+- **Normalized Requirement**: This session resolves the five open items as appended records and produces an implementation blueprint scoped to those items, citing both new and reused records.
+- **Constraints**: Track: concept-then-implementation inherited (D001), executed as an implementation-only continuation per Gate A/B intake; adapter pattern (T005/T019/T020/T023), backend model (D008/D021), settings schema (T011/T021/T018), exit codes (T012), and persistence scope (T013–T016) are locked and not re-grilled; LmProxy-era names in older records translate to HarnessGateway in blueprints.
+
+### [T025] - Codex adapter spec
+
+- **Driver**: Codex was deferred in v1 (D007), but adding it must not fork the adapter architecture (T005/T020) or weaken the no-lasting-damage guarantee (D011).
+- **Resolved Answer**: Option A — back up `~/.codex/config.toml`, write a launcher-managed `[model_providers.<id>]` block plus top-level `model_provider` and `model` keys, and restore the original on exit.
+- **Normalized Requirement**: The Codex adapter shall publish HarnessMetadata (Name `codex`, Kind Cli, RequiresModel true, SupportedProtocols [openai-responses], ConfigFileCandidates [`~/.codex/config.toml`], DetectionCommand probing `codex` on PATH) and plan one backed-up ConfigFileWriteAction plus key injection via an `env_key`-named EnvironmentVariableAction; the original file is restored on exit and `--persist config` keeps the writes.
+- **Constraints**: Only the `openai-responses` protocol is supported today (Codex `wire_api` accepts only `responses`); protocol-compat enforcement is decided at T028. Respect a user-set `CODEX_HOME` when resolving the config path. TOML edits must preserve comments/structure (round-trip). Key handling: inject the saved key when present, launch without one when absent — no dummy value (D012).
+- **Cites**: D007, D011, D012, T008, T019, T020, T023, T008
+
+### [T026] - Claude Code adapter spec
+
+- **Driver**: Claude Code exposes first-class env-var overrides, so the adapter can configure it without touching durable files — the cleanest fit for the no-lasting-damage principle (D011).
+- **Resolved Answer**: Option A — env-vars only: plan `EnvironmentVariableAction`s for `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` (when a key is saved), and `ANTHROPIC_MODEL` (when a model is chosen); no config-file writes.
+- **Normalized Requirement**: The Claude Code adapter shall publish HarnessMetadata (Name `claude-code`, Kind Cli, RequiresModel false, SupportedProtocols [anthropic], InstallHint documenting npm install, DetectionCommand probing `claude` on PATH, no ConfigFileCandidates) and plan only EnvironmentVariableActions plus an optional `--model` CliArgumentAction.
+- **Constraints**: `ANTHROPIC_AUTH_TOKEN` is used over `ANTHROPIC_API_KEY` because the latter triggers an interactive approval prompt inClaude Code. Notable harness behavior to document: a non-first-party `ANTHROPIC_BASE_URL` disables MCP tool search and Remote Control (research fact, not launcher action). Known disabled behaviors are surfaced in the adapter's install hint/warning text.
+- **Cites**: D011, D012, D013, T019, T020, T023
+
+### [T027] - Missing-declaration behavior (warn-and-launch confirmation)
+
+- **Driver**: No launcher-invented failures (D014 driver): a metadata gap in a future adapter must not silently change launch outcomes nor hard-block a user.
+- **Resolved Answer**: Option A — warn and launch: when a harness's model-requirement declaration is missing, print a visible warning that no model requirement is declared, then launch without a model.
+- **Normalized Requirement**: Direct mode shall print a warning stating the harness has no declared model requirement and proceed to launch; the wizard shall show the same warning at the model step and treat the harness as skippable.
+- **Constraints**: Confirms and closes the open constraint in `#D014`; declared-harness behavior (wizard skip gating, direct-mode required-model warning) is unchanged. No new exit code — a warning is not a failure class.
+- **Cites**: D013, D014, T019
+
+### [T028] - Adapter/protocol compatibility enforcement
+
+- **Driver**: A launch that cannot possibly work should fail before any configuration action, protecting the user's setup (D011/D018 spirit) and not wasting a doomed foreground run (D015).
+- **Resolved Answer**: Option A plus reuse of exit code 3 — if the resolved backend's protocol is not in the chosen harness's SupportedProtocols, fail before any config action with exit code 3 ("unknown agent" generalized to "invalid agent/backend selection").
+- **Normalized Requirement**: Launch shall resolve the selected harness's SupportedProtocols against the chosen backend's protocol and fail with exit code 3, before any configuration action, when they are incompatible; the README exit-code table's code 3 label shall be updated to cover unknown agent and invalid agent/backend selection.
+- **Constraints**: Numeric codes and class ordering in the T012 table are unchanged — only code 3's documented label is broadened. The wizard shall filter (or annotate) harnesses incompatible with the chosen backend's protocol. Wizard step ordering lives in the round-3 wizard branch.
+- **Cites**: D008, D011, D012, D018, T005, T012, T019, T025, T026
+
+### [T029] - `--backend <name>` flag resolution
+
+- **Driver**: Repeated launches against different saved backends should require overriding only what differs, keeping raw-URL escapes intact (T010/T007 principle of explicit, probe-free overrides).
+- **Resolved Answer**: Option B — `--backend <name>` selects a saved backend entry; `--endpoint`/`--protocol`/`--model` then field-by-field override that entry's values; omission of `--backend` keeps the default-pointer backend today.
+- **Normalized Requirement**: Direct `launch` shall accept `--backend <name>` resolving against the saved backends list; a given `--endpoint`, `--protocol`, or `--model` overrides only that field on the resolved backend; the raw-URL rule requires `--endpoint` and `--protocol` together; no protocol probing on the launch path.
+- **Constraints**: Unknown-name behavior is decided at T031. Field-layering precedence: per-launch flag values win over the resolved entry per field; `--endpoint` without `--protocol` (and vice versa) remains a usage error (exit 2). No launch path writes settings (T013/T016 semantics hold for `--backend` launches).
+- **Cites**: D009, T006, T010, T011, T017, T018
+
+### [T030] - Backend profile verbs
+
+- **Driver**: The T011 schema deliberately tolerates multiple entries, and forcing users to hand-edit plaintext JSON that also stores `ApiKey` is unacceptable for profile workflows.
+- **Resolved Answer**: Option A — four `config backend` verbs: `add <name>` (create or update an entry via flags), `switch <name>` (move the default pointer), `list` (show entries and the default), `remove <name>` (delete an entry).
+- **Normalized Requirement**: The CLI shall expose `config backend add|switch|list|remove` operating on the Backends list and DefaultBackend pointer with no settings-file format change; `add`/`switch`/`remove` write settings (non-interactive scope per T016), `list` is read-only.
+- **Constraints**: `switch` semantics are detailed at T032. `add` accepts the same `--endpoint`/`--protocol` field pairings as launch overrides (T029); adding an entry with an existing name replaces it. `remove` of the last remaining entry or of the default backend is decided with the round-3 read-policy branch.
+- **Cites**: D009, D021, T006, T010, T011, T016, T021
+
+### [T031] - Missing backend-name failure
+
+- **Driver**: Unknown-harness and unknown-backend selections are different contract errors — scripts benefit from distinguishing them rather than overloading one class.
+- **Resolved Answer**: Option B — a new exit code 8, "unknown backend name", for unresolvable names on `--backend`, `config backend switch`, and `config backend remove`, with an optional close-match suggestion ("did you mean") when a case-insensitive prefix match or small edit distance exists.
+- **Normalized Requirement**: The CLI shall exit with code 8 when a name-addressing path (`--backend`, `switch`, `remove`) resolves no saved backend entry; the message shall list close matches when any exist; the README exit-code table shall add code 8 as a stable contract row.
+- **Constraints**: Amend the T012-locked table by appending code 8 — no existing code's numeric value, ordering, or documented label changes; the table remains append-only going forward. The wizard never receives a nonexistent name (its picker enumerates the list).
+- **Cites**: T012, T028, T029, T030
+
+### [T032] - `switch` semantics
+
+- **Driver**: One verb, one write: each settings mutation should be a single auditable operation against the T016 non-interactive write scope.
+- **Resolved Answer**: Option A — pure pointer swap: `config backend switch <name>` validates the target exists, writes `DefaultBackend: <name>`, and prints a confirmation echo (`backend '<name>' is now the default`); nothing else changes.
+- **Normalized Requirement**: `config backend switch <name>` shall assign `DefaultBackend` to the named existing entry and print a confirmation; it shall not create, update, or delete entries, and it writes settings only through this non-interactive path (T016).
+- **Constraints**: Updating the pointed-to entry is `add`'s job (T030), not switch's. Unknown names fail per T031 (exit 8). Switching to the already-default entry succeeds with the same confirmation (idempotent, no error).
+- **Cites**: D021, T006, T012, T016, T021, T030
+
+### [T033] - Profile-aware read policy
+
+- **Driver**: The default pointer must stay the single unambiguous source of truth so unflagged launches remain predictable and no silent state change can undermine scripts (D009/D021 principle).
+- **Resolved Answer**: Option A — default-pointer reads with remove guards: with no `--backend`, launch and the wizard resolve `DefaultBackend`; `remove` of the default is refused until a new default is switched to; removing the last remaining entry is refused outright (settings never become backend-less).
+- **Normalized Requirement**: Unflagged launch and wizard flows shall read the backend named by `DefaultBackend` only; `config backend remove` shall refuse to remove the current default (requiring `switch` first) and shall refuse to remove the final remaining entry; wizard endpoint and default-model prefills always come from that resolved entry.
+- **Constraints**: Supersedes the "v1 reads only the default pointer" wording of `#T011` only insofar as multiple entries are now first-class via T030 — the read rule itself (default pointer) is unchanged. No auto-promotion and no first-entry fallback; a dangling `DefaultBackend` (hand-edited file) surfaces as an error directing the user to `config backend switch`. Resolve-of-default refusal is a documented contract via the README and CLI error text.
+- **Cites**: D008, D009, D019, T011, T014, T021, T029, T030, T031, T032
+
+### [T034] - Wizard step ordering under profiles
+
+- **Driver**: The wizard must absorb T028 compatibility and T033 profile reads without breaking the familiar D019 pipeline or prompting users into choices doomed against their backend.
+- **Resolved Answer**: Option B — keep the D019 order (harness → endpoint) and validate after the harness choice: the harness step presents all available harnesses; once a harness is selected, its SupportedProtocols are checked against the resolved default backend's protocol and incompatible pairings re-prompt (annotating why); endpoint key and model steps then proceed as locked.
+- **Normalized Requirement**: The wizard shall preserve the harness → endpoint → key → model step order, resolving the backend from the default pointer (T033) at start, and shall reject harness/backend protocol-incompatible pairings at the harness step with a re-prompt (no third step, no parallel prompting).
+- **Constraints**: Wizard remains write-free (T013/T016). Warn-and-launch applies at the model step per T027 when no declaration exists. Wizard launch uses the resolved default backend for the whole launch; per-launch `--backend` remains direct-mode-only (T029). The direct launch path keeps its own exit-3 pre-check (T028) — the wizard's re-prompt is the interactive counterpart, not a new contract.
+- **Cites**: D013, D014, D019, T005, T012, T013, T019, T025, T026, T027, T028, T033
+
+### [T037] - Codex provider-block collision policy
+
+- **Driver**: The launcher's written provider block must be trivially identifiable for restore/self-heal (T008) and must never silently overwrite user-authored provider definitions (D011).
+- **Resolved Answer**: Option A — the launcher always writes `[model_providers.harnessgateway]`; if the user's config already contains a provider block with that id, fail with an explanatory error before any write.
+- **Normalized Requirement**: The Codex adapter shall write exactly one owned provider block with the fixed id `harnessgateway` (setting `model_provider` to it), and launch shall fail before any configuration action when a pre-existing block uses that id.
+- **Constraints**: Built-in Codex provider ids (`openai`, `ollama`, `lmstudio`) are already reserved by Codex itself, so `harnessgateway` must also never shadow a user block without the explicit pre-write check. Per-backend derived ids rejected: multiple launcher blocks accumulate in user config and complicate restore. Adopt-then-revert rejected: overwriting a user-authored block is the lasting damage D011 forbids.
+- **Cites**: D011, T008, T019, T025
+
+### [T040] - Credential storage hardening
+
+- **Driver**: Profile verbs multiply saved backends, so keeping keys in plaintext JSON would accumulate one plaintext secret per profile — AGENTS.md explicitly forbids making the plaintext TODO worse (D012 Phase 2 arrives now).
+- **Resolved Answer**: Option A — native secure store this phase: keys go to the OS credential store (DPAPI on Windows, Keychain on macOS, Secret Service/keyring on Linux) behind one abstraction; the settings JSON holds no secret material.
+- **Normalized Requirement**: Saved API keys shall be stored only in the platform-native credential store via a single storage abstraction; the settings file shall reference saved keys without containing them; the abstraction shall ship with implementations for all three OS families targeted by releases (T003).
+- **Constraints**: Amend the T018 Backend record semantics: the `ApiKey` field is now a secure-store reference, not plaintext — record shape otherwise unchanged and no SchemaVersion-format change required if the JSON shape stays identical (the split-credentials record shape anticipated in `#D012` is satisfied by this split). Hand-copying settings to another machine no longer carries keys — re-enter them via `config`. Supersedes the plaintext caveat in `#T018`. Migration of existing plaintext keys: migrate-on-read this phase (see T039's schema-migration branch for the general policy).
+- **Cites**: D012, T003, T018, T021, T030
+
+### [T035] - `config backend add` key input
+
+- **Driver**: With the T040 secure store locked, the primary `add` flow should minimize secret-exposure surfaces — shell history is the residual risk, not launcher disk.
+- **Resolved Answer**: Option C — interactive hidden prompt with `--key` fallback: `config backend add <name>` prompts on the terminal with hidden input when no key flag is given; `--key <secret>` remains for non-interactive scripts, pushing the key into the secure store; settings JSON records only the reference.
+- **Normalized Requirement**: `config backend add <name>` shall obtain the key either from `--key <secret>` or from a hidden terminal prompt (when no key flag is given), store it only in the platform credential store (T040), and persist only a reference in the settings JSON.
+- **Constraints**: Keys never land in launcher-controlled plaintext files (T040). `--key` transits argv/shell history once per script invocation — accepted cost, documented in `--help`. Interactive prompt is skipped when `--key` is supplied. A key is optional at `add` (keyless local backends per D012); prompt is shown only when the user first requests a key or explicitly asks to set one.
+- **Cites**: D012, T016, T030, T040
+
+### [T036] - Per-launch key override
+
+- **Driver**: One credential source keeps launches deterministic and keeps the launcher's own contract from putting secrets into shell history.
+- **Resolved Answer**: Option A — saved key only: launch uses the resolved backend entry's secure-store key; there is no per-launch key override; to use a different key, save it on a backend entry via `config backend add`.
+- **Normalized Requirement**: Launch shall source credentials only from the resolved backend entry's stored key; no `--key` flag or environment-variable override exists on the launch path.
+- **Constraints**: Closes the gap surfaced in T029's field-layering review — `--endpoint/--protocol/--model` are overridable, keys are not. Env-var passthrough and launch-time `--key` rejected: shell-history and process-listing exposure. `HARNESSGATEWAY_API_KEY` rejected — masked config mistakes and undocumented contract surface.
+- **Cites**: D012, T029, T035, T040
+
+### [T038] - Fuzzy-hint mechanics (error-text policy)
+
+- **Driver**: The exit-code contract must stay lean and deterministic; cosmetic error text should not freeze into the cross-release contract (T012's stability principle).
+- **Resolved Answer**: Option B — best-effort hint deferral: only exit code 8 and the "unknown backend name '<name>'" message are contract; any "did you mean" suggestion line is non-contractual UX that implementations may improve, change, or omit.
+- **Normalized Requirement**: Name-resolution failures shall exit with code 8 carrying the unknown-name message as documented contract; suggested-match hints shall never be required behavior, never gate resolution outcomes, and never appear in the exit-code table.
+- **Constraints**: Error text is not a compat surface — implementations may refine wording (including adopting Damerau-Levenshtein-based suggestions) without a ledger amendment. Contract remains: exit 8, the unknown-name message format, and the existing success-path messages.
+- **Cites**: T012, T031, T036
+
+### [T039] - Settings migration on SchemaVersion
+
+- **Driver**: Profile verbs and the credential-split both touch settings shape; unupgradable files must not strand users, and untested formats must never be read best-effort.
+- **Resolved Answer**: Option A — migrate forward, refuse newer: migrate any schema older than or equal to the tool's own version automatically on read; refuse a newer `SchemaVersion` with a NEW exit code 9 ("unsupported settings schema version" — append-only amendment to the T012 table).
+- **Normalized Requirement**: Settings load shall migrate older schemas forward on read and shall exit with code 9 when the file's `SchemaVersion` exceeds the tool's; the README exit-code table shall add code 9 as a stable contract row.
+- **Constraints**: Append-only contract rule applies (T031's precedent): no existing code's numeric value, ordering, or label changes; code 7 stays labeled "config/restore failure" and is NOT stretched to cover version refusal. Existing plaintext-key migration is the first concrete migration case (T040: migrate-on-read this phase). Migration is forward-only, irreversible per file, and runs before any read-path behavior (launch or config verbs).
+- **Cites**: D012, T003, T012, T018, T021, T031, T040
+
+### [T041] - Short flag aliases
+
+- **Driver**: Alias weight should be paid only where typing friction is actually felt — direct launch is the only hot path, and model selection is its most frequent repeat input.
+- **Resolved Answer**: Minimal alias set — only `-m` for `--model`; no other short aliases ship this phase (user-provided hybrid: rejected the full core-alias set, adopted just the high-frequency model flag).
+- **Normalized Requirement**: Direct `launch` shall accept `-m` as a short alias of `--model`; no other short flags are defined for launch or config verbs.
+- **Constraints**: Amends the T010 "no short aliases in v1" constraint minimally — `-m` is the sole alias and joins the README flag contract. `-b`, `-e`, `-p`, `-f`, etc. remain undefined; revisit on demand. No alias collisions possible with this single-alias set.
+- **Cites**: T010, T012, T029
+
+### [T042] - Additional `--persist` types
+
+- **Driver**: The persist family should stay as lean as the pre-restructure CLI itself — `config backend switch` already owns default-pointer writes, so a persist shortcut would duplicate an existing write path (T016 scope discipline).
+- **Resolved Answer**: Option A — keep the family closed: `--persist` remains exactly `config|model`; no backend-type or other value joins it this phase; a `--backend` launch cannot persist its own selection.
+- **Normalized Requirement**: `--persist` shall continue to accept only `config` and `model` (T015 semantics unchanged); selecting a non-default backend per launch shall have no settings side effect — changing the default remains `config backend switch`'s job.
+- **Constraints**: Closes the TODO's "additional --persist value types" entry affirmatively — the parameterized form stays as built, with the family explicitly closed rather than left open. A future expansion re-opens this record rather than silently extending the enum (append-only pattern).
+- **Cites**: T015, T016, T029, T030, T032
+
+### [T043] - Real-harness integration test scope
+
+- **Driver**: The T009 fakes strategy was chosen deliberately to avoid networked-agent flakiness; importing real-harness runs into the main gate would trade away that stability for coverage the fakes already approximate.
+- **Resolved Answer**: Option C — defer again: the real-harness integration matrix stays a deferred TODO; this phase ships fakes-only testing per T009.
+- **Normalized Requirement**: This implementation phase shall ship no real-harness integration tests; the TODO entry remains open and unchanged for a future phase.
+- **Constraints**: Deferred by user choice, mirroring T009's original framing — not a rejection of the matrix, just a scoping decision. Adapter contract drift (harness upgrades changing config shapes) remains an accepted release risk until the matrix lands. Re-open when a drift incident or a release-quality concern justifies the suite.
+- **Cites**: T009, T025, T026
+
+### [T044] - HarnessMetadata amendment: SupportedProtocols field
+
+- **Driver**: T025/T026 gave each adapter a `SupportedProtocols` list and T028/T034 enforce against it, but T019's original field enumeration predates the field — the type surface needs traceability.
+- **Resolved Answer**: Amend the T019 HarnessMetadata record to carry a `SupportedProtocols` field alongside Name, Kind, RequiresModel, InstallHint, DetectionCommand, and ConfigFileCandidates.
+- **Normalized Requirement**: The HarnessMetadata record shall include `SupportedProtocols` (the set of ProtocolKind values the harness can target), enforced by launch (T028) and the wizard (T034); non-enumerated protocols cause the pairing failure paths already defined.
+- **Constraints**: Additive amendment to `#T019` — no existing field changes; adapters for Codex (openai-responses only) and Claude Code (anthropic only) populate it per their spec records. Enforcing sites cite T028 (direct mode) and T034 (wizard).
+- **Cites**: T019, T025, T026, T028, T034
+
+### [I037] - dangling DefaultBackend exit-code choice
+
+- **Prompt**: While decomposing the Phase 2 blueprint I hit one gap the ledger does not fix: T033 says a hand-edited settings file whose `DefaultBackend` names no saved entry must error and direct the user to `config backend switch`, but no exit code is tied to that error (T031's code 8 scope lists only `--backend`, `switch`, and `remove`; T039 forbids stretching code 7). Which exit code should the dangling-default launch failure use?
+- **User Response**: "Reuse exit 8" — treat any unresolvable backend-name reference, including a hand-edited dangling `DefaultBackend`, as the code 8 "unknown backend name" failure class, with error text directing the user to `config backend switch`.
+- **Resolution**: The dangling-default read failure (T033) is implemented as exit code 8 per T031's generalization established here; TK006's acceptance criteria bind code 8 to `--backend`, `switch`, `remove`, and the dangling-default read; the README code-8 row's wording covers unresolvable name references. No new table row needed.
+- **Notes**: Minor CLI-contract interpretation confirmed by the user in the decomposition session; T038's non-contractual hint policy still applies to phrasing. Closing constraint restated in TK006.
+
+<!-- next-d: D023 -->
+<!-- next-t: T045 -->
+<!-- next-i: I038 -->
