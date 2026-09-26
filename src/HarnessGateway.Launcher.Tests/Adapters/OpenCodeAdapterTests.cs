@@ -59,6 +59,20 @@ public class OpenCodeAdapterTests
     }
 
     [Test]
+    public async Task Metadata_declares_supported_protocols()
+    {
+        var adapter = new OpenCodeAdapter();
+
+        await Assert.That(adapter.Metadata.SupportedProtocols).IsEquivalentTo(
+            new[]
+            {
+                ProtocolKind.OpenAiChat,
+                ProtocolKind.OpenAiResponses,
+                ProtocolKind.Anthropic
+            });
+    }
+
+    [Test]
     public async Task IsAvailable_returns_true_when_on_path()
     {
         var adapter = new OpenCodeAdapter((string _, CancellationToken _) => Task.FromResult<string?>("opencode"));

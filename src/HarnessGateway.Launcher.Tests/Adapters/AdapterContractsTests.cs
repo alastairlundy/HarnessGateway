@@ -15,7 +15,11 @@ public class HarnessMetadataTests
             RequiresModel: true,
             InstallHint: "Install via: npm install -g @anthropic-ai/opencode",
             DetectionCommand: "opencode --version",
-            [".opencode/config.json", "~/.config/opencode/config.json"]
+            [".opencode/config.json", "~/.config/opencode/config.json"],
+            SupportedProtocols: new HashSet<Core.Backends.ProtocolKind>
+            {
+                Core.Backends.ProtocolKind.OpenAiChat
+            }
         );
 
         await Assert.That(metadata.Name).IsEqualTo("opencode");
@@ -24,6 +28,8 @@ public class HarnessMetadataTests
         await Assert.That(metadata.InstallHint).IsEqualTo("Install via: npm install -g @anthropic-ai/opencode");
         await Assert.That(metadata.DetectionCommand).IsEqualTo("opencode --version");
         await Assert.That(metadata.ConfigFileCandidates).Count().IsEqualTo(2);
+        await Assert.That(metadata.SupportedProtocols)
+            .IsEquivalentTo(new[] { Core.Backends.ProtocolKind.OpenAiChat });
     }
 
     [Test]
@@ -35,11 +41,36 @@ public class HarnessMetadataTests
             RequiresModel: false,
             InstallHint: "Install from kilo.dev",
             DetectionCommand: null,
-            []
+            [],
+            new HashSet<Core.Backends.ProtocolKind>()
         );
 
         await Assert.That(metadata.DetectionCommand).IsNull();
         await Assert.That(metadata.ConfigFileCandidates).IsEmpty();
+        await Assert.That(metadata.SupportedProtocols).IsEmpty();
+    }
+
+    [Test]
+    public async Task HarnessMetadata_declares_only_the_protocols_it_is_given()
+    {
+        var metadata = new HarnessMetadata(
+            Name: "claude-code",
+            Kind: HarnessKind.Cli,
+            RequiresModel: false,
+            InstallHint: "Install via: npm i -g @anthropic-ai/claude-code",
+            DetectionCommand: "claude --version",
+            [],
+            new HashSet<Core.Backends.ProtocolKind>
+            {
+                Core.Backends.ProtocolKind.Anthropic
+            }
+        );
+
+        await Assert.That(metadata.SupportedProtocols).Contains(Core.Backends.ProtocolKind.Anthropic);
+        await Assert.That(metadata.SupportedProtocols)
+            .DoesNotContain(Core.Backends.ProtocolKind.OpenAiChat);
+        await Assert.That(metadata.SupportedProtocols)
+            .DoesNotContain(Core.Backends.ProtocolKind.OpenAiResponses);
     }
 
     [Test]

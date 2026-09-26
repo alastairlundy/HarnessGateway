@@ -46,6 +46,20 @@ public class PiAdapterTests
     }
 
     [Test]
+    public async Task Metadata_declares_supported_protocols()
+    {
+        var adapter = new PiAdapter();
+
+        await Assert.That(adapter.Metadata.SupportedProtocols).IsEquivalentTo(
+            new[]
+            {
+                ProtocolKind.OpenAiChat,
+                ProtocolKind.OpenAiResponses,
+                ProtocolKind.Anthropic
+            });
+    }
+
+    [Test]
     public async Task IsAvailable_returns_true_when_on_path()
     {
         var adapter = new PiAdapter((string _, CancellationToken _) => Task.FromResult<string?>("pi"));

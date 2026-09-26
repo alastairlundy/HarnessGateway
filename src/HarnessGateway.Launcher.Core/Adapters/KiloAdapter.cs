@@ -14,7 +14,13 @@ public sealed class KiloAdapter : IHarnessAdapter
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @kilocode/cli",
         DetectionCommand: "kilo --version",
-        ConfigFileCandidates: ["kilo.json"]);
+        ConfigFileCandidates: ["kilo.json"],
+        SupportedProtocols: new HashSet<ProtocolKind>
+        {
+            ProtocolKind.OpenAiChat,
+            ProtocolKind.OpenAiResponses,
+            ProtocolKind.Anthropic
+        });
 
     private readonly Func<string, CancellationToken, Task<string?>> _detectCommand;
 

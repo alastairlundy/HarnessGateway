@@ -1,3 +1,5 @@
+using HarnessGateway.Launcher.Core.Backends;
+
 namespace HarnessGateway.Launcher.Core.Adapters;
 
 public sealed record HarnessMetadata(
@@ -6,4 +8,5 @@ public sealed record HarnessMetadata(
     bool RequiresModel,
     string InstallHint,
     string? DetectionCommand,
-    IReadOnlyList<string> ConfigFileCandidates);
+    IReadOnlyList<string> ConfigFileCandidates,
+    IReadOnlySet<ProtocolKind> SupportedProtocols);

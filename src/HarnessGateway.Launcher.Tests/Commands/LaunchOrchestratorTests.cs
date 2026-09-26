@@ -277,6 +277,13 @@ public class LaunchOrchestratorTests
         }
     }
 
+    private static readonly HashSet<ProtocolKind> AllProtocols =
+    [
+        ProtocolKind.OpenAiChat,
+        ProtocolKind.OpenAiResponses,
+        ProtocolKind.Anthropic
+    ];
+
     private class TestLaunchRunner : ILaunchRunner
     {
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
@@ -301,7 +308,8 @@ public class LaunchOrchestratorTests
                 requiresModel,
                 installHint,
                 DetectionCommand: null,
-                []);
+                [],
+                AllProtocols);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
@@ -332,7 +340,8 @@ public class LaunchOrchestratorTests
             RequiresModel: false,
             InstallHint: "N/A",
             DetectionCommand: null,
-            []);
+            [],
+            AllProtocols);
 
         public ConfigWritingAdapter(string configFile)
         {

@@ -14,7 +14,13 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
         RequiresModel: true,
         InstallHint: "Install via: npm i -g opencode-ai",
         DetectionCommand: "opencode --version",
-        ConfigFileCandidates: ["opencode.json"]);
+        ConfigFileCandidates: ["opencode.json"],
+        SupportedProtocols: new HashSet<ProtocolKind>
+        {
+            ProtocolKind.OpenAiChat,
+            ProtocolKind.OpenAiResponses,
+            ProtocolKind.Anthropic
+        });
 
     private readonly Func<string, CancellationToken, Task<string?>> _detectCommand;
 

@@ -14,7 +14,13 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @github/copilot",
         DetectionCommand: "copilot --version",
-        ConfigFileCandidates: []);
+        ConfigFileCandidates: [],
+        SupportedProtocols: new HashSet<ProtocolKind>
+        {
+            ProtocolKind.OpenAiChat,
+            ProtocolKind.OpenAiResponses,
+            ProtocolKind.Anthropic
+        });
 
     private readonly Func<string, CancellationToken, Task<string?>> _detectCommand;
 

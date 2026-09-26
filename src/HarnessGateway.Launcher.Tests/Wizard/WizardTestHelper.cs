@@ -77,7 +77,13 @@ public static class WizardTestHelper
                 requiresModel,
                 $"Install {name}",
                 DetectionCommand: null,
-                []);
+                [],
+                new HashSet<Core.Backends.ProtocolKind>
+                {
+                    Core.Backends.ProtocolKind.OpenAiChat,
+                    Core.Backends.ProtocolKind.OpenAiResponses,
+                    Core.Backends.ProtocolKind.Anthropic
+                });
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

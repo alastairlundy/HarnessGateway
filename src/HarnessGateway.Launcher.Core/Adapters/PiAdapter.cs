@@ -14,7 +14,13 @@ public sealed class PiAdapter : IHarnessAdapter
         RequiresModel: false,
         InstallHint: "Install via: npm i -g @earendil-works/pi-coding-agent",
         DetectionCommand: "pi --version",
-        ConfigFileCandidates: []);
+        ConfigFileCandidates: [],
+        SupportedProtocols: new HashSet<ProtocolKind>
+        {
+            ProtocolKind.OpenAiChat,
+            ProtocolKind.OpenAiResponses,
+            ProtocolKind.Anthropic
+        });
 
     private readonly Func<string, CancellationToken, Task<string?>> _detectCommand;
 
