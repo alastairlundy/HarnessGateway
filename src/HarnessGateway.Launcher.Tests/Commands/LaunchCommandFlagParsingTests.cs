@@ -37,6 +37,44 @@ public class LaunchCommandFlagParsingTests
     }
 
     [Test]
+    public async Task Parse_model_short_alias()
+    {
+        var command = new LaunchCommand();
+        var result = command.Parse("launch opencode -m gpt-4");
+
+        await Assert.That(result.Errors).IsEmpty();
+        await Assert.That(result.GetValue(LaunchCommand.ModelOption)).IsEqualTo("gpt-4");
+    }
+
+    [Test]
+    public async Task Parse_model_short_alias_is_equivalent_to_long_form()
+    {
+        var command = new LaunchCommand();
+        var shortForm = command.Parse("launch opencode -m claude-sonnet-5");
+        var longForm = command.Parse("launch opencode --model claude-sonnet-5");
+
+        await Assert.That(shortForm.Errors).IsEmpty();
+        await Assert.That(shortForm.GetValue(LaunchCommand.ModelOption))
+            .IsEqualTo(longForm.GetValue(LaunchCommand.ModelOption));
+    }
+
+    [Test]
+    public async Task Model_option_has_m_as_its_only_alias()
+    {
+        await Assert.That(LaunchCommand.ModelOption.Name).IsEqualTo("--model");
+        await Assert.That(LaunchCommand.ModelOption.Aliases.Count).IsEqualTo(1);
+        await Assert.That(LaunchCommand.ModelOption.Aliases).Contains("-m");
+    }
+
+    [Test]
+    public async Task Other_launch_options_have_no_short_aliases()
+    {
+        await Assert.That(LaunchCommand.EndpointOption.Aliases).IsEmpty();
+        await Assert.That(LaunchCommand.ProtocolOption.Aliases).IsEmpty();
+        await Assert.That(LaunchCommand.PersistOption.Aliases).IsEmpty();
+    }
+
+    [Test]
     public async Task Parse_persist_single_value()
     {
         var command = new LaunchCommand();

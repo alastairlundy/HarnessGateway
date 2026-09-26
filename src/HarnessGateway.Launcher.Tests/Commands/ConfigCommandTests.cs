@@ -30,6 +30,26 @@ public class ConfigCommandTests
     }
 
     [Test]
+    public async Task Config_verbs_define_no_short_aliases()
+    {
+        var cmd = new ConfigCommand(CreateSettingsStore(CreateTempDir()));
+
+        var subcommands = cmd.Subcommands.ToList();
+        await Assert.That(subcommands).IsNotEmpty();
+
+        foreach (var sub in subcommands)
+        {
+            await Assert.That(sub.Aliases).IsEmpty();
+            foreach (var option in sub.Options)
+            {
+                await Assert.That(option.Aliases).IsEmpty();
+            }
+        }
+
+        await Assert.That(cmd.Options).IsEmpty();
+    }
+
+    [Test]
     public async Task ResolveDefaultBackend_returns_default_backend_by_name()
     {
         var settings = new LauncherSettings

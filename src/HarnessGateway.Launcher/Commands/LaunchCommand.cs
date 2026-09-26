@@ -20,7 +20,7 @@ public sealed class LaunchCommand : Command
         Description = "Override the backend protocol (openai-chat, openai-responses, anthropic)"
     };
 
-    public static readonly Option<string?> ModelOption = new("--model")
+    public static readonly Option<string?> ModelOption = new("--model", "-m")
     {
         Description = "Override the model to use for this launch"
     };

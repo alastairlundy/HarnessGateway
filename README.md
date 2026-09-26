@@ -24,8 +24,10 @@ Extract the archive and add the directory to your `PATH`.
 ## Usage
 
 ```bash
-harnessgateway launch <agent> [--endpoint URL --protocol PROTOCOL] [--model MODEL] [--persist config|model]
+harnessgateway launch <agent> [--endpoint URL --protocol PROTOCOL] [--model MODEL | -m MODEL] [--persist config|model]
 ```
+
+`-m` is the short alias for `--model`; no other short flags are defined.
 
 ## Exit codes
 
