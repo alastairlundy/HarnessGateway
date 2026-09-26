@@ -52,6 +52,55 @@ public class LaunchOrchestratorTests
         return new TestHarnessAdapter(name, isAvailable, requiresModel, installHint);
     }
 
+    private static (LaunchOrchestrator orchestrator, string tempDir, string codexHome, string configPath, string backupsDir)
+        CreateCodexOrchestrator(
+            string? originalConfig = null,
+            bool codexAvailable = true,
+            string? apiKey = null,
+            ILaunchRunner? runner = null)
+    {
+        var tempDir = CreateTempDir();
+        var codexHome = Path.Combine(tempDir, "codex-home");
+        Directory.CreateDirectory(codexHome);
+        var configPath = Path.Combine(codexHome, "config.toml");
+        if (originalConfig is not null)
+        {
+            File.WriteAllText(configPath, originalConfig);
+        }
+
+        var settingsDir = Path.Combine(tempDir, "settings");
+        Directory.CreateDirectory(settingsDir);
+        var backupsDir = Path.Combine(tempDir, "backups");
+        Directory.CreateDirectory(backupsDir);
+
+        var settingsStore = new SettingsStore(settingsDir);
+        settingsStore.Save(new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "codex-backend",
+                    BaseUri = new Uri("https://api.example.com/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses,
+                    ApiKey = apiKey
+                }
+            ],
+            DefaultBackend = "codex-backend"
+        });
+
+        var adapter = new CodexAdapter(
+            (_, _) => Task.FromResult<string?>(codexAvailable ? "codex" : null),
+            name => name == "CODEX_HOME" ? codexHome : null);
+
+        var orchestrator = new LaunchOrchestrator(
+            settingsStore,
+            new BackupService(backupsDir),
+            runner ?? new TestLaunchRunner(),
+            [adapter]);
+        return (orchestrator, tempDir, codexHome, configPath, backupsDir);
+    }
+
     [Test]
     public async Task RunAsync_unknown_agent_returns_exit_code_3()
     {
@@ -284,11 +333,169 @@ public class LaunchOrchestratorTests
         ProtocolKind.Anthropic
     ];
 
+    [Test]
+    public async Task RunAsync_codex_launch_writes_config_then_restores_on_exit()
+    {
+        const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";
+        string configPath = string.Empty;
+        string? contentDuringLaunch = null;
+        string? envDuringLaunch = null;
+        var runner = new CallbackLaunchRunner(_ =>
+        {
+            contentDuringLaunch = File.ReadAllText(configPath);
+            envDuringLaunch = Environment.GetEnvironmentVariable(CodexAdapter.EnvKeyName);
+            return Task.FromResult(0);
+        });
+
+        var (orchestrator, tempDir, _, path, _) = CreateCodexOrchestrator(
+            originalConfig: originalConfig,
+            apiKey: "sk-codex",
+            runner: runner);
+        configPath = path;
+
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "codex",
+                null, null, "gpt-5", [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            // The launch saw the launcher-owned provider block...
+            await Assert.That(contentDuringLaunch).IsNotNull();
+            await Assert.That(contentDuringLaunch!).Contains("[model_providers.harnessgateway]");
+            await Assert.That(contentDuringLaunch!).Contains("model_provider = \"harnessgateway\"");
+            // ...and the saved key injected under the env_key variable's name.
+            await Assert.That(envDuringLaunch).IsEqualTo("sk-codex");
+
+            // Without --persist config the original file is restored on exit.
+            var finalContent = await File.ReadAllTextAsync(configPath);
+            await Assert.That(finalContent).IsEqualTo(originalConfig);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(CodexAdapter.EnvKeyName, null);
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_codex_persist_config_keeps_the_write()
+    {
+        const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";
+        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+            originalConfig: originalConfig);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "codex",
+                null, null, "gpt-5",
+                ["config"],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+
+            var content = await File.ReadAllTextAsync(configPath);
+            await Assert.That(content).Contains("[model_providers.harnessgateway]");
+            await Assert.That(content).Contains("model_provider = \"harnessgateway\"");
+            // Persisting consumed the backup marker.
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_codex_collision_fails_before_any_write()
+    {
+        const string userOwnedConfig =
+            "# my provider block\n"
+            + "[model_providers.harnessgateway]\n"
+            + "name = \"Mine\"\n"
+            + "base_url = \"https://mine.example/v1\"\n"
+            + "env_key = \"MINE_KEY\"\n"
+            + "wire_api = \"responses\"\n";
+        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+            originalConfig: userOwnedConfig);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "codex",
+                null, null, "gpt-5", [],
+                tempDir);
+
+            // The adapter refuses during planning, so the launch fails and no write
+            // (and therefore no backup marker) ever happens.
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
+            var content = await File.ReadAllTextAsync(configPath);
+            await Assert.That(content).IsEqualTo(userOwnedConfig);
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_codex_self_heal_restores_leftover_backup()
+    {
+        const string originalConfig = "# original codex config\n";
+        const string corrupted = "leftover launch write\n";
+        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+            originalConfig: corrupted,
+            codexAvailable: false);
+
+        try
+        {
+            // Simulate a crash: a leftover, un-persisted backup marker for the Codex write.
+            var record = new BackupRecord(
+                configPath,
+                System.Text.Encoding.UTF8.GetBytes(originalConfig),
+                Persisted: false);
+            var leftoverPath = Path.Combine(backupsDir, "leftover.json");
+            await File.WriteAllTextAsync(leftoverPath, System.Text.Json.JsonSerializer.Serialize(record));
+
+            var exitCode = await orchestrator.RunAsync(
+                "codex",
+                null, null, null, [],
+                tempDir);
+
+            // Self-heal runs before anything else, so the original config is back even
+            // though the launch itself never reached the plan (harness unavailable).
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.HarnessUnavailable);
+            var content = await File.ReadAllTextAsync(configPath);
+            await Assert.That(content).IsEqualTo(originalConfig);
+            await Assert.That(File.Exists(leftoverPath)).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     private class TestLaunchRunner : ILaunchRunner
     {
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(0);
+        }
+    }
+
+    private class CallbackLaunchRunner : ILaunchRunner
+    {
+        private readonly Func<LaunchPlan, Task<int>> _onRun;
+
+        public CallbackLaunchRunner(Func<LaunchPlan, Task<int>> onRun)
+        {
+            _onRun = onRun;
+        }
+
+        public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return _onRun(plan);
         }
     }
 
