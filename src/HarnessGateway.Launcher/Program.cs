@@ -12,8 +12,7 @@ List<IHarnessAdapter> adapters =
     new OpenCodeAdapter(),
     new KiloAdapter(),
     new CopilotCliAdapter(),
-    new PiAdapter(),
-    new CodexAdapter()
+    new PiAdapter()
 ];
 
 SettingsStore settingsStore = new();

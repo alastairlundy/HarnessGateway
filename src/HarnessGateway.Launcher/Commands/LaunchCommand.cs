@@ -7,7 +7,7 @@ public sealed class LaunchCommand : Command
 {
     public static readonly Argument<string> AgentArgument = new("agent")
     {
-        Description = "The agent harness to launch (opencode, kilo, copilot, pi, codex)"
+        Description = "The agent harness to launch (opencode, kilo, copilot, pi)"
     };
 
     public static readonly Option<string?> EndpointOption = new("--endpoint")
