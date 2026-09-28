@@ -384,7 +384,7 @@ public class LaunchOrchestratorTests
         var runner = new CallbackLaunchRunner(plan =>
         {
             contentDuringLaunch = File.ReadAllText(configPath);
-            // The saved key rides on the plan's process configuration (T045), scoped
+            // The saved key rides on the plan's process configuration, scoped
             // to the spawned codex process under the env_key variable's name.
             plan.Process.EnvironmentVariables.TryGetValue(
                 CodexAdapter.EnvKeyName,
@@ -500,7 +500,7 @@ public class LaunchOrchestratorTests
                 null, null, "gpt-5", [],
                 tempDir);
 
-            // T028: protocol compatibility is enforced by the launch path, before any
+            // Protocol compatibility is enforced by the launch path, before any
             // configuration action, using the unknown-agent/invalid-selection exit code.
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownAgent);
             var content = await File.ReadAllTextAsync(configPath);

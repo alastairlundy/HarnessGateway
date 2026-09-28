@@ -115,7 +115,7 @@ public class ConfigurationActionTests
     [Test]
     public async Task ConfigurationAction_is_abstract_base()
     {
-        // T045: the closed family is exactly CliArgumentAction and ConfigFileWriteAction;
+        // The closed family is exactly CliArgumentAction and ConfigFileWriteAction;
         // env vars ride on LaunchPlan.Process.EnvironmentVariables.
         ConfigurationAction cli = new CliArgumentAction("--flag", null);
         ConfigurationAction file = new ConfigFileWriteAction("/tmp", "content");

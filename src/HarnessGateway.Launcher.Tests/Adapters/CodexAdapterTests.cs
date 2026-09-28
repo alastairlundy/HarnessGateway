@@ -183,7 +183,7 @@ public class CodexAdapterTests
             await Assert.That(((ConfigFileWriteAction)fileWrite).TargetPath).IsEqualTo(configPath);
 
             // The saved key is scoped to the spawned codex process via the plan's
-            // process configuration, under the env_key variable's name (T045).
+            // process configuration, under the env_key variable's name.
             await Assert.That(plan.Process.EnvironmentVariables[CodexAdapter.EnvKeyName])
                 .IsEqualTo("sk-live");
 

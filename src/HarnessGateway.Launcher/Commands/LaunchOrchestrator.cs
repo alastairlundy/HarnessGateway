@@ -57,7 +57,7 @@ public sealed class LaunchOrchestrator
                 return (int)LaunchExitCode.HarnessUnavailable;
             }
 
-            // T028: fail before any configuration action when the resolved backend's
+            // Fail before any configuration action when the resolved backend's
             // protocol is not supported by the chosen harness.
             if (backend is not null
                 && !adapter.Metadata.SupportedProtocols.Contains(backend.Protocol))

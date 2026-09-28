@@ -59,7 +59,7 @@ public sealed class CodexAdapter : IHarnessAdapter
         var editor = TomlDocumentEditor.Parse(existing);
         if (editor.NameInUse(ProviderBlockName))
         {
-            // T037: refuse before any write - never adopt or overwrite a user-authored block.
+            // Refuse before any write - never adopt or overwrite a user-authored block.
             throw new LaunchRefusalException(
                 $"Refusing to launch codex: '{configPath}' already defines a '{ProviderBlockName}' provider. " +
                 "The launcher writes its own provider under the id 'harnessgateway' and never adopts or " +
@@ -80,8 +80,8 @@ public sealed class CodexAdapter : IHarnessAdapter
             editor.SetTopLevelValue("model", request.Model);
         }
 
-        // D012: inject the saved key only when one exists; never a dummy value. The
-        // key is scoped to the spawned codex process (T045) - codex reads it from
+        // Inject the saved key only when one exists; never a dummy value. The
+        // key is scoped to the spawned codex process - codex reads it from
         // the environment variable named by the config block's env_key.
         var envVars = new Dictionary<string, string>();
         if (request.Backend.ApiKey is { Length: > 0 })
