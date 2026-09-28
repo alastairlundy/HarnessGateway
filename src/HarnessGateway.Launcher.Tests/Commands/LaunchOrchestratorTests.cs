@@ -47,9 +47,10 @@ public class LaunchOrchestratorTests
         string name = "TestAgent",
         bool isAvailable = true,
         bool requiresModel = false,
-        string installHint = "Install via: test-install")
+        string installHint = "Install via: test-install",
+        IReadOnlySet<ProtocolKind>? supportedProtocols = null)
     {
-        return new TestHarnessAdapter(name, isAvailable, requiresModel, installHint);
+        return new TestHarnessAdapter(name, isAvailable, requiresModel, installHint, supportedProtocols);
     }
 
     private static (LaunchOrchestrator orchestrator, string tempDir, string codexHome, string configPath, string backupsDir)
@@ -514,6 +515,85 @@ public class LaunchOrchestratorTests
     }
 
     [Test]
+    public async Task RunAsync_incompatible_pairing_fails_with_exit_3_before_any_write()
+    {
+        // Fake harness that only speaks openai-chat, pointed at an anthropic backend.
+        var adapter = CreateTestAdapter(
+            supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "anthropic-backend",
+                    BaseUri = new Uri("https://api.anthropic.com"),
+                    Protocol = ProtocolKind.Anthropic
+                }
+            ],
+            DefaultBackend = "anthropic-backend"
+        };
+
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null, null, null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownAgent);
+            // Refused before planning, so no configuration action ever ran:
+            // the adapter never saw a request and no backup marker exists.
+            await Assert.That(adapter.LastRequest).IsNull();
+            await Assert.That(Directory.GetFiles(Path.Combine(tempDir, "backups"))).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_compatible_pairing_with_restricted_adapter_still_launches()
+    {
+        // Same restricted fake harness, but the backend protocol matches.
+        var adapter = CreateTestAdapter(
+            supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "openai-backend",
+                    BaseUri = new Uri("https://api.openai.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                }
+            ],
+            DefaultBackend = "openai-backend"
+        };
+
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null, null, null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(Directory.GetFiles(Path.Combine(tempDir, "backups"))).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task RunAsync_codex_self_heal_restores_leftover_backup()
     {
         const string originalConfig = "# original codex config\n";
@@ -667,7 +747,12 @@ public class LaunchOrchestratorTests
         public HarnessMetadata Metadata { get; }
         public LaunchRequest? LastRequest { get; private set; }
 
-        public TestHarnessAdapter(string name, bool isAvailable, bool requiresModel, string installHint)
+        public TestHarnessAdapter(
+            string name,
+            bool isAvailable,
+            bool requiresModel,
+            string installHint,
+            IReadOnlySet<ProtocolKind>? supportedProtocols = null)
         {
             _isAvailable = isAvailable;
             Metadata = new HarnessMetadata(
@@ -677,7 +762,7 @@ public class LaunchOrchestratorTests
                 installHint,
                 DetectionCommand: null,
                 [],
-                AllProtocols);
+                supportedProtocols ?? AllProtocols);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

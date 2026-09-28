@@ -35,7 +35,7 @@ harnessgateway launch <agent> [--endpoint URL --protocol PROTOCOL] [--model MODE
 |------|------|---------|
 | 0 | Ok | Command succeeded |
 | 2 | UsageError | Invalid arguments or missing required options |
-| 3 | UnknownAgent | Requested agent harness is not recognised, or the selected backend's protocol is not supported by that harness |
+| 3 | UnknownAgent | Unknown agent / invalid agent-backend selection: requested agent harness is not recognised, or the selected backend's protocol is not supported by that harness |
 | 4 | HarnessUnavailable | Agent harness binary not found on PATH |
 | 5 | EndpointUnreachable | Backend endpoint could not be reached |
 | 6 | RequiredModelMissing | No model was specified and no default is configured |
