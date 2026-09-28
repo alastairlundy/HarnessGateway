@@ -102,6 +102,46 @@ public class LaunchOrchestratorTests
         return (orchestrator, tempDir, codexHome, configPath, backupsDir);
     }
 
+    private static (LaunchOrchestrator orchestrator, string tempDir, string backupsDir)
+        CreateClaudeOrchestrator(
+            bool available = true,
+            string? apiKey = null,
+            ILaunchRunner? runner = null)
+    {
+        var tempDir = CreateTempDir();
+        var settingsDir = Path.Combine(tempDir, "settings");
+        Directory.CreateDirectory(settingsDir);
+        var backupsDir = Path.Combine(tempDir, "backups");
+        Directory.CreateDirectory(backupsDir);
+
+        var settingsStore = new SettingsStore(settingsDir);
+        settingsStore.Save(new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "claude-backend",
+                    BaseUri = new Uri("https://api.example.com"),
+                    Protocol = ProtocolKind.Anthropic,
+                    ApiKey = apiKey
+                }
+            ],
+            DefaultBackend = "claude-backend"
+        });
+
+        // Fake detection delegate: availability never touches the real PATH.
+        var adapter = new ClaudeCodeAdapter(
+            (_, _) => Task.FromResult<string?>(available ? "claude" : null));
+
+        var orchestrator = new LaunchOrchestrator(
+            settingsStore,
+            new BackupService(backupsDir),
+            runner ?? new TestLaunchRunner(),
+            [adapter]);
+        return (orchestrator, tempDir, backupsDir);
+    }
+
     [Test]
     public async Task RunAsync_unknown_agent_returns_exit_code_3()
     {
@@ -503,6 +543,93 @@ public class LaunchOrchestratorTests
             var content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).IsEqualTo(originalConfig);
             await Assert.That(File.Exists(leftoverPath)).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_claude_code_launch_plans_env_vars_only_and_creates_no_backups()
+    {
+        LaunchPlan? planDuringLaunch = null;
+        var runner = new CallbackLaunchRunner(plan =>
+        {
+            planDuringLaunch = plan;
+            return Task.FromResult(0);
+        });
+
+        var (orchestrator, tempDir, backupsDir) = CreateClaudeOrchestrator(
+            apiKey: "sk-claude",
+            runner: runner);
+
+        try
+        {
+            // Agent lookup resolves Metadata.Name case-insensitively.
+            var exitCode = await orchestrator.RunAsync(
+                "CLAUDE-CODE",
+                null, null, "claude-sonnet-5", [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(planDuringLaunch).IsNotNull();
+
+            var env = planDuringLaunch!.Process.EnvironmentVariables;
+            await Assert.That(env["ANTHROPIC_BASE_URL"]).IsEqualTo("https://api.example.com");
+            await Assert.That(env["ANTHROPIC_AUTH_TOKEN"]).IsEqualTo("sk-claude");
+            await Assert.That(env["ANTHROPIC_MODEL"]).IsEqualTo("claude-sonnet-5");
+            // Token variable choice, locked end to end: never ANTHROPIC_API_KEY.
+            await Assert.That(env.ContainsKey("ANTHROPIC_API_KEY")).IsFalse();
+
+            var cliArgs = planDuringLaunch.ConfigurationActions
+                .OfType<CliArgumentAction>()
+                .ToList();
+            await Assert.That(cliArgs).Count().IsEqualTo(1);
+            await Assert.That(cliArgs[0].Argument).IsEqualTo("--model");
+            await Assert.That(cliArgs[0].Value).IsEqualTo("claude-sonnet-5");
+
+            // No config file is written, so restore-on-exit is trivially
+            // satisfied: no backup marker is ever created.
+            await Assert.That(
+                planDuringLaunch.ConfigurationActions.OfType<ConfigFileWriteAction>()).IsEmpty();
+            await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_claude_code_without_saved_key_omits_token_and_still_launches()
+    {
+        LaunchPlan? planDuringLaunch = null;
+        var runner = new CallbackLaunchRunner(plan =>
+        {
+            planDuringLaunch = plan;
+            return Task.FromResult(0);
+        });
+
+        var (orchestrator, tempDir, backupsDir) = CreateClaudeOrchestrator(runner: runner);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "claude-code",
+                null, null, null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(planDuringLaunch).IsNotNull();
+
+            var env = planDuringLaunch!.Process.EnvironmentVariables;
+            await Assert.That(env.ContainsKey("ANTHROPIC_BASE_URL")).IsTrue();
+            // No saved key: no token variable at all, and no dummy value.
+            await Assert.That(env.ContainsKey("ANTHROPIC_AUTH_TOKEN")).IsFalse();
+            // No model chosen: no model variable and no --model argument action.
+            await Assert.That(env.ContainsKey("ANTHROPIC_MODEL")).IsFalse();
+            await Assert.That(planDuringLaunch.ConfigurationActions).IsEmpty();
+            await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
         }
         finally
         {

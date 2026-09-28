@@ -1,0 +1,103 @@
+using CliInvoke;
+using CliInvoke.Core;
+using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Configuration;
+using HarnessGateway.Launcher.Core.Launch;
+
+namespace HarnessGateway.Launcher.Core.Adapters;
+
+public sealed class ClaudeCodeAdapter : IHarnessAdapter
+{
+    public HarnessMetadata Metadata { get; } = new(
+        Name: "claude-code",
+        Kind: HarnessKind.Cli,
+        RequiresModel: false,
+        InstallHint: "Install via: npm i -g @anthropic-ai/claude-code. Note: pointing Claude Code at a "
+            + "non-first-party base URL disables MCP (Model Context Protocol) tool search and Remote "
+            + "Control - that is a Claude Code consequence, not an action by the launcher.",
+        DetectionCommand: "claude --version",
+        ConfigFileCandidates: [],
+        SupportedProtocols: new HashSet<ProtocolKind>
+        {
+            ProtocolKind.Anthropic
+        });
+
+    private readonly Func<string, CancellationToken, Task<string?>> _detectCommand;
+
+    public ClaudeCodeAdapter()
+        : this(DetectOnPath)
+    {
+    }
+
+    internal ClaudeCodeAdapter(Func<string, CancellationToken, Task<string?>> detectCommand)
+    {
+        _detectCommand = detectCommand;
+    }
+
+    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _detectCommand("claude", cancellationToken);
+        return result is not null;
+    }
+
+    public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+    {
+        // claude-code is configured exclusively through environment variables
+        // scoped to the spawned process. No config file is ever read or written,
+        // so the user's durable Claude Code settings are untouched and the
+        // launcher's own process environment is never mutated.
+        var actions = new List<ConfigurationAction>();
+        var envVars = new Dictionary<string, string>
+        {
+            ["ANTHROPIC_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/')
+        };
+
+        // Token choice: ANTHROPIC_AUTH_TOKEN, never ANTHROPIC_API_KEY - the
+        // latter makes Claude Code raise an interactive approval prompt. Key
+        // handling: inject the saved key only when the resolved backend entry
+        // has one; with no key saved there is no token variable at all.
+        if (request.Backend.ApiKey is { Length: > 0 })
+        {
+            envVars["ANTHROPIC_AUTH_TOKEN"] = request.Backend.ApiKey;
+        }
+
+        // The model is optional for claude-code. When one is chosen it reaches
+        // the harness as ANTHROPIC_MODEL on the spawned process environment,
+        // and the plan records the optional --model CLI argument action.
+        // No config-file write either way.
+        if (request.Model is { Length: > 0 })
+        {
+            envVars["ANTHROPIC_MODEL"] = request.Model;
+            actions.Add(new CliArgumentAction("--model", request.Model));
+        }
+
+        var config = new ProcessConfiguration("claude")
+        {
+            Arguments = string.Empty,
+            WorkingDirectoryPath = request.WorkingDirectory,
+            OutputRedirection = true,
+            EnvironmentVariables = envVars
+        };
+
+        return Task.FromResult(new LaunchPlan(config, actions));
+    }
+
+    private static async Task<string?> DetectOnPath(string command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var fileName = OperatingSystem.IsWindows() ? "where" : "which";
+            var config = new ProcessConfiguration(fileName, command)
+            {
+                OutputRedirection = true
+            };
+
+            var result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+            return result.ExitCode == 0 ? command : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
