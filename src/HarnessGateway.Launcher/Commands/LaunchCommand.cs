@@ -10,6 +10,11 @@ public sealed class LaunchCommand : Command
         Description = "The agent harness to launch (opencode, kilo, copilot, pi, codex, claude-code)"
     };
 
+    public static readonly Option<string?> BackendOption = new("--backend")
+    {
+        Description = "Select a saved backend entry by name to launch against"
+    };
+
     public static readonly Option<string?> EndpointOption = new("--endpoint")
     {
         Description = "Override the backend endpoint URL (requires --protocol)"
@@ -34,6 +39,7 @@ public sealed class LaunchCommand : Command
     public LaunchCommand() : base("launch", "Launch an agent harness with the specified backend configuration")
     {
         Add(AgentArgument);
+        Add(BackendOption);
         Add(EndpointOption);
         Add(ProtocolOption);
         Add(ModelOption);
@@ -79,23 +85,13 @@ public sealed class LaunchCommand : Command
         TreatUnmatchedTokensAsErrors = true;
     }
 
-    public static bool IsValidProtocol(string? value) => value is "openai-chat" or "openai-responses" or "anthropic";
+    public static bool IsValidProtocol(string? value) => BackendResolution.IsValidProtocol(value);
 
-    public static ProtocolKind ParseProtocol(string value) => value switch
-    {
-        "openai-chat" => ProtocolKind.OpenAiChat,
-        "openai-responses" => ProtocolKind.OpenAiResponses,
-        "anthropic" => ProtocolKind.Anthropic,
-        _ => throw new ArgumentException($"Unknown protocol: {value}")
-    };
+    public static ProtocolKind ParseProtocol(string value) =>
+        BackendResolution.TryParseProtocol(value)
+            ?? throw new ArgumentException($"Unknown protocol: {value}");
 
-    public static string ProtocolName(ProtocolKind protocol) => protocol switch
-    {
-        ProtocolKind.OpenAiChat => "openai-chat",
-        ProtocolKind.OpenAiResponses => "openai-responses",
-        ProtocolKind.Anthropic => "anthropic",
-        _ => protocol.ToString()
-    };
+    public static string ProtocolName(ProtocolKind protocol) => BackendResolution.ProtocolName(protocol);
 
     public static Uri ParseEndpoint(string value) => new(value, UriKind.Absolute);
 

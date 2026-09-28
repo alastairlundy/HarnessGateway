@@ -151,6 +151,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "NonExistentAgent",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -175,6 +176,7 @@ public class LaunchOrchestratorTests
 
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -199,6 +201,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -219,6 +222,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 "https://api.example.com/v1",
                 "openai-chat",
                 null, [],
@@ -258,6 +262,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -280,6 +285,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -314,6 +320,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 null, null, "gpt-4",
                 ["model"],
                 tempDir);
@@ -353,6 +360,7 @@ public class LaunchOrchestratorTests
 
             var exitCode = await orchestrator.RunAsync(
                 "ConfigWriter",
+                null,
                 null, null, null,
                 ["config"],
                 tempDir);
@@ -403,6 +411,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "codex",
+                null,
                 null, null, "gpt-5", [],
                 tempDir);
 
@@ -435,6 +444,7 @@ public class LaunchOrchestratorTests
             // Uppercased to prove agent lookup resolves Metadata.Name case-insensitively.
             var exitCode = await orchestrator.RunAsync(
                 "CODEX",
+                null,
                 null, null, "gpt-5",
                 ["config"],
                 tempDir);
@@ -469,6 +479,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "codex",
+                null,
                 null, null, "gpt-5", [],
                 tempDir);
 
@@ -498,6 +509,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "codex",
+                null,
                 null, null, "gpt-5", [],
                 tempDir);
 
@@ -539,6 +551,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -579,6 +592,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "TestAgent",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -614,6 +628,7 @@ public class LaunchOrchestratorTests
 
             var exitCode = await orchestrator.RunAsync(
                 "codex",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -649,6 +664,7 @@ public class LaunchOrchestratorTests
             // Agent lookup resolves Metadata.Name case-insensitively.
             var exitCode = await orchestrator.RunAsync(
                 "CLAUDE-CODE",
+                null,
                 null, null, "claude-sonnet-5", [],
                 tempDir);
 
@@ -696,6 +712,7 @@ public class LaunchOrchestratorTests
         {
             var exitCode = await orchestrator.RunAsync(
                 "claude-code",
+                null,
                 null, null, null, [],
                 tempDir);
 
@@ -710,6 +727,329 @@ public class LaunchOrchestratorTests
             await Assert.That(env.ContainsKey("ANTHROPIC_MODEL")).IsFalse();
             await Assert.That(planDuringLaunch.ConfigurationActions).IsEmpty();
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_with_backend_name_launches_that_entry()
+    {
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                },
+                new Backend
+                {
+                    Name = "secondary",
+                    BaseUri = new Uri("https://secondary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses,
+                    ApiKey = "sk-secondary"
+                }
+            ],
+            DefaultBackend = "primary"
+        };
+
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                "secondary",
+                null, null, null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
+            // The selection's stored key is the only credential source.
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-secondary");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_with_backend_and_endpoint_overrides_only_that_field()
+    {
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                },
+                new Backend
+                {
+                    Name = "secondary",
+                    BaseUri = new Uri("https://secondary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses,
+                    DefaultModel = "gpt-4o",
+                    ApiKey = "sk-secondary"
+                }
+            ],
+            DefaultBackend = "primary"
+        };
+
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                "secondary",
+                "https://override.example/v1",
+                "openai-chat",
+                null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.BaseUri)
+                .IsEqualTo(new Uri("https://override.example/v1"));
+            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            // The flag replaced only its own fields; the rest stays as saved.
+            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
+            await Assert.That(adapter.LastRequest!.Backend.DefaultModel).IsEqualTo("gpt-4o");
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-secondary");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_unknown_backend_name_returns_exit_code_8()
+    {
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                }
+            ],
+            DefaultBackend = "primary"
+        };
+
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                "nope",
+                null, null, null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            // Refused during resolution, before self-heal, planning or any write.
+            await Assert.That(adapter.LastRequest).IsNull();
+            await Assert.That(Directory.GetFiles(Path.Combine(tempDir, "backups"))).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_dangling_default_backend_returns_exit_8_pointing_to_switch()
+    {
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                }
+            ],
+            DefaultBackend = "ghost"
+        };
+
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var originalError = Console.Error;
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null, null, null, null, [],
+                tempDir);
+
+            Console.SetError(originalError);
+            var errorOutput = errorWriter.ToString();
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            await Assert.That(errorOutput).Contains("config backend switch");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_absent_default_with_entries_returns_exit_code_8()
+    {
+        // DefaultBackend intentionally unset: multiple entries must not fall
+        // back to the first one - the pointer is the only read.
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                },
+                new Backend
+                {
+                    Name = "secondary",
+                    BaseUri = new Uri("https://secondary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses
+                }
+            ]
+        };
+
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null, null, null, null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_protocol_without_endpoint_returns_usage_error()
+    {
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null, null, "openai-chat", null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_backend_persist_model_updates_only_the_entry_never_the_pointer()
+    {
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                },
+                new Backend
+                {
+                    Name = "secondary",
+                    BaseUri = new Uri("https://secondary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses
+                }
+            ],
+            DefaultBackend = "primary"
+        };
+
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                "secondary",
+                null, null, "gpt-5",
+                ["model"],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+
+            // Persisting the model never re-points DefaultBackend: selecting a
+            // backend per launch has no settings side effect beyond the model.
+            var savedSettings = new SettingsStore(Path.Combine(tempDir, "settings")).Load();
+            await Assert.That(savedSettings.DefaultBackend).IsEqualTo("primary");
+            await Assert.That(savedSettings.Backends.Single(b => b.Name == "secondary").DefaultModel)
+                .IsEqualTo("gpt-5");
+            await Assert.That(savedSettings.Backends.Single(b => b.Name == "primary").DefaultModel)
+                .IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_persist_model_with_raw_url_and_no_entries_writes_nothing()
+    {
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null,
+                "https://raw.example/v1",
+                "openai-chat",
+                "gpt-5",
+                ["model"],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+
+            // No stored entry exists to persist onto, so nothing is written -
+            // an ad-hoc override never becomes a settings entry.
+            var savedSettings = new SettingsStore(Path.Combine(tempDir, "settings")).Load();
+            await Assert.That(savedSettings.Backends).IsEmpty();
+            await Assert.That(savedSettings.DefaultBackend).IsEqualTo(string.Empty);
         }
         finally
         {

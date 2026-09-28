@@ -1,0 +1,279 @@
+using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Settings;
+
+namespace HarnessGateway.Launcher.Tests.Backends;
+
+public class BackendResolutionTests
+{
+    private static Backend Entry(
+        string name,
+        string uri = "https://api.example.com/v1",
+        ProtocolKind protocol = ProtocolKind.OpenAiChat,
+        string? defaultModel = null,
+        string? apiKey = null) => new()
+    {
+        Name = name,
+        BaseUri = new Uri(uri),
+        Protocol = protocol,
+        DefaultModel = defaultModel,
+        ApiKey = apiKey
+    };
+
+    private static LauncherSettings SettingsWith(string defaultPointer, params Backend[] backends) => new()
+    {
+        Backends = [.. backends],
+        DefaultBackend = defaultPointer
+    };
+
+    [Test]
+    public async Task Resolve_selects_entry_named_by_backend_flag()
+    {
+        var settings = SettingsWith("primary", Entry("primary"), Entry("secondary"));
+
+        var result = BackendResolution.Resolve(settings, "secondary", null, null, null);
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend).IsNotNull();
+        await Assert.That(result.Backend!.Name).IsEqualTo("secondary");
+    }
+
+    [Test]
+    public async Task Resolve_matches_backend_name_case_insensitively()
+    {
+        var settings = SettingsWith("primary", Entry("primary"), Entry("secondary"));
+
+        var result = BackendResolution.Resolve(settings, "SECONDARY", null, null, null);
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend!.Name).IsEqualTo("secondary");
+    }
+
+    [Test]
+    public async Task Resolve_endpoint_and_protocol_flags_override_only_those_fields()
+    {
+        var settings = SettingsWith(
+            "primary",
+            Entry("primary"),
+            Entry(
+                "secondary",
+                uri: "https://secondary.example/v1",
+                protocol: ProtocolKind.OpenAiResponses,
+                defaultModel: "gpt-4o",
+                apiKey: "sk-stored"));
+
+        var result = BackendResolution.Resolve(
+            settings,
+            "secondary",
+            "https://override.example/v1",
+            "openai-chat",
+            null);
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend!.BaseUri).IsEqualTo(new Uri("https://override.example/v1"));
+        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+        // Every other field comes from the saved entry - including the key,
+        // which is never overridable per launch.
+        await Assert.That(result.Backend.Name).IsEqualTo("secondary");
+        await Assert.That(result.Backend.DefaultModel).IsEqualTo("gpt-4o");
+        await Assert.That(result.Backend.ApiKey).IsEqualTo("sk-stored");
+    }
+
+    [Test]
+    public async Task Resolve_model_flag_overrides_only_the_model()
+    {
+        var settings = SettingsWith(
+            "primary",
+            Entry("primary"),
+            Entry(
+                "secondary",
+                uri: "https://secondary.example/v1",
+                protocol: ProtocolKind.OpenAiResponses,
+                defaultModel: "gpt-4o"));
+
+        var result = BackendResolution.Resolve(settings, "secondary", null, null, "gpt-5");
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend!.DefaultModel).IsEqualTo("gpt-5");
+        await Assert.That(result.Backend.BaseUri).IsEqualTo(new Uri("https://secondary.example/v1"));
+        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+    }
+
+    [Test]
+    public async Task Resolve_without_flags_reads_the_default_pointer_only()
+    {
+        var settings = SettingsWith("secondary", Entry("primary"), Entry("secondary"));
+
+        var result = BackendResolution.Resolve(settings, null, null, null, null);
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend!.Name).IsEqualTo("secondary");
+    }
+
+    [Test]
+    public async Task Resolve_absent_default_with_entries_fails_without_first_entry_fallback()
+    {
+        var settings = SettingsWith(string.Empty, Entry("primary"), Entry("secondary"));
+
+        var result = BackendResolution.Resolve(settings, null, null, null, null);
+
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.AbsentDefaultBackend);
+        await Assert.That(result.Message!).Contains("config backend switch");
+    }
+
+    [Test]
+    public async Task Resolve_dangling_default_pointer_fails_with_switch_directive()
+    {
+        var settings = SettingsWith("ghost", Entry("primary"), Entry("secondary"));
+
+        var result = BackendResolution.Resolve(settings, null, null, null, null);
+
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
+        await Assert.That(result.Message!).Contains("unknown backend name 'ghost'");
+        await Assert.That(result.Message!).Contains("config backend switch");
+    }
+
+    [Test]
+    public async Task Resolve_without_entries_and_without_pointer_returns_no_backend()
+    {
+        var settings = SettingsWith(string.Empty);
+
+        var result = BackendResolution.Resolve(settings, null, null, null, null);
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend).IsNull();
+    }
+
+    [Test]
+    public async Task Resolve_unknown_backend_name_fails()
+    {
+        var settings = SettingsWith("primary", Entry("primary"));
+
+        var result = BackendResolution.Resolve(settings, "nope", null, null, null);
+
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.UnknownBackendName);
+        await Assert.That(result.Message!).Contains("unknown backend name 'nope'");
+    }
+
+    [Test]
+    public async Task Resolve_unknown_backend_name_may_hint_a_close_match_without_changing_the_outcome()
+    {
+        var settings = SettingsWith("production", Entry("production"));
+
+        var result = BackendResolution.Resolve(settings, "prod", null, null, null);
+
+        // The hint is best-effort, non-contractual UX; the outcome is the failure.
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.UnknownBackendName);
+        await Assert.That(result.Message!).Contains("unknown backend name 'prod'");
+        await Assert.That(result.Message!).Contains("production");
+    }
+
+    [Test]
+    public async Task Resolve_endpoint_without_protocol_fails()
+    {
+        var settings = SettingsWith("primary", Entry("primary"));
+
+        var result = BackendResolution.Resolve(settings, null, "https://api.example.com/v1", null, null);
+
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.EndpointWithoutProtocol);
+        await Assert.That(result.Message!).Contains("--endpoint requires --protocol");
+    }
+
+    [Test]
+    public async Task Resolve_protocol_without_endpoint_fails()
+    {
+        var settings = SettingsWith("primary", Entry("primary"));
+
+        var result = BackendResolution.Resolve(settings, null, null, "openai-chat", null);
+
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.ProtocolWithoutEndpoint);
+        await Assert.That(result.Message!).Contains("--protocol requires --endpoint");
+    }
+
+    [Test]
+    public async Task Resolve_invalid_endpoint_fails()
+    {
+        var settings = SettingsWith("primary", Entry("primary"));
+
+        var result = BackendResolution.Resolve(settings, null, "not-a-url", "openai-chat", null);
+
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.InvalidEndpoint);
+        await Assert.That(result.Message!).Contains("not-a-url");
+    }
+
+    [Test]
+    public async Task Resolve_invalid_protocol_fails()
+    {
+        var settings = SettingsWith("primary", Entry("primary"));
+
+        var result = BackendResolution.Resolve(
+            settings,
+            null,
+            "https://api.example.com/v1",
+            "smtp",
+            null);
+
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.InvalidProtocol);
+        await Assert.That(result.Message!).Contains("openai-chat, openai-responses, anthropic");
+    }
+
+    [Test]
+    public async Task Resolve_raw_url_without_saved_entries_yields_an_override_backend()
+    {
+        var settings = SettingsWith(string.Empty);
+
+        var result = BackendResolution.Resolve(
+            settings,
+            null,
+            "https://raw.example/v1",
+            "anthropic",
+            "claude-sonnet-5");
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend!.Name).IsEqualTo("override");
+        await Assert.That(result.Backend.BaseUri).IsEqualTo(new Uri("https://raw.example/v1"));
+        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(result.Backend.DefaultModel).IsEqualTo("claude-sonnet-5");
+    }
+
+    [Test]
+    public async Task Resolve_raw_url_layers_onto_the_resolved_entry_and_keeps_its_key()
+    {
+        var settings = SettingsWith(
+            "primary",
+            Entry("primary", uri: "https://primary.example/v1", apiKey: "sk-primary"));
+
+        var result = BackendResolution.Resolve(
+            settings,
+            null,
+            "https://raw.example/v1",
+            "openai-responses",
+            null);
+
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Backend!.Name).IsEqualTo("primary");
+        await Assert.That(result.Backend.BaseUri).IsEqualTo(new Uri("https://raw.example/v1"));
+        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+        await Assert.That(result.Backend.ApiKey).IsEqualTo("sk-primary");
+    }
+
+    [Test]
+    public async Task Resolve_raw_url_still_reads_the_default_pointer_strictly()
+    {
+        // A fully explicit raw URL does not bypass a broken profile: the
+        // unresolvable default pointer is still the code-8 failure class.
+        var settings = SettingsWith("ghost", Entry("primary"));
+
+        var result = BackendResolution.Resolve(
+            settings,
+            null,
+            "https://raw.example/v1",
+            "openai-chat",
+            null);
+
+        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
+        await Assert.That(result.Message!).Contains("config backend switch");
+    }
+}

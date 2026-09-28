@@ -69,6 +69,7 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Other_launch_options_have_no_short_aliases()
     {
+        await Assert.That(LaunchCommand.BackendOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.EndpointOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.ProtocolOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.PersistOption.Aliases).IsEmpty();
@@ -108,6 +109,46 @@ public class LaunchCommandFlagParsingTests
         var parsed = LaunchCommand.ParsePersistValues(persistValues);
         await Assert.That(parsed).Contains("config");
         await Assert.That(parsed).Contains("model");
+    }
+
+    [Test]
+    public async Task Parse_backend_option()
+    {
+        var command = new LaunchCommand();
+        var result = command.Parse("launch opencode --backend production");
+
+        await Assert.That(result.Errors).IsEmpty();
+        await Assert.That(result.GetValue(LaunchCommand.BackendOption)).IsEqualTo("production");
+    }
+
+    [Test]
+    public async Task Parse_backend_without_value_fails()
+    {
+        var command = new LaunchCommand();
+        var result = command.Parse("launch opencode --backend");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+    }
+
+    [Test]
+    public async Task Parse_key_option_is_rejected()
+    {
+        // Keys are not overridable per launch; the stored key is the sole source.
+        var command = new LaunchCommand();
+        var result = command.Parse("launch opencode --key sk-secret");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+    }
+
+    [Test]
+    public async Task Parse_persist_backend_value_fails()
+    {
+        // The persist family stays closed at config|model: a --backend launch
+        // cannot persist its selection.
+        var command = new LaunchCommand();
+        var result = command.Parse("launch opencode --backend production --persist backend");
+
+        await Assert.That(result.Errors).IsNotEmpty();
     }
 
     [Test]

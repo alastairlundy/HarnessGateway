@@ -28,6 +28,7 @@ public sealed class LaunchOrchestrator
 
     public async Task<int> RunAsync(
         string agentName,
+        string? backendName,
         string? endpoint,
         string? protocol,
         string? model,
@@ -39,7 +40,20 @@ public sealed class LaunchOrchestrator
         {
             LauncherSettings settings = _settingsStore.Load();
 
-            Backend? backend = ResolveBackend(settings, endpoint, protocol);
+            BackendResolutionResult resolution = BackendResolution.Resolve(
+                settings,
+                backendName,
+                endpoint,
+                protocol,
+                model);
+
+            if (!resolution.IsSuccess)
+            {
+                Console.Error.WriteLine(resolution.Message);
+                return ExitCodeFor(resolution.Failure);
+            }
+
+            Backend? backend = resolution.Backend;
 
             await _backupService.SelfHealAsync(cancellationToken);
 
@@ -109,28 +123,12 @@ public sealed class LaunchOrchestrator
         }
     }
 
-    private Backend? ResolveBackend(LauncherSettings settings, string? endpoint, string? protocol)
-    {
-        if (endpoint is not null && protocol is not null)
-        {
-            ProtocolKind parsedProtocol = LaunchCommand.ParseProtocol(protocol);
-            Uri parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
-            return new()
-            {
-                Name = "override",
-                BaseUri = parsedEndpoint,
-                Protocol = parsedProtocol
-            };
-        }
-
-        if (!string.IsNullOrEmpty(settings.DefaultBackend))
-        {
-            return settings.Backends.FirstOrDefault(b =>
-                string.Equals(b.Name, settings.DefaultBackend, StringComparison.OrdinalIgnoreCase));
-        }
-
-        return settings.Backends.FirstOrDefault();
-    }
+    private static int ExitCodeFor(BackendResolutionFailure failure) =>
+        failure is BackendResolutionFailure.UnknownBackendName
+            or BackendResolutionFailure.DanglingDefaultBackend
+            or BackendResolutionFailure.AbsentDefaultBackend
+            ? (int)LaunchExitCode.UnknownBackendName
+            : (int)LaunchExitCode.UsageError;
 
     private IHarnessAdapter? FindAdapter(string agentName) =>
         _adapters.FirstOrDefault(a =>
@@ -176,19 +174,20 @@ public sealed class LaunchOrchestrator
     {
         if (backend is null) return;
 
-        Backend updatedBackend = backend with { DefaultModel = model };
+        // Persist onto the stored entry by name only: per-launch field
+        // overrides (--endpoint/--protocol/--model layering) never ride back
+        // into settings, and a --backend launch never re-points DefaultBackend.
         int index = settings.Backends.FindIndex(b =>
             string.Equals(b.Name, backend.Name, StringComparison.OrdinalIgnoreCase));
 
-        if (index >= 0)
+        if (index < 0)
         {
-            settings.Backends[index] = updatedBackend;
-        }
-        else
-        {
-            settings.Backends.Add(updatedBackend);
+            // Ad-hoc raw-URL override against an empty settings file: there is
+            // no durable entry to persist a default model onto.
+            return;
         }
 
+        settings.Backends[index] = settings.Backends[index] with { DefaultModel = model };
         _settingsStore.Save(settings);
     }
 }

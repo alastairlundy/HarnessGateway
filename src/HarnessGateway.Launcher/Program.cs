@@ -34,6 +34,7 @@ RootCommand rootCommand = new("harnessgateway - Configure and launch agent harne
 rootCommand.SetAction(async (result, cancellationToken) =>
 {
     string? agent = result.GetValue(LaunchCommand.AgentArgument);
+    string? backendName = result.GetValue(LaunchCommand.BackendOption);
     string? endpoint = result.GetValue(LaunchCommand.EndpointOption);
     string? protocol = result.GetValue(LaunchCommand.ProtocolOption);
     string? model = result.GetValue(LaunchCommand.ModelOption);
@@ -47,6 +48,7 @@ rootCommand.SetAction(async (result, cancellationToken) =>
         LaunchOrchestrator orchestrator = new(settingsStore, backupService, runner, adapters);
         return await orchestrator.RunAsync(
             agent,
+            backendName,
             endpoint,
             protocol,
             model,
@@ -68,6 +70,7 @@ rootCommand.SetAction(async (result, cancellationToken) =>
     LaunchOrchestrator orchestratorForWizard = new(settingsStore, backupService, runner, adapters);
     return await orchestratorForWizard.RunAsync(
         wizardResult.AgentName,
+        null,
         wizardResult.Endpoint,
         wizardResult.Protocol.ToString().ToLowerInvariant(),
         wizardResult.Model,

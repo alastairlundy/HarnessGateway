@@ -47,6 +47,14 @@ public class LaunchExitCodeTests
     }
 
     [Test]
+    public async Task UnknownBackendName_is_eight()
+    {
+        // Subject held in a local so the assertion is not on a constant.
+        int code = (int)LaunchExitCode.UnknownBackendName;
+        await Assert.That(code).IsEqualTo(8);
+    }
+
+    [Test]
     public async Task ConfigConflict_is_ten()
     {
         await Assert.That((int)LaunchExitCode.ConfigConflict).IsEqualTo(10);
