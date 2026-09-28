@@ -32,7 +32,8 @@ public class LaunchOrchestratorTests
         var backupsDir = Path.Combine(tempDir, "backups");
         Directory.CreateDirectory(backupsDir);
 
-        var settingsStore = new SettingsStore(settingsDir);
+        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
+        var settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
         if (settings is not null)
         {
             settingsStore.Save(settings);
@@ -41,7 +42,6 @@ public class LaunchOrchestratorTests
         var backupService = new BackupService(backupsDir);
         var effectiveRunner = runner ?? new TestLaunchRunner();
         var adapters = adapter is not null ? new[] { adapter } : [];
-        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
 
         var orchestrator = new LaunchOrchestrator(
             settingsStore, backupService, effectiveRunner, adapters, effectiveKeyStore);
@@ -84,7 +84,7 @@ public class LaunchOrchestratorTests
         var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
         var keyReference = SeedKey(effectiveKeyStore, "codex-backend", apiKey);
 
-        var settingsStore = new SettingsStore(settingsDir);
+        var settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
         settingsStore.Save(new LauncherSettings
         {
             Backends =
@@ -129,7 +129,7 @@ public class LaunchOrchestratorTests
         var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
         var keyReference = SeedKey(effectiveKeyStore, "claude-backend", apiKey);
 
-        var settingsStore = new SettingsStore(settingsDir);
+        var settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
         settingsStore.Save(new LauncherSettings
         {
             Backends =
@@ -1175,6 +1175,80 @@ public class LaunchOrchestratorTests
             var savedSettings = new SettingsStore(Path.Combine(tempDir, "settings")).Load();
             await Assert.That(savedSettings.Backends).IsEmpty();
             await Assert.That(savedSettings.DefaultBackend).IsEqualTo(string.Empty);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_unsupported_schema_version_returns_exit_9_with_no_partial_state()
+    {
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        try
+        {
+            var settingsPath = Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json");
+            var rawJson = """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""";
+            await File.WriteAllTextAsync(settingsPath, rawJson);
+
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
+            await Assert.That(errorOutput).Contains("unsupported settings schema version");
+            await Assert.That(adapter.LastRequest).IsNull();
+            await Assert.That(Directory.GetFiles(Path.Combine(tempDir, "backups"))).IsEmpty();
+            await Assert.That(File.ReadAllText(settingsPath)).IsEqualTo(rawJson);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_migrates_a_v1_plaintext_file_on_the_launch_read_path()
+    {
+        var keyStore = new FakeSecureKeyStore();
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, keyStore: keyStore);
+        try
+        {
+            var settingsPath = Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json");
+            await File.WriteAllTextAsync(
+                settingsPath,
+                """
+                {
+                  "backends": [
+                    {
+                      "name": "default",
+                      "baseUri": "https://api.example.com/v1",
+                      "protocol": 0,
+                      "apiKey": "sk-legacy-plaintext"
+                    }
+                  ],
+                  "defaultBackend": "default",
+                  "schemaVersion": 1
+                }
+                """);
+
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null,
+                null, null, null, [],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
+            await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
+
+            var fileBytes = await File.ReadAllTextAsync(settingsPath);
+            var expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
+            await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
+            await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();
+            await Assert.That(fileBytes.Contains("sk-legacy-plaintext")).IsFalse();
         }
         finally
         {

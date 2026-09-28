@@ -55,6 +55,14 @@ public class LaunchExitCodeTests
     }
 
     [Test]
+    public async Task UnsupportedSettingsSchema_is_nine()
+    {
+        // Subject held in a local so the assertion is not on a constant.
+        int code = (int)LaunchExitCode.UnsupportedSettingsSchema;
+        await Assert.That(code).IsEqualTo(9);
+    }
+
+    [Test]
     public async Task ConfigConflict_is_ten()
     {
         await Assert.That((int)LaunchExitCode.ConfigConflict).IsEqualTo(10);

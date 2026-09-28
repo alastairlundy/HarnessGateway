@@ -59,7 +59,7 @@ public class LauncherSettingsTests
 
         await Assert.That(settings.Backends).IsEmpty();
         await Assert.That(settings.DefaultBackend).IsEmpty();
-        await Assert.That(settings.SchemaVersion).IsEqualTo(1);
+        await Assert.That(settings.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
     }
 
     [Test]

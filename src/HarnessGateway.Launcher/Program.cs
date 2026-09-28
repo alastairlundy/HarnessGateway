@@ -18,13 +18,13 @@ List<IHarnessAdapter> adapters =
     new ClaudeCodeAdapter()
 ];
 
-SettingsStore settingsStore = new();
-string settingsDir = Path.GetDirectoryName(settingsStore.SettingsFilePath)!;
+string settingsDir = SettingsStore.GetPlatformConfigDirectory();
+ISecureKeyStore keyStore = SecureKeyStoreFactory.Create(settingsDir);
+SettingsStore settingsStore = new(settingsDir, keyStore);
 string backupsDir = Path.Combine(settingsDir, "backups");
 Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
 LaunchRunner runner = new();
-ISecureKeyStore keyStore = SecureKeyStoreFactory.Create(settingsDir);
 
 RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
 {
@@ -61,7 +61,22 @@ rootCommand.SetAction(async (result, cancellationToken) =>
     SpectreConsoleAbstraction console = new();
     ModelCatalogClient catalogClient = new(new HttpClient());
     WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
-    WizardResult? wizardResult = await wizard.RunAsync(cancellationToken);
+
+    WizardResult? wizardResult;
+    try
+    {
+        wizardResult = await wizard.RunAsync(cancellationToken);
+    }
+    catch (UnsupportedSettingsSchemaException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return (int)LaunchExitCode.UnsupportedSettingsSchema;
+    }
+    catch (SecureKeyStoreException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return (int)LaunchExitCode.ConfigRestoreFailure;
+    }
 
     if (wizardResult is null)
     {

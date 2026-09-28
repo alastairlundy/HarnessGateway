@@ -47,4 +47,7 @@ Without `--backend`, launch resolves the entry named by the `defaultBackend` poi
 | 6 | RequiredModelMissing | No model was specified and no default is configured |
 | 7 | ConfigRestoreFailure | Failed to restore configuration after a no-persist launch |
 | 8 | UnknownBackendName | Unresolvable backend-name reference: `--backend` names no saved entry, or the `defaultBackend` pointer dangles or is empty while entries exist. A named reference carries the message `unknown backend name '<name>'` |
+| 9 | UnsupportedSettingsSchema | Settings file declares an unsupported settings schema version - the field is missing, malformed, unknown-older, or newer than this build; the file is left untouched and nothing is written |
 | 10 | ConfigConflict | Launch was refused because existing configuration conflicts with the launcher's writes (for example a pre-existing provider block). Resolve the conflict and launch again |
+
+Settings load migrates older schema versions forward automatically: a version-1 file's plaintext API keys are rewritten as credential-store references. Migration is forward-only and irreversible - a migrated file can no longer be usefully read by an older build (accepted per T039). A file whose `schemaVersion` is missing, malformed, or newer than this build is refused with exit 9 and left untouched.

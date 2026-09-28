@@ -134,6 +134,11 @@ public sealed class LaunchOrchestrator
             Console.Error.WriteLine(ex.Message);
             return (int)LaunchExitCode.ConfigRestoreFailure;
         }
+        catch (UnsupportedSettingsSchemaException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return (int)LaunchExitCode.UnsupportedSettingsSchema;
+        }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Launch failed: {ex.Message}");

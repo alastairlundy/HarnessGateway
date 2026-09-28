@@ -1,4 +1,5 @@
 using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Wizard;
 
 namespace HarnessGateway.Launcher.Tests.Wizard;
@@ -208,6 +209,39 @@ public class WizardPipelineTests
             var result = await pipeline.RunAsync(cts.Token);
 
             await Assert.That(result).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_unsupported_schema_version_propagates_the_typed_refusal()
+    {
+        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            File.WriteAllText(
+                store.SettingsFilePath,
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+
+            var console = new TestConsole();
+            var adapter = WizardTestHelper.CreateTestAdapter();
+            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            Exception? caught = null;
+            try
+            {
+                await pipeline.RunAsync();
+            }
+            catch (UnsupportedSettingsSchemaException ex)
+            {
+                caught = ex;
+            }
+
+            await Assert.That(caught).IsNotNull();
+            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
         }
         finally
         {

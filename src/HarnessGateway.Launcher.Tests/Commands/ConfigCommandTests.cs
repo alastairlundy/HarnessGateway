@@ -16,11 +16,11 @@ public class ConfigCommandTests
         return dir;
     }
 
-    private static SettingsStore CreateSettingsStore(string tempDir)
+    private static SettingsStore CreateSettingsStore(string tempDir, FakeSecureKeyStore? keyStore = null)
     {
         var settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
-        return new SettingsStore(settingsDir);
+        return new SettingsStore(settingsDir, keyStore);
     }
 
     private static int InvokeConfig(SettingsStore store, string args, FakeSecureKeyStore? keyStore = null)
@@ -526,6 +526,101 @@ public class ConfigCommandTests
             InvokeConfig(store, "config set-default-endpoint https://api.anthropic.com anthropic");
             var saved3 = store.Load();
             await Assert.That(saved3.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Show_on_unsupported_schema_version_returns_exit_9()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var store = CreateSettingsStore(tempDir);
+            File.WriteAllText(
+                store.SettingsFilePath,
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+            var before = File.ReadAllText(store.SettingsFilePath);
+
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeConfig(store, "config show")));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
+            await Assert.That(errorOutput).Contains("unsupported settings schema version");
+            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task SetDefaultEndpoint_on_unsupported_schema_version_returns_exit_9()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var store = CreateSettingsStore(tempDir);
+            File.WriteAllText(
+                store.SettingsFilePath,
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+            var before = File.ReadAllText(store.SettingsFilePath);
+
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeConfig(
+                    store,
+                    "config set-default-endpoint https://api.example.com/v1 openai-chat")));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
+            await Assert.That(errorOutput).Contains("unsupported settings schema version");
+            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Show_migrates_a_v1_plaintext_file_before_reading_it()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var keyStore = new FakeSecureKeyStore();
+            var store = CreateSettingsStore(tempDir, keyStore);
+            File.WriteAllText(
+                store.SettingsFilePath,
+                """
+                {
+                  "backends": [
+                    {
+                      "name": "default",
+                      "baseUri": "https://api.example.com/v1",
+                      "protocol": 0,
+                      "apiKey": "sk-legacy-plaintext"
+                    }
+                  ],
+                  "defaultBackend": "default",
+                  "schemaVersion": 1
+                }
+                """);
+
+            var exitCode = InvokeConfig(store, "config show", keyStore);
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
+            await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
+
+            var fileBytes = File.ReadAllText(store.SettingsFilePath);
+            var expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
+            await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
+            await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();
+            await Assert.That(fileBytes.Contains("sk-legacy-plaintext")).IsFalse();
         }
         finally
         {

@@ -10,5 +10,6 @@ public enum LaunchExitCode
     RequiredModelMissing = 6,
     ConfigRestoreFailure = 7,
     UnknownBackendName = 8,
+    UnsupportedSettingsSchema = 9,
     ConfigConflict = 10
 }

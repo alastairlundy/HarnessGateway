@@ -42,7 +42,11 @@ public sealed class ConfigCommand : Command
 
         showVerb.SetAction((result) =>
         {
-            LauncherSettings settings = _settingsStore.Load();
+            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
+
             Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
@@ -61,7 +65,11 @@ public sealed class ConfigCommand : Command
 
         clearKeyVerb.SetAction(async (result, cancellationToken) =>
         {
-            LauncherSettings settings = _settingsStore.Load();
+            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
+
             Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
@@ -95,6 +103,30 @@ public sealed class ConfigCommand : Command
         });
     }
 
+    private bool TryLoadSettings(out LauncherSettings settings, out int exitCode)
+    {
+        try
+        {
+            settings = _settingsStore.Load();
+            exitCode = 0;
+            return true;
+        }
+        catch (UnsupportedSettingsSchemaException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            settings = new LauncherSettings();
+            exitCode = (int)LaunchExitCode.UnsupportedSettingsSchema;
+            return false;
+        }
+        catch (SecureKeyStoreException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            settings = new LauncherSettings();
+            exitCode = (int)LaunchExitCode.ConfigRestoreFailure;
+            return false;
+        }
+    }
+
     private Command CreateSetDefaultEndpointCommand()
     {
         Argument<string> endpointArg = new("endpoint")
@@ -124,7 +156,10 @@ public sealed class ConfigCommand : Command
             Uri parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
             ProtocolKind parsedProtocol = LaunchCommand.ParseProtocol(protocol);
 
-            LauncherSettings settings = _settingsStore.Load();
+            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
 
             Backend? existingBackend = ResolveDefaultBackend(settings);
             string name = existingBackend?.Name ?? "default";
@@ -165,7 +200,11 @@ public sealed class ConfigCommand : Command
         cmd.SetAction(async (result, cancellationToken) =>
         {
             string key = result.GetRequiredValue(keyArg);
-            LauncherSettings settings = _settingsStore.Load();
+            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
+
             Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
@@ -208,7 +247,11 @@ public sealed class ConfigCommand : Command
         cmd.SetAction((result) =>
         {
             string model = result.GetRequiredValue(modelArg);
-            LauncherSettings settings = _settingsStore.Load();
+            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
+
             Backend? backend = ResolveDefaultBackend(settings);
 
             if (backend is null)
