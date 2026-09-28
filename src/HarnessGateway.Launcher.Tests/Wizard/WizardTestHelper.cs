@@ -1,6 +1,7 @@
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Wizard;
 
@@ -25,11 +26,12 @@ public static class WizardTestHelper
         return store;
     }
 
-    public static (string tempDir, SettingsStore store) CreateTestEnvironment(LauncherSettings? settings = null)
+    public static (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) CreateTestEnvironment(
+        LauncherSettings? settings = null)
     {
         var tempDir = CreateTempDir();
         var store = CreateSettingsStore(tempDir, settings);
-        return (tempDir, store);
+        return (tempDir, store, new FakeSecureKeyStore());
     }
 
     public static LauncherSettings CreateDefaultSettings(

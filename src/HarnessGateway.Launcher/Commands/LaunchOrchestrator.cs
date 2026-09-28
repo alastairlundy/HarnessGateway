@@ -4,6 +4,7 @@ using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Core.Settings.Security;
 
 namespace HarnessGateway.Launcher.Commands;
 
@@ -13,17 +14,20 @@ public sealed class LaunchOrchestrator
     private readonly BackupService _backupService;
     private readonly ILaunchRunner _runner;
     private readonly IReadOnlyList<IHarnessAdapter> _adapters;
+    private readonly ISecureKeyStore _keyStore;
 
     public LaunchOrchestrator(
         SettingsStore settingsStore,
         BackupService backupService,
         ILaunchRunner runner,
-        IReadOnlyList<IHarnessAdapter> adapters)
+        IReadOnlyList<IHarnessAdapter> adapters,
+        ISecureKeyStore keyStore)
     {
         _settingsStore = settingsStore;
         _backupService = backupService;
         _runner = runner;
         _adapters = adapters;
+        _keyStore = keyStore;
     }
 
     public async Task<int> RunAsync(
@@ -91,6 +95,14 @@ public sealed class LaunchOrchestrator
 
             string? resolvedModel = ResolveModel(model, backend, adapter, persistValues);
 
+            // Resolve the at-rest key reference into the secret on this local
+            // copy only: `settings` keeps carrying the reference, so a later
+            // Save (PersistDefaultModel) can never write a secret back out.
+            if (backend is not null)
+            {
+                backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, cancellationToken);
+            }
+
             LaunchRequest request = new(backend, resolvedModel, workingDirectory);
             LaunchPlan plan = await adapter.PlanLaunchAsync(request, cancellationToken);
 
@@ -115,6 +127,12 @@ public sealed class LaunchOrchestrator
         {
             Console.Error.WriteLine(ex.Message);
             return (int)LaunchExitCode.ConfigConflict;
+        }
+        catch (SecureKeyStoreException ex)
+        {
+            // User-rectifiable: the message names the backend and how to re-save.
+            Console.Error.WriteLine(ex.Message);
+            return (int)LaunchExitCode.ConfigRestoreFailure;
         }
         catch (Exception ex)
         {

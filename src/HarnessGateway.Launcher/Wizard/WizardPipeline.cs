@@ -3,6 +3,7 @@ using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Backends.Models;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Core.Settings.Security;
 
 namespace HarnessGateway.Launcher.Wizard;
 
@@ -11,17 +12,20 @@ public sealed class WizardPipeline
     private readonly IConsoleAbstraction _console;
     private readonly IReadOnlyList<IHarnessAdapter> _adapters;
     private readonly SettingsStore _settingsStore;
+    private readonly ISecureKeyStore _keyStore;
     private readonly ModelCatalogClient? _catalogClient;
 
     public WizardPipeline(
         IConsoleAbstraction console,
         IReadOnlyList<IHarnessAdapter> adapters,
         SettingsStore settingsStore,
+        ISecureKeyStore keyStore,
         ModelCatalogClient? catalogClient = null)
     {
         _console = console;
         _adapters = adapters;
         _settingsStore = settingsStore;
+        _keyStore = keyStore;
         _catalogClient = catalogClient;
     }
 
@@ -39,15 +43,32 @@ public sealed class WizardPipeline
         (string? endpoint, ProtocolKind protocol) endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken);
         if (endpointResult.endpoint is null) return null;
 
+        // Resolve the saved entry before the key and model steps so catalog HTTP
+        // auth and the key step both see the secret, never the at-rest
+        // reference - and so a dangling reference names the saved backend.
+        Backend? resolvedBackend = defaultBackend;
+        if (resolvedBackend is not null)
+        {
+            try
+            {
+                resolvedBackend = await BackendKeyResolver.ResolveAsync(resolvedBackend, _keyStore, cancellationToken);
+            }
+            catch (SecureKeyStoreException ex)
+            {
+                _console.WriteError(ex.Message);
+                return null;
+            }
+        }
+
         Backend effectiveBackend = new()
         {
             Name = "wizard",
             BaseUri = new(endpointResult.endpoint),
             Protocol = endpointResult.protocol,
-            ApiKey = defaultBackend?.ApiKey
+            ApiKey = resolvedBackend?.ApiKey
         };
 
-        string? apiKey = await RunKeyStepAsync(effectiveBackend, defaultBackend, cancellationToken);
+        string? apiKey = await RunKeyStepAsync(effectiveBackend, cancellationToken);
 
         ModelStep modelStep = new(_console, _catalogClient, effectiveBackend);
         bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
@@ -125,12 +146,11 @@ public sealed class WizardPipeline
 
     private async Task<string?> RunKeyStepAsync(
         Backend effectiveBackend,
-        Backend? savedBackend,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrEmpty(savedBackend?.ApiKey))
+        if (!string.IsNullOrEmpty(effectiveBackend.ApiKey))
         {
-            return savedBackend.ApiKey;
+            return effectiveBackend.ApiKey;
         }
 
         bool needsKey = effectiveBackend.Protocol switch

@@ -25,14 +25,14 @@ public class BackendTests
             BaseUri = new Uri("https://api.openai.com/v1"),
             Protocol = ProtocolKind.OpenAiChat,
             DefaultModel = "gpt-4",
-            ApiKey = "sk-test"
+            ApiKey = "hgkey:my-api"
         };
 
         await Assert.That(backend.Name).IsEqualTo("my-api");
         await Assert.That(backend.BaseUri).IsEqualTo(new Uri("https://api.openai.com/v1"));
         await Assert.That(backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
         await Assert.That(backend.DefaultModel).IsEqualTo("gpt-4");
-        await Assert.That(backend.ApiKey).IsEqualTo("sk-test");
+        await Assert.That(backend.ApiKey).IsEqualTo("hgkey:my-api");
     }
 
     [Test]

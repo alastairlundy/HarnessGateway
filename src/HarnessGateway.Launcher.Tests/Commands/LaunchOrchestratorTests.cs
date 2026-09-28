@@ -6,6 +6,8 @@ using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Core.Settings.Security;
+using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Commands;
 
@@ -21,7 +23,8 @@ public class LaunchOrchestratorTests
     private static (LaunchOrchestrator orchestrator, string tempDir) CreateOrchestrator(
         IHarnessAdapter? adapter = null,
         LauncherSettings? settings = null,
-        ILaunchRunner? runner = null)
+        ILaunchRunner? runner = null,
+        FakeSecureKeyStore? keyStore = null)
     {
         var tempDir = CreateTempDir();
         var settingsDir = Path.Combine(tempDir, "settings");
@@ -38,8 +41,10 @@ public class LaunchOrchestratorTests
         var backupService = new BackupService(backupsDir);
         var effectiveRunner = runner ?? new TestLaunchRunner();
         var adapters = adapter is not null ? new[] { adapter } : [];
+        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
 
-        var orchestrator = new LaunchOrchestrator(settingsStore, backupService, effectiveRunner, adapters);
+        var orchestrator = new LaunchOrchestrator(
+            settingsStore, backupService, effectiveRunner, adapters, effectiveKeyStore);
         return (orchestrator, tempDir);
     }
 
@@ -59,7 +64,8 @@ public class LaunchOrchestratorTests
             bool codexAvailable = true,
             string? apiKey = null,
             ILaunchRunner? runner = null,
-            ProtocolKind backendProtocol = ProtocolKind.OpenAiResponses)
+            ProtocolKind backendProtocol = ProtocolKind.OpenAiResponses,
+            FakeSecureKeyStore? keyStore = null)
     {
         var tempDir = CreateTempDir();
         var codexHome = Path.Combine(tempDir, "codex-home");
@@ -75,6 +81,9 @@ public class LaunchOrchestratorTests
         var backupsDir = Path.Combine(tempDir, "backups");
         Directory.CreateDirectory(backupsDir);
 
+        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
+        var keyReference = SeedKey(effectiveKeyStore, "codex-backend", apiKey);
+
         var settingsStore = new SettingsStore(settingsDir);
         settingsStore.Save(new LauncherSettings
         {
@@ -85,7 +94,7 @@ public class LaunchOrchestratorTests
                     Name = "codex-backend",
                     BaseUri = new Uri("https://api.example.com/v1"),
                     Protocol = backendProtocol,
-                    ApiKey = apiKey
+                    ApiKey = keyReference
                 }
             ],
             DefaultBackend = "codex-backend"
@@ -99,7 +108,8 @@ public class LaunchOrchestratorTests
             settingsStore,
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
-            [adapter]);
+            [adapter],
+            effectiveKeyStore);
         return (orchestrator, tempDir, codexHome, configPath, backupsDir);
     }
 
@@ -107,13 +117,17 @@ public class LaunchOrchestratorTests
         CreateClaudeOrchestrator(
             bool available = true,
             string? apiKey = null,
-            ILaunchRunner? runner = null)
+            ILaunchRunner? runner = null,
+            FakeSecureKeyStore? keyStore = null)
     {
         var tempDir = CreateTempDir();
         var settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
         var backupsDir = Path.Combine(tempDir, "backups");
         Directory.CreateDirectory(backupsDir);
+
+        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
+        var keyReference = SeedKey(effectiveKeyStore, "claude-backend", apiKey);
 
         var settingsStore = new SettingsStore(settingsDir);
         settingsStore.Save(new LauncherSettings
@@ -125,7 +139,7 @@ public class LaunchOrchestratorTests
                     Name = "claude-backend",
                     BaseUri = new Uri("https://api.example.com"),
                     Protocol = ProtocolKind.Anthropic,
-                    ApiKey = apiKey
+                    ApiKey = keyReference
                 }
             ],
             DefaultBackend = "claude-backend"
@@ -139,8 +153,25 @@ public class LaunchOrchestratorTests
             settingsStore,
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
-            [adapter]);
+            [adapter],
+            effectiveKeyStore);
         return (orchestrator, tempDir, backupsDir);
+    }
+
+    /// <summary>
+    /// Settings fixtures only ever carry the reference; the secret itself is
+    /// seeded into the fake store the way the real store would hold it.
+    /// </summary>
+    private static string? SeedKey(FakeSecureKeyStore keyStore, string backendName, string? secret)
+    {
+        if (secret is null)
+        {
+            return null;
+        }
+
+        string reference = KeyReference.ForBackend(backendName);
+        keyStore.Seed(reference, secret);
+        return reference;
     }
 
     [Test]
@@ -170,18 +201,8 @@ public class LaunchOrchestratorTests
         var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var originalError = Console.Error;
-            using var errorWriter = new StringWriter();
-            Console.SetError(errorWriter);
-
-            var exitCode = await orchestrator.RunAsync(
-                "TestAgent",
-                null,
-                null, null, null, [],
-                tempDir);
-
-            Console.SetError(originalError);
-            var errorOutput = errorWriter.ToString();
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.HarnessUnavailable);
             await Assert.That(errorOutput).Contains("Install via: npm install -g test");
@@ -356,7 +377,8 @@ public class LaunchOrchestratorTests
             var backupService = new BackupService(backupsDir);
             var runner = new TestLaunchRunner();
             var adapter = new ConfigWritingAdapter(configFile);
-            var orchestrator = new LaunchOrchestrator(settingsStore, backupService, runner, [adapter]);
+            var orchestrator = new LaunchOrchestrator(
+                settingsStore, backupService, runner, [adapter], new FakeSecureKeyStore());
 
             var exitCode = await orchestrator.RunAsync(
                 "ConfigWriter",
@@ -678,6 +700,13 @@ public class LaunchOrchestratorTests
             // Token variable choice, locked end to end: never ANTHROPIC_API_KEY.
             await Assert.That(env.ContainsKey("ANTHROPIC_API_KEY")).IsFalse();
 
+            // The credential reaches the harness as the secret; the at-rest
+            // reference never appears in any planned environment variable.
+            foreach (var variable in env)
+            {
+                await Assert.That(variable.Value.Contains("hgkey:")).IsFalse();
+            }
+
             var cliArgs = planDuringLaunch.ConfigurationActions
                 .OfType<CliArgumentAction>()
                 .ToList();
@@ -707,7 +736,10 @@ public class LaunchOrchestratorTests
             return Task.FromResult(0);
         });
 
-        var (orchestrator, tempDir, backupsDir) = CreateClaudeOrchestrator(runner: runner);
+        var keyStore = new FakeSecureKeyStore();
+        var (orchestrator, tempDir, backupsDir) = CreateClaudeOrchestrator(
+            runner: runner,
+            keyStore: keyStore);
         try
         {
             var exitCode = await orchestrator.RunAsync(
@@ -727,6 +759,99 @@ public class LaunchOrchestratorTests
             await Assert.That(env.ContainsKey("ANTHROPIC_MODEL")).IsFalse();
             await Assert.That(planDuringLaunch.ConfigurationActions).IsEmpty();
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
+
+            // D012: a keyless backend never reaches the store at all.
+            await Assert.That(keyStore.RetrieveCallCount).IsEqualTo(0);
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_dangling_reference_fails_with_exit_7_and_the_re_save_instruction()
+    {
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://api.example.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:default"
+                }
+            ],
+            DefaultBackend = "default"
+        };
+
+        // Reference present, secret absent from the store.
+        var keyStore = new FakeSecureKeyStore();
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(
+            adapter: adapter, settings: settings, keyStore: keyStore);
+        try
+        {
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
+            await Assert.That(errorOutput).Contains("'default'");
+            await Assert.That(errorOutput).Contains("config set-saved-key");
+            // Failed before planning, so no harness ever saw a request.
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_settings_saved_after_launch_never_contain_the_secret()
+    {
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "test-backend",
+                    BaseUri = new Uri("https://api.example.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:test-backend"
+                }
+            ],
+            DefaultBackend = "test-backend"
+        };
+
+        var keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:test-backend", "sk-never-on-disk");
+
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(
+            adapter: adapter, settings: settings, keyStore: keyStore);
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null,
+                null, null, "gpt-4",
+                ["model"],
+                tempDir);
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+
+            var fileBytes = await File.ReadAllTextAsync(
+                Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json"));
+            await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
+            await Assert.That(fileBytes.Contains("sk-never-on-disk")).IsFalse();
+
+            // And the harness saw the secret, never the reference.
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-never-on-disk");
         }
         finally
         {
@@ -752,14 +877,18 @@ public class LaunchOrchestratorTests
                     Name = "secondary",
                     BaseUri = new Uri("https://secondary.example/v1"),
                     Protocol = ProtocolKind.OpenAiResponses,
-                    ApiKey = "sk-secondary"
+                    ApiKey = "hgkey:secondary"
                 }
             ],
             DefaultBackend = "primary"
         };
 
+        var keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:secondary", "sk-secondary");
+
         var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        var (orchestrator, tempDir) = CreateOrchestrator(
+            adapter: adapter, settings: settings, keyStore: keyStore);
         try
         {
             var exitCode = await orchestrator.RunAsync(
@@ -771,7 +900,8 @@ public class LaunchOrchestratorTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
-            // The selection's stored key is the only credential source.
+            // The selection's stored key is the only credential source, resolved
+            // through the store before the adapter ever sees it.
             await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-secondary");
         }
         finally
@@ -799,14 +929,18 @@ public class LaunchOrchestratorTests
                     BaseUri = new Uri("https://secondary.example/v1"),
                     Protocol = ProtocolKind.OpenAiResponses,
                     DefaultModel = "gpt-4o",
-                    ApiKey = "sk-secondary"
+                    ApiKey = "hgkey:secondary"
                 }
             ],
             DefaultBackend = "primary"
         };
 
+        var keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:secondary", "sk-secondary");
+
         var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        var (orchestrator, tempDir) = CreateOrchestrator(
+            adapter: adapter, settings: settings, keyStore: keyStore);
         try
         {
             var exitCode = await orchestrator.RunAsync(
@@ -892,17 +1026,8 @@ public class LaunchOrchestratorTests
         var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var originalError = Console.Error;
-            using var errorWriter = new StringWriter();
-            Console.SetError(errorWriter);
-
-            var exitCode = await orchestrator.RunAsync(
-                "TestAgent",
-                null, null, null, null, [],
-                tempDir);
-
-            Console.SetError(originalError);
-            var errorOutput = errorWriter.ToString();
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
             await Assert.That(errorOutput).Contains("config backend switch");

@@ -59,7 +59,7 @@ public class BackendResolutionTests
                 uri: "https://secondary.example/v1",
                 protocol: ProtocolKind.OpenAiResponses,
                 defaultModel: "gpt-4o",
-                apiKey: "sk-stored"));
+                apiKey: "hgkey:secondary"));
 
         var result = BackendResolution.Resolve(
             settings,
@@ -75,7 +75,7 @@ public class BackendResolutionTests
         // which is never overridable per launch.
         await Assert.That(result.Backend.Name).IsEqualTo("secondary");
         await Assert.That(result.Backend.DefaultModel).IsEqualTo("gpt-4o");
-        await Assert.That(result.Backend.ApiKey).IsEqualTo("sk-stored");
+        await Assert.That(result.Backend.ApiKey).IsEqualTo("hgkey:secondary");
     }
 
     [Test]
@@ -243,7 +243,7 @@ public class BackendResolutionTests
     {
         var settings = SettingsWith(
             "primary",
-            Entry("primary", uri: "https://primary.example/v1", apiKey: "sk-primary"));
+            Entry("primary", uri: "https://primary.example/v1", apiKey: "hgkey:primary"));
 
         var result = BackendResolution.Resolve(
             settings,
@@ -256,7 +256,7 @@ public class BackendResolutionTests
         await Assert.That(result.Backend!.Name).IsEqualTo("primary");
         await Assert.That(result.Backend.BaseUri).IsEqualTo(new Uri("https://raw.example/v1"));
         await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
-        await Assert.That(result.Backend.ApiKey).IsEqualTo("sk-primary");
+        await Assert.That(result.Backend.ApiKey).IsEqualTo("hgkey:primary");
     }
 
     [Test]

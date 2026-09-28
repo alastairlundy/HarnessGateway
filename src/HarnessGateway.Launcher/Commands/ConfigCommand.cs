@@ -1,12 +1,14 @@
 using System.CommandLine;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Core.Settings.Security;
 
 namespace HarnessGateway.Launcher.Commands;
 
 public sealed class ConfigCommand : Command
 {
     private readonly SettingsStore _settingsStore;
+    private readonly ISecureKeyStore _keyStore;
 
     public ConfigCommand()
         : this(new SettingsStore())
@@ -14,9 +16,17 @@ public sealed class ConfigCommand : Command
     }
 
     internal ConfigCommand(SettingsStore settingsStore)
+        : this(
+            settingsStore,
+            SecureKeyStoreFactory.Create(Path.GetDirectoryName(settingsStore.SettingsFilePath)!))
+    {
+    }
+
+    internal ConfigCommand(SettingsStore settingsStore, ISecureKeyStore keyStore)
         : base("config", "Show and manage saved default configuration")
     {
         _settingsStore = settingsStore;
+        _keyStore = keyStore;
 
         Command showVerb = new("show", "Display the current default backend configuration");
         Command setEndpointVerb = CreateSetDefaultEndpointCommand();
@@ -49,7 +59,7 @@ public sealed class ConfigCommand : Command
             return 0;
         });
 
-        clearKeyVerb.SetAction((result) =>
+        clearKeyVerb.SetAction(async (result, cancellationToken) =>
         {
             LauncherSettings settings = _settingsStore.Load();
             Backend? backend = ResolveDefaultBackend(settings);
@@ -58,6 +68,23 @@ public sealed class ConfigCommand : Command
             {
                 Console.Error.WriteLine("No default backend configured.");
                 return (int)LaunchExitCode.UsageError;
+            }
+
+            // A legacy plaintext key predates the store and has no entry there,
+            // so only a reference is worth deleting from the credential store.
+            if (KeyReference.IsReference(backend.ApiKey))
+            {
+                try
+                {
+                    await _keyStore.DeleteAsync(
+                        KeyReference.ForBackend(backend.Name),
+                        cancellationToken);
+                }
+                catch (SecureKeyStoreException ex)
+                {
+                    Console.Error.WriteLine(ex.Message);
+                    return (int)LaunchExitCode.ConfigRestoreFailure;
+                }
             }
 
             Backend updated = backend with { ApiKey = null };
@@ -135,7 +162,7 @@ public sealed class ConfigCommand : Command
         Command cmd = new("set-saved-key", "Save an API key for the default backend");
         cmd.Add(keyArg);
 
-        cmd.SetAction((result) =>
+        cmd.SetAction(async (result, cancellationToken) =>
         {
             string key = result.GetRequiredValue(keyArg);
             LauncherSettings settings = _settingsStore.Load();
@@ -147,7 +174,18 @@ public sealed class ConfigCommand : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            Backend updated = backend with { ApiKey = key };
+            string reference = KeyReference.ForBackend(backend.Name);
+            try
+            {
+                await _keyStore.StoreAsync(reference, key, cancellationToken);
+            }
+            catch (SecureKeyStoreException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return (int)LaunchExitCode.ConfigRestoreFailure;
+            }
+
+            Backend updated = backend with { ApiKey = reference };
             UpdateBackend(settings, updated);
             _settingsStore.Save(settings);
             Console.WriteLine("Saved key updated.");

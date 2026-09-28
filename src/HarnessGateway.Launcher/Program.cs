@@ -5,6 +5,7 @@ using HarnessGateway.Launcher.Core.Backends.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Core.Settings.Security;
 using HarnessGateway.Launcher.Wizard;
 
 List<IHarnessAdapter> adapters =
@@ -18,17 +19,17 @@ List<IHarnessAdapter> adapters =
 ];
 
 SettingsStore settingsStore = new();
-string backupsDir = Path.Combine(
-    Path.GetDirectoryName(settingsStore.SettingsFilePath)!,
-    "backups");
+string settingsDir = Path.GetDirectoryName(settingsStore.SettingsFilePath)!;
+string backupsDir = Path.Combine(settingsDir, "backups");
 Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
 LaunchRunner runner = new();
+ISecureKeyStore keyStore = SecureKeyStoreFactory.Create(settingsDir);
 
 RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
 {
     new LaunchCommand(),
-    new ConfigCommand()
+    new ConfigCommand(settingsStore, keyStore)
 };
 
 rootCommand.SetAction(async (result, cancellationToken) =>
@@ -45,7 +46,7 @@ rootCommand.SetAction(async (result, cancellationToken) =>
 
     if (agent is not null)
     {
-        LaunchOrchestrator orchestrator = new(settingsStore, backupService, runner, adapters);
+        LaunchOrchestrator orchestrator = new(settingsStore, backupService, runner, adapters, keyStore);
         return await orchestrator.RunAsync(
             agent,
             backendName,
@@ -59,7 +60,7 @@ rootCommand.SetAction(async (result, cancellationToken) =>
 
     SpectreConsoleAbstraction console = new();
     ModelCatalogClient catalogClient = new(new HttpClient());
-    WizardPipeline wizard = new(console, adapters, settingsStore, catalogClient);
+    WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
     WizardResult? wizardResult = await wizard.RunAsync(cancellationToken);
 
     if (wizardResult is null)
@@ -67,7 +68,7 @@ rootCommand.SetAction(async (result, cancellationToken) =>
         return 0;
     }
 
-    LaunchOrchestrator orchestratorForWizard = new(settingsStore, backupService, runner, adapters);
+    LaunchOrchestrator orchestratorForWizard = new(settingsStore, backupService, runner, adapters, keyStore);
     return await orchestratorForWizard.RunAsync(
         wizardResult.AgentName,
         null,

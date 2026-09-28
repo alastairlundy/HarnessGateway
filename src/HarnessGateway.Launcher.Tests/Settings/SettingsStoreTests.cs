@@ -23,7 +23,7 @@ public class SettingsStoreTests
                         BaseUri = new Uri("https://api.example.com/v1"),
                         Protocol = ProtocolKind.OpenAiChat,
                         DefaultModel = "gpt-4",
-                        ApiKey = "test-key"
+                        ApiKey = "hgkey:test-backend"
                     }
                 ],
                 DefaultBackend = "test-backend",
@@ -40,7 +40,7 @@ public class SettingsStoreTests
             await Assert.That(loaded.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
             await Assert.That(loaded.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
             await Assert.That(loaded.Backends[0].DefaultModel).IsEqualTo("gpt-4");
-            await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("test-key");
+            await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:test-backend");
         }
         finally
         {
