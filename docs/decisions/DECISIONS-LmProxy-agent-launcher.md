@@ -745,5 +745,13 @@ Created: 2026-09-09
 - **Notes**: Minor CLI-contract interpretation confirmed by the user in the decomposition session; T038's non-contractual hint policy still applies to phrasing. Closing constraint restated in TK006.
 
 <!-- next-d: D023 -->
-<!-- next-t: T045 -->
+<!-- next-t: T046 -->
 <!-- next-i: I038 -->
+
+### [T045] - ConfigurationAction family amendment: slim to two variants
+
+- **Driver**: The Codex adapter (TK003) exposed that `EnvironmentVariableAction` was the wrong home for harness-bound variables: the saved key's only consumer is the spawned harness process (reading it via the config's `env_key`), nothing in the launcher process ever reads it, and the other four adapters already scope env vars to the child via `ProcessConfiguration.EnvironmentVariables`. The action route paid an undo cost (orchestrator snapshot/restore) for a mutation that needs no undo - child-process env vars die with the child, so the orchestrator-owns-the-lifecycle principle (T019/T008/D011) is unaffected by scoping them there.
+- **Resolved Answer**: Slim the closed family to two variants - `CliArgumentAction` and `ConfigFileWriteAction` - and retire `EnvironmentVariableAction`. Env vars for the spawned harness travel on `LaunchPlan.Process.EnvironmentVariables` (CliInvoke merges them over the inherited parent environment at spawn); the launch path never mutates the launcher process environment.
+- **Normalized Requirement**: The ConfigurationAction family shall contain exactly `CliArgumentAction` and `ConfigFileWriteAction` under one abstract base record. Harness env-var configuration shall be declared on the plan's ProcessConfiguration; env-var actions shall not be emitted. Supersedes the three-variant wording of `#T023` and the env-action delivery wording of `#T025` and `#T026`.
+- **Constraints**: Consequence for `#T026` (Claude Code): its planned env-var configuration (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`) ships as ProcessConfiguration env vars when implemented - spec intent unchanged, delivery mechanism amended. The orchestrator's env snapshot/restore lane is removed (nothing to restore); the exit-code table is unaffected. D012 key handling unchanged: inject when present, omit when absent, never a dummy value.
+- **Cites**: T023, T025, T026, T019, T008, D011, D012

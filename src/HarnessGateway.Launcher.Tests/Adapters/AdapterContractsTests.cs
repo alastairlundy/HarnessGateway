@@ -113,25 +113,15 @@ public class ConfigurationActionTests
     }
 
     [Test]
-    public async Task EnvironmentVariableAction_stores_name_and_value()
-    {
-        var action = new EnvironmentVariableAction("OPENAI_API_KEY", "sk-test");
-
-        await Assert.That(action.Name).IsEqualTo("OPENAI_API_KEY");
-        await Assert.That(action.Value).IsEqualTo("sk-test");
-        await Assert.That(action).IsTypeOf<EnvironmentVariableAction>();
-    }
-
-    [Test]
     public async Task ConfigurationAction_is_abstract_base()
     {
+        // T045: the closed family is exactly CliArgumentAction and ConfigFileWriteAction;
+        // env vars ride on LaunchPlan.Process.EnvironmentVariables.
         ConfigurationAction cli = new CliArgumentAction("--flag", null);
         ConfigurationAction file = new ConfigFileWriteAction("/tmp", "content");
-        ConfigurationAction env = new EnvironmentVariableAction("KEY", "value");
 
         await Assert.That(cli).IsTypeOf<CliArgumentAction>();
         await Assert.That(file).IsTypeOf<ConfigFileWriteAction>();
-        await Assert.That(env).IsTypeOf<EnvironmentVariableAction>();
     }
 }
 

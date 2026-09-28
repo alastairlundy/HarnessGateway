@@ -57,6 +57,24 @@ public sealed class LaunchOrchestrator
                 return (int)LaunchExitCode.HarnessUnavailable;
             }
 
+            // T028: fail before any configuration action when the resolved backend's
+            // protocol is not supported by the chosen harness.
+            if (backend is not null
+                && !adapter.Metadata.SupportedProtocols.Contains(backend.Protocol))
+            {
+                string supported = string.Join(
+                    ", ",
+                    adapter.Metadata.SupportedProtocols.Select(LaunchCommand.ProtocolName));
+                Console.Error.WriteLine(
+                    $"Refusing to launch {agentName}: the selected backend's protocol " +
+                    $"({LaunchCommand.ProtocolName(backend.Protocol)}) is not supported by " +
+                    $"{adapter.Metadata.Name}, which supports: {supported}. " +
+                    "Override the launch with --endpoint <backend-url> --protocol <supported-protocol>, " +
+                    "or re-point the default backend with " +
+                    "'harnessgateway config set-default-endpoint <url> <protocol>'.");
+                return (int)LaunchExitCode.UnknownAgent;
+            }
+
             string? resolvedModel = ResolveModel(model, backend, adapter, persistValues);
 
             LaunchRequest request = new(backend, resolvedModel, workingDirectory);
@@ -78,6 +96,11 @@ public sealed class LaunchOrchestrator
             }
 
             return exitCode;
+        }
+        catch (LaunchRefusalException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return (int)LaunchExitCode.ConfigConflict;
         }
         catch (Exception ex)
         {
@@ -142,10 +165,6 @@ public sealed class LaunchOrchestrator
                 }
                 await _backupService.BackupAsync(fileWrite.TargetPath, cancellationToken);
                 await File.WriteAllTextAsync(fileWrite.TargetPath, fileWrite.Content, cancellationToken);
-                break;
-
-            case EnvironmentVariableAction envVar:
-                Environment.SetEnvironmentVariable(envVar.Name, envVar.Value);
                 break;
 
             case CliArgumentAction:

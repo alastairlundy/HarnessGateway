@@ -15,12 +15,11 @@ Add Codex as a launcher target: plan one backed-up, launcher-owned provider bloc
 - Metadata exactly per record T025/T044
   - Name `codex`, Kind `Cli`, `RequiresModel = true`, supports only the openai-responses protocol (via the TK001 `SupportedProtocols` field), install hint covering npm/brew, `DetectionCommand` probing `codex` on PATH (internal test seam like the four existing adapters).
   - `ConfigFileCandidates` resolve the real config path honouring a user-set `CODEX_HOME` environment variable, falling back to the user profile's `~/.codex/config.toml`.
-- `PlanLaunchAsync` emits exactly two actions, nothing more
+- `PlanLaunchAsync` emits exactly one `ConfigFileWriteAction`, nothing more
   1. `ConfigFileWriteAction` for the TOML edit - splice a `[model_providers.harnessgateway]` block (fields `name`, `base_url`, `env_key`, `wire_api = "responses"`) plus top-level `model_provider = "harnessgateway"` and `model` keys, using the round-trip editor from TK002 so comments and structure survive. The model key is written only when a model was chosen.
-  2. `EnvironmentVariableAction` carrying the saved key under the variable named by `env_key`.
-- Collision refusal before any write (record T037) - if the current `config.toml` already contains a block with the id `harnessgateway`, planning fails with an explanatory error and no action is returned. Never adopt, overwrite, or shadow another provider id; plain lexer-level probe via the TK002 editor's block-exists check.
-- Key handling (record D012) - emit the env action with the saved key only when the resolved backend entry has one; when no key is saved, no env action at all. Never a dummy value.
-- Launch and configuration footprint stays inside the existing closed action family (record T023) - no new action variant is introduced.
+- Key delivery (record D012, delivery per T045) - the saved key rides on the plan's `ProcessConfiguration.EnvironmentVariables` under the variable named by `env_key`, scoped to the spawned codex process; only when the resolved backend entry has one; never a dummy value.
+- Collision refusal before any write (record T037) - if the current `config.toml` already defines a provider with the id `harnessgateway`, planning fails with an explanatory error and no action is returned. Never adopt, overwrite, or shadow another provider id; probe via the TK002 editor's name-in-use check (headers, table arrays, inline tables, and dotted keys).
+- Launch and configuration footprint stays inside the closed action family (record T023 as amended by T045) - no new action variant is introduced.
 - Register the adapter in the `List<IHarnessAdapter>` in `src/HarnessGateway.Launcher/Program.cs` (append after `PiAdapter()`), matching the agent-lookup convention: launch resolves `codex` case-insensitively against `Metadata.Name`.
 
 ## Size
@@ -39,13 +38,13 @@ Where: src/HarnessGateway.Launcher.Core/Adapters/CodexAdapter.cs (new)
 
 Verify: metadata values match the record values exactly; path resolver unit spot-checks read right with a set `CODEX_HOME`.
 
-### Step 2 - Plan the two actions
+### Step 2 - Plan the action and the process env
 
 Where: same file
 
-- Call the TK002 editor's block-exists check on the resolved config path's content; refuse if `harnessgateway` exists.
+- Call the TK002 editor's name-in-use check on the resolved config path's content; refuse if `harnessgateway` is claimed by any header, table array, inline table, or dotted key.
 - Splice block and top-level keys; emit the `ConfigFileWriteAction` with the round-tripped TOML string.
-- Emit the env-key action only when the backend entry's saved key resolves.
+- Set the env_key-named variable on the plan's `ProcessConfiguration.EnvironmentVariables` only when the backend entry's saved key resolves.
 
 Verify: splice is a minimal diff (one block plus two top-level keys); refusal path returns an error before returning any action; absent key yields no second action.
 
@@ -101,10 +100,10 @@ Verify: plan executes; the config file is restored after the run unless `config`
 ## Acceptance criteria
 
 - [ ] Metadata values match record T025 exactly (name, kind, requirement, protocols, install hint, detection command, config candidates honouring `CODEX_HOME`)
-- [ ] `PlanLaunchAsync` emits exactly one `ConfigFileWriteAction` plus at most one `EnvironmentVariableAction`; no other action types
-- [ ] A pre-existing `harnessgateway` provider block refuses the launch before any write, with an explanatory error
+- [ ] `PlanLaunchAsync` emits exactly one `ConfigFileWriteAction`; no other action types
+- [ ] A pre-existing `harnessgateway` provider definition refuses the launch before any write, with an explanatory error
 - [ ] The written TOML splices cleanly and preserves comments and structure; top-level `model_provider` and `model` keys are set
-- [ ] Key handling - env action only with a saved key; no action (and no dummy value) when absent
+- [ ] Key handling - the env_key-named variable is set on the plan's process config only with a saved key; absent (and no dummy value) when none
 - [ ] Restore-on-exit and self-heal tests pass over the Codex write, and `--persist config` keeps the write
 - [ ] Adapter is registered and reachable through `launch codex` (case-insensitive) in orchestrator tests
 

@@ -54,6 +54,59 @@ public sealed class TomlDocumentEditor
     }
 
     /// <summary>
+    /// Detects whether the dotted <paramref name="name"/> is already claimed anywhere in
+    /// the document: as a <c>[name]</c> or <c>[[name]]</c> header, as a key path (for
+    /// example an inline-table value under a parent section), or as a dotted key that
+    /// would implicitly define the name (for example <c>name.sub = ...</c>). Broader
+    /// than <see cref="BlockExists"/>, which matches plain table headers only.
+    /// </summary>
+    public bool NameInUse(string name)
+    {
+        string[] path = SplitName(name, nameof(name));
+
+        foreach (TableSyntaxBase table in _document.Tables)
+        {
+            if (table.Name is not null && ClaimsOrExtends(ResolveKey(table.Name), path))
+            {
+                return true;
+            }
+
+            string[] tablePath = table.Name is null ? [] : ResolveKey(table.Name);
+            foreach (KeyValueSyntax item in table.Items)
+            {
+                if (item.Key is null)
+                {
+                    continue;
+                }
+
+                string[] fullPath = [.. tablePath, .. ResolveKey(item.Key)];
+                if (ClaimsOrExtends(fullPath, path))
+                {
+                    return true;
+                }
+            }
+        }
+
+        foreach (KeyValueSyntax item in _document.KeyValues)
+        {
+            if (item.Key is null)
+            {
+                continue;
+            }
+
+            string[] keyPath = ResolveKey(item.Key);
+            // A scalar key at an ancestor position (e.g. a top-level
+            // `model_providers = "..."`) also blocks the name.
+            if (ClaimsOrExtends(keyPath, path) || ExtendsOrMatches(keyPath, path))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Inserts the named block when absent, or rewrites an existing block so it contains
     /// exactly <paramref name="values"/>. Keys already present keep their position and
     /// surrounding comments; keys missing from <paramref name="values"/> are removed.
@@ -308,6 +361,36 @@ public sealed class TomlDocumentEditor
     private static bool PathEquals(string[] left, string[] right)
     {
         return left.SequenceEqual(right, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// True when <paramref name="candidate"/> equals <paramref name="path"/> or is
+    /// strictly deeper than it (a header or dotted key that implicitly defines
+    /// <paramref name="path"/>). A shallower candidate does not conflict here - a plain
+    /// parent section header is normal TOML.
+    /// </summary>
+    private static bool ClaimsOrExtends(string[] candidate, string[] path)
+    {
+        if (candidate.Length < path.Length)
+        {
+            return false;
+        }
+
+        return path.SequenceEqual(candidate[..path.Length], StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// True when <paramref name="candidate"/> equals <paramref name="path"/> or is a
+    /// strict ancestor of it.
+    /// </summary>
+    private static bool ExtendsOrMatches(string[] candidate, string[] path)
+    {
+        if (candidate.Length > path.Length)
+        {
+            return false;
+        }
+
+        return candidate.SequenceEqual(path[..candidate.Length], StringComparer.Ordinal);
     }
 
     private static string[] SplitName(string name, string parameterName)

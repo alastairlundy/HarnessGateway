@@ -57,13 +57,14 @@ public sealed class CodexAdapter : IHarnessAdapter
             : string.Empty;
 
         var editor = TomlDocumentEditor.Parse(existing);
-        if (editor.BlockExists(ProviderBlockName))
+        if (editor.NameInUse(ProviderBlockName))
         {
             // T037: refuse before any write - never adopt or overwrite a user-authored block.
-            throw new InvalidOperationException(
-                $"Codex config '{configPath}' already contains a [{ProviderBlockName}] provider block. " +
-                "The launcher never adopts or overwrites a user-authored provider block - " +
-                "remove or rename that block and launch again.");
+            throw new LaunchRefusalException(
+                $"Refusing to launch codex: '{configPath}' already defines a '{ProviderBlockName}' provider. " +
+                "The launcher writes its own provider under the id 'harnessgateway' and never adopts or " +
+                "overwrites one you authored - remove or rename that provider block " +
+                "(or point CODEX_HOME at a different config) and launch again.");
         }
 
         editor.UpsertBlock(ProviderBlockName, new Dictionary<string, object?>
@@ -79,22 +80,26 @@ public sealed class CodexAdapter : IHarnessAdapter
             editor.SetTopLevelValue("model", request.Model);
         }
 
+        // D012: inject the saved key only when one exists; never a dummy value. The
+        // key is scoped to the spawned codex process (T045) - codex reads it from
+        // the environment variable named by the config block's env_key.
+        var envVars = new Dictionary<string, string>();
+        if (request.Backend.ApiKey is { Length: > 0 })
+        {
+            envVars[EnvKeyName] = request.Backend.ApiKey;
+        }
+
         var actions = new List<ConfigurationAction>
         {
             new ConfigFileWriteAction(configPath, editor.ToToml())
         };
 
-        // D012: inject the saved key only when one exists; never a dummy value.
-        if (request.Backend.ApiKey is { Length: > 0 })
-        {
-            actions.Add(new EnvironmentVariableAction(EnvKeyName, request.Backend.ApiKey));
-        }
-
         var config = new ProcessConfiguration("codex")
         {
             Arguments = string.Empty,
             WorkingDirectoryPath = request.WorkingDirectory,
-            OutputRedirection = true
+            OutputRedirection = true,
+            EnvironmentVariables = envVars
         };
 
         return new LaunchPlan(config, actions);

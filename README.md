@@ -35,8 +35,9 @@ harnessgateway launch <agent> [--endpoint URL --protocol PROTOCOL] [--model MODE
 |------|------|---------|
 | 0 | Ok | Command succeeded |
 | 2 | UsageError | Invalid arguments or missing required options |
-| 3 | UnknownAgent | Requested agent harness is not recognised |
+| 3 | UnknownAgent | Requested agent harness is not recognised, or the selected backend's protocol is not supported by that harness |
 | 4 | HarnessUnavailable | Agent harness binary not found on PATH |
 | 5 | EndpointUnreachable | Backend endpoint could not be reached |
 | 6 | RequiredModelMissing | No model was specified and no default is configured |
 | 7 | ConfigRestoreFailure | Failed to restore configuration after a no-persist launch |
+| 10 | ConfigConflict | Launch was refused because existing configuration conflicts with the launcher's writes (for example a pre-existing provider block). Resolve the conflict and launch again |

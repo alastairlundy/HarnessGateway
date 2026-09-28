@@ -8,5 +8,6 @@ public enum LaunchExitCode
     HarnessUnavailable = 4,
     EndpointUnreachable = 5,
     RequiredModelMissing = 6,
-    ConfigRestoreFailure = 7
+    ConfigRestoreFailure = 7,
+    ConfigConflict = 10
 }

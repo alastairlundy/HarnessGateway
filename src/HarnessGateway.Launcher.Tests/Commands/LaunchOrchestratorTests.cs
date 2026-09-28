@@ -57,7 +57,8 @@ public class LaunchOrchestratorTests
             string? originalConfig = null,
             bool codexAvailable = true,
             string? apiKey = null,
-            ILaunchRunner? runner = null)
+            ILaunchRunner? runner = null,
+            ProtocolKind backendProtocol = ProtocolKind.OpenAiResponses)
     {
         var tempDir = CreateTempDir();
         var codexHome = Path.Combine(tempDir, "codex-home");
@@ -82,7 +83,7 @@ public class LaunchOrchestratorTests
                 {
                     Name = "codex-backend",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiResponses,
+                    Protocol = backendProtocol,
                     ApiKey = apiKey
                 }
             ],
@@ -340,10 +341,14 @@ public class LaunchOrchestratorTests
         string configPath = string.Empty;
         string? contentDuringLaunch = null;
         string? envDuringLaunch = null;
-        var runner = new CallbackLaunchRunner(_ =>
+        var runner = new CallbackLaunchRunner(plan =>
         {
             contentDuringLaunch = File.ReadAllText(configPath);
-            envDuringLaunch = Environment.GetEnvironmentVariable(CodexAdapter.EnvKeyName);
+            // The saved key rides on the plan's process configuration (T045), scoped
+            // to the spawned codex process under the env_key variable's name.
+            plan.Process.EnvironmentVariables.TryGetValue(
+                CodexAdapter.EnvKeyName,
+                out envDuringLaunch);
             return Task.FromResult(0);
         });
 
@@ -374,7 +379,6 @@ public class LaunchOrchestratorTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable(CodexAdapter.EnvKeyName, null);
             Directory.Delete(tempDir, true);
         }
     }
@@ -428,10 +432,39 @@ public class LaunchOrchestratorTests
                 tempDir);
 
             // The adapter refuses during planning, so the launch fails and no write
-            // (and therefore no backup marker) ever happens.
-            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
+            // (and therefore no backup marker) ever happens. The refusal is its own
+            // exit class, not a restore failure.
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigConflict);
             var content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).IsEqualTo(userOwnedConfig);
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_unsupported_backend_protocol_fails_before_any_write()
+    {
+        const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";
+        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+            originalConfig: originalConfig,
+            backendProtocol: ProtocolKind.Anthropic);
+
+        try
+        {
+            var exitCode = await orchestrator.RunAsync(
+                "codex",
+                null, null, "gpt-5", [],
+                tempDir);
+
+            // T028: protocol compatibility is enforced by the launch path, before any
+            // configuration action, using the unknown-agent/invalid-selection exit code.
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownAgent);
+            var content = await File.ReadAllTextAsync(configPath);
+            await Assert.That(content).IsEqualTo(originalConfig);
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
         finally

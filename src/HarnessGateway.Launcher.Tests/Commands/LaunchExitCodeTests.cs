@@ -47,6 +47,12 @@ public class LaunchExitCodeTests
     }
 
     [Test]
+    public async Task ConfigConflict_is_ten()
+    {
+        await Assert.That((int)LaunchExitCode.ConfigConflict).IsEqualTo(10);
+    }
+
+    [Test]
     public async Task All_exit_codes_are_distinct()
     {
         var values = Enum.GetValues<LaunchExitCode>();

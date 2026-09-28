@@ -127,6 +127,9 @@ public class CodexAdapterTests
     }
 
     [Test]
+    // Shares the constraint key with the other tests that mutate the real process
+    // environment, so they never run concurrently.
+    [NotInParallel("process-environment")]
     public async Task Default_config_path_honours_real_CODEX_home_environment_variable()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
@@ -173,17 +176,16 @@ public class CodexAdapterTests
 
             var plan = await adapter.PlanLaunchAsync(request);
 
-            await Assert.That(plan.ConfigurationActions.Count).IsEqualTo(2);
+            await Assert.That(plan.ConfigurationActions.Count).IsEqualTo(1);
 
             var fileWrite = plan.ConfigurationActions[0];
             await Assert.That(fileWrite).IsTypeOf<ConfigFileWriteAction>();
             await Assert.That(((ConfigFileWriteAction)fileWrite).TargetPath).IsEqualTo(configPath);
 
-            var envAction = plan.ConfigurationActions[1];
-            await Assert.That(envAction).IsTypeOf<EnvironmentVariableAction>();
-            await Assert.That(((EnvironmentVariableAction)envAction).Name)
-                .IsEqualTo(CodexAdapter.EnvKeyName);
-            await Assert.That(((EnvironmentVariableAction)envAction).Value).IsEqualTo("sk-live");
+            // The saved key is scoped to the spawned codex process via the plan's
+            // process configuration, under the env_key variable's name (T045).
+            await Assert.That(plan.Process.EnvironmentVariables[CodexAdapter.EnvKeyName])
+                .IsEqualTo("sk-live");
 
             await Assert.That(plan.Process.TargetFilePath).IsEqualTo("codex");
         }
@@ -259,7 +261,7 @@ public class CodexAdapterTests
     [Test]
     [Arguments(null)]
     [Arguments("")]
-    public async Task PlanLaunch_omits_key_action_when_no_saved_key(string? apiKey)
+    public async Task PlanLaunch_omits_key_from_process_env_when_no_saved_key(string? apiKey)
     {
         var (tempDir, codexHome, _) = CreateCodexHome();
         try
@@ -270,7 +272,7 @@ public class CodexAdapterTests
             var plan = await adapter.PlanLaunchAsync(request);
 
             await Assert.That(plan.ConfigurationActions.Count).IsEqualTo(1);
-            await Assert.That(plan.ConfigurationActions.OfType<EnvironmentVariableAction>()).IsEmpty();
+            await Assert.That(plan.Process.EnvironmentVariables.Count).IsEqualTo(0);
         }
         finally
         {
@@ -292,6 +294,8 @@ public class CodexAdapterTests
 
             await Assert.That(content.Contains("sk-test", StringComparison.Ordinal)).IsFalse();
             await Assert.That(content.Contains("dummy", StringComparison.Ordinal)).IsFalse();
+            // No key saved - none may appear in the spawned process environment either.
+            await Assert.That(plan.Process.EnvironmentVariables.Count).IsEqualTo(0);
         }
         finally
         {
@@ -319,21 +323,86 @@ public class CodexAdapterTests
             var adapter = CreateAdapter(codexHome);
             var request = CreateRequest();
 
-            InvalidOperationException? caught = null;
+            LaunchRefusalException? caught = null;
             try
             {
                 await adapter.PlanLaunchAsync(request);
             }
-            catch (InvalidOperationException exception)
+            catch (LaunchRefusalException exception)
             {
                 caught = exception;
             }
 
             await Assert.That(caught).IsNotNull();
             await Assert.That(caught!.Message).Contains("model_providers.harnessgateway");
+            await Assert.That(caught!.Message).Contains("remove or rename", StringComparison.Ordinal);
             // Refusal happens before any write: the user's file is untouched.
             var after = await File.ReadAllTextAsync(configPath);
             await Assert.That(after).IsEqualTo(userOwned.ReplaceLineEndings("\n"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task PlanLaunch_refuses_when_provider_defined_as_table_array()
+    {
+        var (tempDir, codexHome, configPath) = CreateCodexHome();
+        try
+        {
+            await File.WriteAllTextAsync(configPath, "[[model_providers.harnessgateway]]\nname = \"Mine\"\n");
+
+            var adapter = CreateAdapter(codexHome);
+
+            LaunchRefusalException? caught = null;
+            try
+            {
+                await adapter.PlanLaunchAsync(CreateRequest());
+            }
+            catch (LaunchRefusalException exception)
+            {
+                caught = exception;
+            }
+
+            await Assert.That(caught).IsNotNull();
+            // Refusal happens before any write: the user's file is untouched.
+            await Assert.That(await File.ReadAllTextAsync(configPath))
+                .IsEqualTo("[[model_providers.harnessgateway]]\nname = \"Mine\"\n");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task PlanLaunch_refuses_when_provider_defined_inline_under_parent()
+    {
+        var (tempDir, codexHome, configPath) = CreateCodexHome();
+        try
+        {
+            await File.WriteAllTextAsync(
+                configPath,
+                "[model_providers]\nharnessgateway = { name = \"Mine\", wire_api = \"responses\" }\n");
+
+            var adapter = CreateAdapter(codexHome);
+
+            LaunchRefusalException? caught = null;
+            try
+            {
+                await adapter.PlanLaunchAsync(CreateRequest());
+            }
+            catch (LaunchRefusalException exception)
+            {
+                caught = exception;
+            }
+
+            await Assert.That(caught).IsNotNull();
+            // Refusal happens before any write: the user's file is untouched.
+            await Assert.That(await File.ReadAllTextAsync(configPath))
+                .IsEqualTo("[model_providers]\nharnessgateway = { name = \"Mine\", wire_api = \"responses\" }\n");
         }
         finally
         {

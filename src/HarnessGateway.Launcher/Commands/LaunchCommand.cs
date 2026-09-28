@@ -89,6 +89,14 @@ public sealed class LaunchCommand : Command
         _ => throw new ArgumentException($"Unknown protocol: {value}")
     };
 
+    public static string ProtocolName(ProtocolKind protocol) => protocol switch
+    {
+        ProtocolKind.OpenAiChat => "openai-chat",
+        ProtocolKind.OpenAiResponses => "openai-responses",
+        ProtocolKind.Anthropic => "anthropic",
+        _ => protocol.ToString()
+    };
+
     public static Uri ParseEndpoint(string value) => new(value, UriKind.Absolute);
 
     public static IReadOnlyList<string> ParsePersistValues(string[] values)

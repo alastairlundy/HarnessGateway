@@ -101,6 +101,60 @@ public class TomlDocumentEditorTests
     }
 
     [Test]
+    public async Task NameInUse_matches_headers_and_conflicting_key_forms()
+    {
+        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+
+        await Assert.That(editor.NameInUse("model_providers.openai")).IsTrue();
+        await Assert.That(editor.NameInUse("features")).IsTrue();
+        await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsFalse();
+        // Values are not keys: the model_provider value mentioning a name does not count.
+        await Assert.That(editor.NameInUse("harnessgateway")).IsFalse();
+    }
+
+    [Test]
+    public async Task NameInUse_detects_table_array_headers()
+    {
+        var editor = TomlDocumentEditor.Parse("[[model_providers.harnessgateway]]\nname = \"Mine\"\n");
+
+        await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
+    }
+
+    [Test]
+    public async Task NameInUse_detects_inline_table_under_parent_section()
+    {
+        var editor = TomlDocumentEditor.Parse(
+            "[model_providers]\nharnessgateway = { name = \"Mine\", wire_api = \"responses\" }\n");
+
+        await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
+        // Unrelated keys in the same parent section do not conflict.
+        await Assert.That(editor.NameInUse("model_providers.openai")).IsFalse();
+    }
+
+    [Test]
+    public async Task NameInUse_detects_dotted_keys_defining_the_name()
+    {
+        var editor = TomlDocumentEditor.Parse(
+            "[model_providers]\nharnessgateway.name = \"Mine\"\n");
+
+        await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
+    }
+
+    [Test]
+    public async Task NameInUse_detects_top_level_dotted_and_ancestor_keys()
+    {
+        var editor = TomlDocumentEditor.Parse(
+            "model_providers.harnessgateway = \"scalar\"\n");
+
+        await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
+
+        var ancestorEditor = TomlDocumentEditor.Parse(
+            "model_providers = \"scalar\"\n");
+
+        await Assert.That(ancestorEditor.NameInUse("model_providers.harnessgateway")).IsTrue();
+    }
+
+    [Test]
     public async Task UpsertBlock_inserts_missing_block_after_a_blank_line()
     {
         var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
