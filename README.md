@@ -23,24 +23,25 @@ HarnessGateway supports six agent harnesses. None of them ship with it: install
 the ones you want from the table below, and the launcher will find them on your
 `PATH`.
 
-| Agent | Binary | Protocols | Model | Install |
-|-------|--------|-----------|-------|---------|
-| `OpenCode` | `opencode` | chat, responses, anthropic | required | `npm i -g @opencode/cli` |
-| `Kilo` | `kilo` | chat, responses, anthropic | required | `npm i -g @kilocode/cli` |
-| `GitHub Copilot CLI` | `copilot` | chat, responses, anthropic | required | `npm i -g @github/copilot` |
-| `Pi` | `pi` | chat, responses, anthropic | optional | `npm i -g @earendil-works/pi-coding-agent` |
-| `codex` | `codex` | responses | required | `npm i -g @openai/codex` |
-| `claude-code` | `claude` | anthropic | optional | `npm i -g @anthropic-ai/claude-code` |
+| Token | Name | Binary | Protocols | Model | Install |
+|-------|------|--------|-----------|-------|---------|
+| `opencode` | OpenCode | `opencode` | chat, responses, anthropic | required | `npm i -g @opencode/cli` |
+| `kilo` | Kilo | `kilo` | chat, responses, anthropic | required | `npm i -g @kilocode/cli` |
+| `copilot` | GitHub Copilot CLI | `copilot` | chat, responses, anthropic | required | `npm i -g @github/copilot` |
+| `pi` | Pi | `pi` | chat, responses, anthropic | optional | `npm i -g @earendil-works/pi-coding-agent` |
+| `codex` | codex | `codex` | responses | required | `npm i -g @openai/codex` |
+| `claude-code` | claude-code | `claude` | anthropic | optional | `npm i -g @anthropic-ai/claude-code` |
 
 "chat" is `openai-chat`, "responses" is `openai-responses`. Asking for a
 protocol a harness doesn't speak exits 3 and names the ones it does.
 
-Type the **Agent** column, not the product name. `launch copilot` works;
-`launch "GitHub Copilot CLI"` exits 3, because the product name is a label the
-wizard displays, not a token the parser accepts. Matching is case-insensitive,
-so `launch COPILOT` is fine. A handful of extra spellings are accepted as
-aliases (`claude` for `claude-code`, `github-copilot-cli` for `copilot`), and
-`--help` lists only the canonical tokens.
+Type the **Token** column: `harnessgateway launch copilot`. The **Name** column
+is what the interactive wizard lists and what error messages quote, and it is
+not accepted as input. For five of the six the two happen to be the same
+string, which is why the difference is easy to miss until you reach Copilot.
+Matching is case-insensitive, so `launch COPILOT` works too. A few extra
+spellings are accepted as aliases (`claude` for `claude-code`,
+`github-copilot-cli` for `copilot`), and `--help` lists only the tokens.
 
 Detection is a `PATH` lookup, so a harness that is installed but not on `PATH`
 reads as missing. Naming the binary is how you check:
@@ -57,10 +58,10 @@ selection with the same hint.
 HarnessGateway never edits your shell profile or its own environment. Every
 setting below is scoped to the process it starts:
 
-| Agent | How it's configured |
+| Token | How it's configured |
 |-------|---------------------|
-| `OpenCode`, `Kilo`, `Pi` | `OPENAI_*` or `ANTHROPIC_*` env vars |
-| `GitHub Copilot CLI` | `COPILOT_PROVIDER_BASE_URL`, `COPILOT_PROVIDER_API_KEY`, `COPILOT_PROVIDER_TYPE` |
+| `opencode`, `kilo`, `pi` | `OPENAI_*` or `ANTHROPIC_*` env vars |
+| `copilot` | `COPILOT_PROVIDER_BASE_URL`, `COPILOT_PROVIDER_API_KEY`, `COPILOT_PROVIDER_TYPE` |
 | `claude-code` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL` |
 | `codex` | a `model_providers.harnessgateway` block written to `config.toml` |
 
@@ -201,12 +202,16 @@ exit 9 and left untouched.
 | 2 | UsageError | Invalid arguments, or a `remove` that would break the default pointer or empty the entry list |
 | 3 | UnknownAgent | Unrecognized agent token, or a protocol the chosen harness doesn't speak. A near miss suggests the token it meant |
 | 4 | HarnessUnavailable | The harness binary isn't on `PATH` |
-| 5 | EndpointUnreachable | Reserved; not currently returned |
-| 6 | RequiredModelMissing | Reserved; a missing model currently warns and launches anyway |
+| 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
+| 6 | RequiredModelMissing | **Reserved.** Declared but never returned; a harness that needs a model and has none is warned about, then launched anyway |
 | 7 | ConfigRestoreFailure | Credential-store failure, no backend configured, or an unhandled launch error |
 | 8 | UnknownBackendName | `--backend` named no entry, or the `defaultBackend` pointer dangles or is empty while entries exist |
 | 9 | UnsupportedSettingsSchema | `schemaVersion` is missing, malformed, or newer than this build. Nothing is written |
 | 10 | ConfigConflict | A user-authored `model_providers.harnessgateway` block already exists in the codex config |
+
+Codes 5 and 6 are reserved and will not appear in this release. The enum keeps
+them so a future build can claim the numbers without renumbering anything
+already documented, and the numbering is append-only from here.
 
 ## License
 
