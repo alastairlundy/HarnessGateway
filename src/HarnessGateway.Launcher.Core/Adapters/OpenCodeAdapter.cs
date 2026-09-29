@@ -9,7 +9,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
         Name: "OpenCode",
         Kind: HarnessKind.Cli,
         RequiresModel: true,
-        InstallHint: "Install via: npm i -g opencode-ai",
+        InstallHint: "Install via: npm i -g @opencode/cli",
         DetectionCommand: "opencode --version",
         ConfigFileCandidates: ["opencode.json"],
         SupportedProtocols: new HashSet<ProtocolKind>
