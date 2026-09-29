@@ -1,6 +1,7 @@
 using CliInvoke.Core;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
@@ -15,7 +16,7 @@ public class LaunchOrchestratorTests
 {
     private static string CreateTempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         return dir;
     }
@@ -26,24 +27,24 @@ public class LaunchOrchestratorTests
         ILaunchRunner? runner = null,
         FakeSecureKeyStore? keyStore = null)
     {
-        var tempDir = CreateTempDir();
-        var settingsDir = Path.Combine(tempDir, "settings");
+        string tempDir = CreateTempDir();
+        string settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
-        var backupsDir = Path.Combine(tempDir, "backups");
+        string backupsDir = Path.Combine(tempDir, "backups");
         Directory.CreateDirectory(backupsDir);
 
-        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
-        var settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
+        FakeSecureKeyStore effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
+        SettingsStore settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
         if (settings is not null)
         {
             settingsStore.Save(settings);
         }
 
-        var backupService = new BackupService(backupsDir);
-        var effectiveRunner = runner ?? new TestLaunchRunner();
-        var adapters = adapter is not null ? new[] { adapter } : [];
+        BackupService backupService = new BackupService(backupsDir);
+        ILaunchRunner effectiveRunner = runner ?? new TestLaunchRunner();
+        IHarnessAdapter[] adapters = adapter is not null ? [adapter] : [];
 
-        var orchestrator = new LaunchOrchestrator(
+        LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             settingsStore, backupService, effectiveRunner, adapters, effectiveKeyStore);
         return (orchestrator, tempDir);
     }
@@ -67,24 +68,24 @@ public class LaunchOrchestratorTests
             ProtocolKind backendProtocol = ProtocolKind.OpenAiResponses,
             FakeSecureKeyStore? keyStore = null)
     {
-        var tempDir = CreateTempDir();
-        var codexHome = Path.Combine(tempDir, "codex-home");
+        string tempDir = CreateTempDir();
+        string codexHome = Path.Combine(tempDir, "codex-home");
         Directory.CreateDirectory(codexHome);
-        var configPath = Path.Combine(codexHome, "config.toml");
+        string configPath = Path.Combine(codexHome, "config.toml");
         if (originalConfig is not null)
         {
             File.WriteAllText(configPath, originalConfig);
         }
 
-        var settingsDir = Path.Combine(tempDir, "settings");
+        string settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
-        var backupsDir = Path.Combine(tempDir, "backups");
+        string backupsDir = Path.Combine(tempDir, "backups");
         Directory.CreateDirectory(backupsDir);
 
-        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
-        var keyReference = SeedKey(effectiveKeyStore, "codex-backend", apiKey);
+        FakeSecureKeyStore effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
+        string? keyReference = SeedKey(effectiveKeyStore, "codex-backend", apiKey);
 
-        var settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
+        SettingsStore settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
         settingsStore.Save(new LauncherSettings
         {
             Backends =
@@ -100,11 +101,11 @@ public class LaunchOrchestratorTests
             DefaultBackend = "codex-backend"
         });
 
-        var adapter = new CodexAdapter(
+        CodexAdapter adapter = new CodexAdapter(
             (_, _) => Task.FromResult<string?>(codexAvailable ? "codex" : null),
             name => name == "CODEX_HOME" ? codexHome : null);
 
-        var orchestrator = new LaunchOrchestrator(
+        LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             settingsStore,
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
@@ -120,16 +121,16 @@ public class LaunchOrchestratorTests
             ILaunchRunner? runner = null,
             FakeSecureKeyStore? keyStore = null)
     {
-        var tempDir = CreateTempDir();
-        var settingsDir = Path.Combine(tempDir, "settings");
+        string tempDir = CreateTempDir();
+        string settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
-        var backupsDir = Path.Combine(tempDir, "backups");
+        string backupsDir = Path.Combine(tempDir, "backups");
         Directory.CreateDirectory(backupsDir);
 
-        var effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
-        var keyReference = SeedKey(effectiveKeyStore, "claude-backend", apiKey);
+        FakeSecureKeyStore effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
+        string? keyReference = SeedKey(effectiveKeyStore, "claude-backend", apiKey);
 
-        var settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
+        SettingsStore settingsStore = new SettingsStore(settingsDir, effectiveKeyStore);
         settingsStore.Save(new LauncherSettings
         {
             Backends =
@@ -146,10 +147,10 @@ public class LaunchOrchestratorTests
         });
 
         // Fake detection delegate: availability never touches the real PATH.
-        var adapter = new ClaudeCodeAdapter(
+        ClaudeCodeAdapter adapter = new ClaudeCodeAdapter(
             (_, _) => Task.FromResult<string?>(available ? "claude" : null));
 
-        var orchestrator = new LaunchOrchestrator(
+        LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             settingsStore,
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
@@ -177,10 +178,10 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_unknown_agent_returns_exit_code_3()
     {
-        var (orchestrator, tempDir) = CreateOrchestrator();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator();
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "NonExistentAgent",
                 null,
                 null, null, null, [],
@@ -197,11 +198,11 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_unavailable_harness_returns_exit_code_4()
     {
-        var adapter = CreateTestAdapter(isAvailable: false, installHint: "Install via: npm install -g test");
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        TestHarnessAdapter adapter = CreateTestAdapter(isAvailable: false, installHint: "Install via: npm install -g test");
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.HarnessUnavailable);
@@ -216,8 +217,8 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_available_agent_runs_successfully()
     {
-        var adapter = CreateTestAdapter();
-        var settings = new LauncherSettings
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -229,10 +230,11 @@ public class LaunchOrchestratorTests
                 }
             ],
             DefaultBackend = "default"
-        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        };
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 null, null, null, [],
@@ -249,11 +251,11 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_without_configured_backend_refuses()
     {
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
@@ -268,11 +270,11 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_with_endpoint_and_protocol_uses_override()
     {
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 "https://api.example.com/v1",
@@ -294,7 +296,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_without_flags_uses_default_backend()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -308,11 +310,11 @@ public class LaunchOrchestratorTests
             DefaultBackend = "default"
         };
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 null, null, null, [],
@@ -331,8 +333,8 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_warns_and_launches_when_model_required_but_missing()
     {
-        var adapter = CreateTestAdapter(requiresModel: true);
-        var settings = new LauncherSettings
+        TestHarnessAdapter adapter = CreateTestAdapter(requiresModel: true);
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -344,10 +346,11 @@ public class LaunchOrchestratorTests
                 }
             ],
             DefaultBackend = "default"
-        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        };
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
@@ -364,8 +367,8 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_does_not_warn_when_model_provided_for_required_harness()
     {
-        var adapter = CreateTestAdapter(requiresModel: true);
-        var settings = new LauncherSettings
+        TestHarnessAdapter adapter = CreateTestAdapter(requiresModel: true);
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -377,10 +380,11 @@ public class LaunchOrchestratorTests
                 }
             ],
             DefaultBackend = "default"
-        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        };
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, "gpt-4", [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
@@ -396,8 +400,8 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_does_not_warn_when_model_not_required()
     {
-        var adapter = CreateTestAdapter();
-        var settings = new LauncherSettings
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -409,10 +413,11 @@ public class LaunchOrchestratorTests
                 }
             ],
             DefaultBackend = "default"
-        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        };
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
@@ -427,8 +432,8 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_persist_model_saves_to_settings()
     {
-        var adapter = CreateTestAdapter();
-        var settings = new LauncherSettings
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -442,10 +447,10 @@ public class LaunchOrchestratorTests
             DefaultBackend = "test-backend"
         };
 
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 null, null, "gpt-4",
@@ -454,9 +459,9 @@ public class LaunchOrchestratorTests
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
 
-            var settingsDir = Path.Combine(tempDir, "settings");
-            var settingsStore = new SettingsStore(settingsDir);
-            var savedSettings = settingsStore.Load();
+            string settingsDir = Path.Combine(tempDir, "settings");
+            SettingsStore settingsStore = new SettingsStore(settingsDir);
+            LauncherSettings savedSettings = settingsStore.Load();
             await Assert.That(savedSettings.Backends[0].DefaultModel).IsEqualTo("gpt-4");
         }
         finally
@@ -468,18 +473,18 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_persist_config_does_not_restore()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var settingsDir = Path.Combine(tempDir, "settings");
+            string settingsDir = Path.Combine(tempDir, "settings");
             Directory.CreateDirectory(settingsDir);
-            var backupsDir = Path.Combine(tempDir, "backups");
+            string backupsDir = Path.Combine(tempDir, "backups");
             Directory.CreateDirectory(backupsDir);
 
-            var configFile = Path.Combine(tempDir, "config.json");
+            string configFile = Path.Combine(tempDir, "config.json");
             await File.WriteAllTextAsync(configFile, "{}");
 
-            var settingsStore = new SettingsStore(settingsDir);
+            SettingsStore settingsStore = new SettingsStore(settingsDir);
             settingsStore.Save(new LauncherSettings
             {
                 Backends =
@@ -493,13 +498,13 @@ public class LaunchOrchestratorTests
                 ],
                 DefaultBackend = "default"
             });
-            var backupService = new BackupService(backupsDir);
-            var runner = new TestLaunchRunner();
-            var adapter = new ConfigWritingAdapter(configFile);
-            var orchestrator = new LaunchOrchestrator(
+            BackupService backupService = new BackupService(backupsDir);
+            TestLaunchRunner runner = new TestLaunchRunner();
+            ConfigWritingAdapter adapter = new ConfigWritingAdapter(configFile);
+            LaunchOrchestrator orchestrator = new LaunchOrchestrator(
                 settingsStore, backupService, runner, [adapter], new FakeSecureKeyStore());
 
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "ConfigWriter",
                 null,
                 null, null, null,
@@ -508,7 +513,7 @@ public class LaunchOrchestratorTests
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
 
-            var content = await File.ReadAllTextAsync(configFile);
+            string content = await File.ReadAllTextAsync(configFile);
             await Assert.That(content).IsEqualTo("{\"modified\":true}");
         }
         finally
@@ -531,7 +536,7 @@ public class LaunchOrchestratorTests
         string configPath = string.Empty;
         string? contentDuringLaunch = null;
         string? envDuringLaunch = null;
-        var runner = new CallbackLaunchRunner(plan =>
+        CallbackLaunchRunner runner = new CallbackLaunchRunner(plan =>
         {
             contentDuringLaunch = File.ReadAllText(configPath);
             // The saved key rides on the plan's process configuration, scoped
@@ -542,7 +547,7 @@ public class LaunchOrchestratorTests
             return Task.FromResult(0);
         });
 
-        var (orchestrator, tempDir, _, path, _) = CreateCodexOrchestrator(
+        (LaunchOrchestrator orchestrator, string tempDir, _, string path, _) = CreateCodexOrchestrator(
             originalConfig: originalConfig,
             apiKey: "sk-codex",
             runner: runner);
@@ -550,7 +555,7 @@ public class LaunchOrchestratorTests
 
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "codex",
                 null,
                 null, null, "gpt-5", [],
@@ -565,7 +570,7 @@ public class LaunchOrchestratorTests
             await Assert.That(envDuringLaunch).IsEqualTo("sk-codex");
 
             // Without --persist config the original file is restored on exit.
-            var finalContent = await File.ReadAllTextAsync(configPath);
+            string finalContent = await File.ReadAllTextAsync(configPath);
             await Assert.That(finalContent).IsEqualTo(originalConfig);
         }
         finally
@@ -578,12 +583,12 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_codex_persist_config_keeps_the_write()
     {
         const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";
-        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+        (LaunchOrchestrator orchestrator, string tempDir, _, string configPath, string backupsDir) = CreateCodexOrchestrator(
             originalConfig: originalConfig);
         try
         {
             // Uppercased to prove agent lookup resolves Metadata.Name case-insensitively.
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "CODEX",
                 null,
                 null, null, "gpt-5",
@@ -592,7 +597,7 @@ public class LaunchOrchestratorTests
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
 
-            var content = await File.ReadAllTextAsync(configPath);
+            string content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).Contains("[model_providers.harnessgateway]");
             await Assert.That(content).Contains("model_provider = \"harnessgateway\"");
             // Persisting consumed the backup marker.
@@ -614,11 +619,11 @@ public class LaunchOrchestratorTests
             + "base_url = \"https://mine.example/v1\"\n"
             + "env_key = \"MINE_KEY\"\n"
             + "wire_api = \"responses\"\n";
-        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+        (LaunchOrchestrator orchestrator, string tempDir, _, string configPath, string backupsDir) = CreateCodexOrchestrator(
             originalConfig: userOwnedConfig);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "codex",
                 null,
                 null, null, "gpt-5", [],
@@ -628,7 +633,7 @@ public class LaunchOrchestratorTests
             // (and therefore no backup marker) ever happens. The refusal is its own
             // exit class, not a restore failure.
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigConflict);
-            var content = await File.ReadAllTextAsync(configPath);
+            string content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).IsEqualTo(userOwnedConfig);
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
@@ -642,13 +647,13 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_unsupported_backend_protocol_fails_before_any_write()
     {
         const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";
-        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+        (LaunchOrchestrator orchestrator, string tempDir, _, string configPath, string backupsDir) = CreateCodexOrchestrator(
             originalConfig: originalConfig,
             backendProtocol: ProtocolKind.Anthropic);
 
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "codex",
                 null,
                 null, null, "gpt-5", [],
@@ -657,7 +662,7 @@ public class LaunchOrchestratorTests
             // Protocol compatibility is enforced by the launch path, before any
             // configuration action, using the unknown-agent/invalid-selection exit code.
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownAgent);
-            var content = await File.ReadAllTextAsync(configPath);
+            string content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).IsEqualTo(originalConfig);
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
@@ -671,9 +676,9 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_incompatible_pairing_fails_with_exit_3_before_any_write()
     {
         // Fake harness that only speaks openai-chat, pointed at an anthropic backend.
-        var adapter = CreateTestAdapter(
+        TestHarnessAdapter adapter = CreateTestAdapter(
             supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -687,10 +692,10 @@ public class LaunchOrchestratorTests
             DefaultBackend = "anthropic-backend"
         };
 
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 null, null, null, [],
@@ -712,9 +717,9 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_compatible_pairing_with_restricted_adapter_still_launches()
     {
         // Same restricted fake harness, but the backend protocol matches.
-        var adapter = CreateTestAdapter(
+        TestHarnessAdapter adapter = CreateTestAdapter(
             supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -728,10 +733,10 @@ public class LaunchOrchestratorTests
             DefaultBackend = "openai-backend"
         };
 
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 null, null, null, [],
@@ -753,21 +758,21 @@ public class LaunchOrchestratorTests
     {
         const string originalConfig = "# original codex config\n";
         const string corrupted = "leftover launch write\n";
-        var (orchestrator, tempDir, _, configPath, backupsDir) = CreateCodexOrchestrator(
+        (LaunchOrchestrator orchestrator, string tempDir, _, string configPath, string backupsDir) = CreateCodexOrchestrator(
             originalConfig: corrupted,
             codexAvailable: false);
 
         try
         {
             // Simulate a crash: a leftover, un-persisted backup marker for the Codex write.
-            var record = new BackupRecord(
+            BackupRecord record = new BackupRecord(
                 configPath,
                 System.Text.Encoding.UTF8.GetBytes(originalConfig),
                 Persisted: false);
-            var leftoverPath = Path.Combine(backupsDir, "leftover.json");
+            string leftoverPath = Path.Combine(backupsDir, "leftover.json");
             await File.WriteAllTextAsync(leftoverPath, System.Text.Json.JsonSerializer.Serialize(record));
 
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "codex",
                 null,
                 null, null, null, [],
@@ -776,7 +781,7 @@ public class LaunchOrchestratorTests
             // Self-heal runs before anything else, so the original config is back even
             // though the launch itself never reached the plan (harness unavailable).
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.HarnessUnavailable);
-            var content = await File.ReadAllTextAsync(configPath);
+            string content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).IsEqualTo(originalConfig);
             await Assert.That(File.Exists(leftoverPath)).IsFalse();
         }
@@ -790,20 +795,20 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_claude_code_launch_plans_env_vars_only_and_creates_no_backups()
     {
         LaunchPlan? planDuringLaunch = null;
-        var runner = new CallbackLaunchRunner(plan =>
+        CallbackLaunchRunner runner = new CallbackLaunchRunner(plan =>
         {
             planDuringLaunch = plan;
             return Task.FromResult(0);
         });
 
-        var (orchestrator, tempDir, backupsDir) = CreateClaudeOrchestrator(
+        (LaunchOrchestrator orchestrator, string tempDir, string backupsDir) = CreateClaudeOrchestrator(
             apiKey: "sk-claude",
             runner: runner);
 
         try
         {
             // Agent lookup resolves Metadata.Name case-insensitively.
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "CLAUDE-CODE",
                 null,
                 null, null, "claude-sonnet-5", [],
@@ -812,7 +817,7 @@ public class LaunchOrchestratorTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
             await Assert.That(planDuringLaunch).IsNotNull();
 
-            var env = planDuringLaunch!.Process.EnvironmentVariables;
+            IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
             await Assert.That(env["ANTHROPIC_BASE_URL"]).IsEqualTo("https://api.example.com");
             await Assert.That(env["ANTHROPIC_AUTH_TOKEN"]).IsEqualTo("sk-claude");
             await Assert.That(env["ANTHROPIC_MODEL"]).IsEqualTo("claude-sonnet-5");
@@ -821,14 +826,16 @@ public class LaunchOrchestratorTests
 
             // The credential reaches the harness as the secret; the at-rest
             // reference never appears in any planned environment variable.
-            foreach (var variable in env)
+            foreach (KeyValuePair<string, string> variable in env)
             {
                 await Assert.That(variable.Value.Contains("hgkey:")).IsFalse();
             }
 
-            var cliArgs = planDuringLaunch.ConfigurationActions
-                .OfType<CliArgumentAction>()
-                .ToList();
+            List<CliArgumentAction> cliArgs =
+            [
+                .. planDuringLaunch.ConfigurationActions
+                    .OfType<CliArgumentAction>()
+            ];
             await Assert.That(cliArgs).Count().IsEqualTo(1);
             await Assert.That(cliArgs[0].Argument).IsEqualTo("--model");
             await Assert.That(cliArgs[0].Value).IsEqualTo("claude-sonnet-5");
@@ -849,19 +856,19 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_claude_code_without_saved_key_omits_token_and_still_launches()
     {
         LaunchPlan? planDuringLaunch = null;
-        var runner = new CallbackLaunchRunner(plan =>
+        CallbackLaunchRunner runner = new CallbackLaunchRunner(plan =>
         {
             planDuringLaunch = plan;
             return Task.FromResult(0);
         });
 
-        var keyStore = new FakeSecureKeyStore();
-        var (orchestrator, tempDir, backupsDir) = CreateClaudeOrchestrator(
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        (LaunchOrchestrator orchestrator, string tempDir, string backupsDir) = CreateClaudeOrchestrator(
             runner: runner,
             keyStore: keyStore);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "claude-code",
                 null,
                 null, null, null, [],
@@ -870,7 +877,7 @@ public class LaunchOrchestratorTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
             await Assert.That(planDuringLaunch).IsNotNull();
 
-            var env = planDuringLaunch!.Process.EnvironmentVariables;
+            IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
             await Assert.That(env.ContainsKey("ANTHROPIC_BASE_URL")).IsTrue();
             // No saved key: no token variable at all, and no dummy value.
             await Assert.That(env.ContainsKey("ANTHROPIC_AUTH_TOKEN")).IsFalse();
@@ -892,7 +899,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_dangling_reference_fails_with_exit_7_and_the_re_save_instruction()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -908,13 +915,13 @@ public class LaunchOrchestratorTests
         };
 
         // Reference present, secret absent from the store.
-        var keyStore = new FakeSecureKeyStore();
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(
             adapter: adapter, settings: settings, keyStore: keyStore);
         try
         {
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
@@ -932,7 +939,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_settings_saved_after_launch_never_contain_the_secret()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -947,15 +954,15 @@ public class LaunchOrchestratorTests
             DefaultBackend = "test-backend"
         };
 
-        var keyStore = new FakeSecureKeyStore();
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
         keyStore.Seed("hgkey:test-backend", "sk-never-on-disk");
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(
             adapter: adapter, settings: settings, keyStore: keyStore);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 null, null, "gpt-4",
@@ -964,7 +971,7 @@ public class LaunchOrchestratorTests
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
 
-            var fileBytes = await File.ReadAllTextAsync(
+            string fileBytes = await File.ReadAllTextAsync(
                 Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json"));
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("sk-never-on-disk")).IsFalse();
@@ -981,7 +988,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_with_backend_name_launches_that_entry()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -1002,15 +1009,15 @@ public class LaunchOrchestratorTests
             DefaultBackend = "primary"
         };
 
-        var keyStore = new FakeSecureKeyStore();
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
         keyStore.Seed("hgkey:secondary", "sk-secondary");
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(
             adapter: adapter, settings: settings, keyStore: keyStore);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 "secondary",
                 null, null, null, [],
@@ -1032,7 +1039,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_with_backend_and_endpoint_overrides_only_that_field()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -1054,15 +1061,15 @@ public class LaunchOrchestratorTests
             DefaultBackend = "primary"
         };
 
-        var keyStore = new FakeSecureKeyStore();
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
         keyStore.Seed("hgkey:secondary", "sk-secondary");
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(
             adapter: adapter, settings: settings, keyStore: keyStore);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 "secondary",
                 "https://override.example/v1",
@@ -1089,7 +1096,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_unknown_backend_name_returns_exit_code_8()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -1103,11 +1110,11 @@ public class LaunchOrchestratorTests
             DefaultBackend = "primary"
         };
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 "nope",
                 null, null, null, [],
@@ -1127,7 +1134,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_dangling_default_backend_returns_exit_8_pointing_to_switch()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -1141,11 +1148,11 @@ public class LaunchOrchestratorTests
             DefaultBackend = "ghost"
         };
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
@@ -1162,7 +1169,7 @@ public class LaunchOrchestratorTests
     {
         // DefaultBackend intentionally unset: multiple entries must not fall
         // back to the first one - the pointer is the only read.
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -1181,11 +1188,11 @@ public class LaunchOrchestratorTests
             ]
         };
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null, null, null, null, [],
                 tempDir);
@@ -1202,11 +1209,11 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_protocol_without_endpoint_returns_usage_error()
     {
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null, null, "openai-chat", null, [],
                 tempDir);
@@ -1223,7 +1230,7 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_backend_persist_model_updates_only_the_entry_never_the_pointer()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -1243,11 +1250,11 @@ public class LaunchOrchestratorTests
             DefaultBackend = "primary"
         };
 
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 "secondary",
                 null, null, "gpt-5",
@@ -1258,7 +1265,7 @@ public class LaunchOrchestratorTests
 
             // Persisting the model never re-points DefaultBackend: selecting a
             // backend per launch has no settings side effect beyond the model.
-            var savedSettings = new SettingsStore(Path.Combine(tempDir, "settings")).Load();
+            LauncherSettings savedSettings = new SettingsStore(Path.Combine(tempDir, "settings")).Load();
             await Assert.That(savedSettings.DefaultBackend).IsEqualTo("primary");
             await Assert.That(savedSettings.Backends.Single(b => b.Name == "secondary").DefaultModel)
                 .IsEqualTo("gpt-5");
@@ -1274,11 +1281,11 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_persist_model_with_raw_url_and_no_entries_writes_nothing()
     {
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 "https://raw.example/v1",
@@ -1291,7 +1298,7 @@ public class LaunchOrchestratorTests
 
             // No stored entry exists to persist onto, so nothing is written -
             // an ad-hoc override never becomes a settings entry.
-            var savedSettings = new SettingsStore(Path.Combine(tempDir, "settings")).Load();
+            LauncherSettings savedSettings = new SettingsStore(Path.Combine(tempDir, "settings")).Load();
             await Assert.That(savedSettings.Backends).IsEmpty();
             await Assert.That(savedSettings.DefaultBackend).IsEqualTo(string.Empty);
         }
@@ -1304,15 +1311,15 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_unsupported_schema_version_returns_exit_9_with_no_partial_state()
     {
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var settingsPath = Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json");
-            var rawJson = """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""";
+            string settingsPath = Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json");
+            string rawJson = """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""";
             await File.WriteAllTextAsync(settingsPath, rawJson);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
@@ -1330,12 +1337,12 @@ public class LaunchOrchestratorTests
     [Test]
     public async Task RunAsync_migrates_a_v1_plaintext_file_on_the_launch_read_path()
     {
-        var keyStore = new FakeSecureKeyStore();
-        var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, keyStore: keyStore);
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, keyStore: keyStore);
         try
         {
-            var settingsPath = Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json");
+            string settingsPath = Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json");
             await File.WriteAllTextAsync(
                 settingsPath,
                 """
@@ -1353,7 +1360,7 @@ public class LaunchOrchestratorTests
                 }
                 """);
 
-            var exitCode = await orchestrator.RunAsync(
+            int exitCode = await orchestrator.RunAsync(
                 "TestAgent",
                 null,
                 null, null, null, [],
@@ -1363,8 +1370,8 @@ public class LaunchOrchestratorTests
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
             await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
 
-            var fileBytes = await File.ReadAllTextAsync(settingsPath);
-            var expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
+            string fileBytes = await File.ReadAllTextAsync(settingsPath);
+            string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
             await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
             await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();
             await Assert.That(fileBytes.Contains("sk-legacy-plaintext")).IsFalse();
@@ -1431,7 +1438,7 @@ public class LaunchOrchestratorTests
         public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
-            var config = new ProcessConfiguration("test")
+            ProcessConfiguration config = new ProcessConfiguration("test")
             {
                 Arguments = "run",
                 WorkingDirectoryPath = request.WorkingDirectory,
@@ -1466,16 +1473,16 @@ public class LaunchOrchestratorTests
 
         public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
         {
-            var config = new ProcessConfiguration("test")
+            ProcessConfiguration config = new ProcessConfiguration("test")
             {
                 WorkingDirectoryPath = request.WorkingDirectory,
                 OutputRedirection = true
             };
 
-            var actions = new ConfigurationAction[]
-            {
+            ConfigurationAction[] actions =
+            [
                 new ConfigFileWriteAction(_configFile, "{\"modified\":true}")
-            };
+            ];
 
             return Task.FromResult(new LaunchPlan(config, actions));
         }

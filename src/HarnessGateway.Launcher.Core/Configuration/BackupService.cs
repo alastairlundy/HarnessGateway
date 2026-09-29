@@ -2,11 +2,6 @@ using System.Text.Json;
 
 namespace HarnessGateway.Launcher.Core.Configuration;
 
-public sealed record BackupRecord(
-    string TargetPath,
-    byte[]? OriginalBytes,
-    bool Persisted);
-
 public sealed class BackupService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -38,7 +33,7 @@ public sealed class BackupService
             originalBytes = await File.ReadAllBytesAsync(targetPath, cancellationToken);
         }
 
-        BackupRecord record = new BackupRecord(targetPath, originalBytes, Persisted: false);
+        BackupRecord record = new(targetPath, originalBytes, Persisted: false);
         _currentLaunchBackups.Add(record);
 
         string backupPath = GetBackupPath(targetPath);

@@ -7,7 +7,7 @@ public sealed class LaunchRunner : ILaunchRunner
 {
     public async Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
     {
-        ProcessConfiguration config = new ProcessConfiguration(plan.Process.TargetFilePath)
+        ProcessConfiguration config = new(plan.Process.TargetFilePath)
         {
             Arguments = plan.Process.Arguments,
             ArgumentList = plan.Process.ArgumentList,

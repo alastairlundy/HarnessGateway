@@ -1,5 +1,8 @@
+using HarnessGateway.Launcher.Core.Adapters;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Tests.Fakes;
 using HarnessGateway.Launcher.Wizard;
 
 namespace HarnessGateway.Launcher.Tests.Wizard;
@@ -9,18 +12,18 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_harness_step_shows_unavailable_annotated()
     {
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try
         {
-            var console = new TestConsole();
-            var available = WizardTestHelper.CreateTestAdapter("AvailableAgent", isAvailable: true);
-            var unavailable = WizardTestHelper.CreateTestAdapter("UnavailableAgent", isAvailable: false);
-            var pipeline = new WizardPipeline(console, [available, unavailable], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter available = WizardTestHelper.CreateTestAdapter("AvailableAgent", isAvailable: true);
+            IHarnessAdapter unavailable = WizardTestHelper.CreateTestAdapter("UnavailableAgent", isAvailable: false);
+            WizardPipeline pipeline = new WizardPipeline(console, [available, unavailable], store, keyStore);
 
             console.EnqueueChoice("AvailableAgent");
             console.EnqueueText("https://api.example.com/v1");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.AgentName).IsEqualTo("AvailableAgent");
@@ -35,20 +38,20 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_endpoint_step_prefills_from_saved_default()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
             endpoint: "https://saved.example.com/v1",
             protocol: ProtocolKind.OpenAiChat);
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://saved.example.com/v1");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.Endpoint).IsEqualTo("https://saved.example.com/v1");
@@ -63,21 +66,21 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_endpoint_step_asks_protocol_when_changed()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
             endpoint: "https://old.example.com/v1",
             protocol: ProtocolKind.OpenAiChat);
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("anthropic");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.Endpoint).IsEqualTo("https://new.example.com/v1");
@@ -92,19 +95,19 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_key_step_asks_when_no_saved_key_and_no_env_var()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings();
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("my-api-key");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.ApiKey).IsEqualTo("my-api-key");
@@ -118,19 +121,19 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_key_step_uses_saved_key()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         keyStore.Seed("hgkey:default", "saved-key");
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.ApiKey).IsEqualTo("saved-key");
@@ -144,18 +147,18 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_dangling_reference_writes_an_error_and_returns_null()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNull();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
@@ -171,19 +174,19 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_no_settings_written_by_wizard()
     {
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
-            var savedSettings = store.Load();
+            LauncherSettings savedSettings = store.Load();
             await Assert.That(savedSettings.Backends).IsEmpty();
             await Assert.That(savedSettings.DefaultBackend).IsEmpty();
         }
@@ -196,17 +199,17 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_canceled_returns_null()
     {
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
-            using var cts = new CancellationTokenSource();
+            using CancellationTokenSource cts = new CancellationTokenSource();
             cts.Cancel();
 
-            var result = await pipeline.RunAsync(cts.Token);
+            WizardResult? result = await pipeline.RunAsync(cts.Token);
 
             await Assert.That(result).IsNull();
         }
@@ -219,16 +222,16 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_unsupported_schema_version_propagates_the_typed_refusal()
     {
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try
         {
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
 
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             Exception? caught = null;
             try
@@ -252,19 +255,19 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_model_default_comes_from_resolved_entry()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(defaultModel: "saved-model");
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(defaultModel: "saved-model");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("typed-key");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.Model).IsEqualTo("saved-model");
@@ -281,15 +284,15 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_absent_default_pointer_writes_error_and_returns_null()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "" };
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "" };
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNull();
             await Assert.That(console.Prompts).IsEmpty();
@@ -305,15 +308,15 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_dangling_default_pointer_writes_error_and_returns_null()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "ghost" };
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "ghost" };
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNull();
             await Assert.That(console.Prompts).IsEmpty();
@@ -330,14 +333,14 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_harness_step_reprompts_with_incompatible_annotations()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
             endpoint: "https://api.anthropic.example.com/v1",
             protocol: ProtocolKind.Anthropic);
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var openAiOnly = WizardTestHelper.CreateTestAdapter(
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
                 "OpenAiOnly",
                 isAvailable: false,
                 supportedProtocols: new HashSet<ProtocolKind>
@@ -345,15 +348,15 @@ public class WizardPipelineTests
                     ProtocolKind.OpenAiChat,
                     ProtocolKind.OpenAiResponses
                 });
-            var anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
-            var pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
+            IHarnessAdapter anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
+            WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
 
             console.EnqueueChoice("OpenAiOnly");
             console.EnqueueChoice("AnthropicCapable");
             console.EnqueueText("https://api.anthropic.example.com/v1");
             console.EnqueueText("anthropic-key");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.AgentName).IsEqualTo("AnthropicCapable");
@@ -384,19 +387,19 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_compatible_pairing_prompts_harness_once()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings();
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("key-1");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(
@@ -412,27 +415,27 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_post_endpoint_protocol_change_loops_back_to_harness()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
             endpoint: "https://saved.example.com/v1",
             protocol: ProtocolKind.OpenAiChat,
             apiKey: "hgkey:default");
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         keyStore.Seed("hgkey:default", "saved-key");
         try
         {
-            var console = new TestConsole();
-            var openAiOnly = WizardTestHelper.CreateTestAdapter(
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
                 "OpenAiOnly",
                 supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
-            var anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
-            var pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
+            IHarnessAdapter anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
+            WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
 
             console.EnqueueChoice("OpenAiOnly");
             console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("anthropic");
             console.EnqueueChoice("AnthropicCapable");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.AgentName).IsEqualTo("AnthropicCapable");
@@ -461,15 +464,15 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_first_run_post_endpoint_check_loops_back()
     {
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try
         {
-            var console = new TestConsole();
-            var openAiOnly = WizardTestHelper.CreateTestAdapter(
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
                 "OpenAiOnly",
                 supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
-            var anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
-            var pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
+            IHarnessAdapter anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
+            WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
 
             console.EnqueueChoice("OpenAiOnly");
             console.EnqueueText("https://first-run.example.com/v1");
@@ -477,7 +480,7 @@ public class WizardPipelineTests
             console.EnqueueChoice("AnthropicCapable");
             console.EnqueueText("first-run-key");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.AgentName).IsEqualTo("AnthropicCapable");
@@ -508,21 +511,21 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_dead_end_protocol_aborts_without_prompt()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(protocol: ProtocolKind.Anthropic);
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(protocol: ProtocolKind.Anthropic);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var openAiOnly = WizardTestHelper.CreateTestAdapter(
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
                 "OpenAiOnly",
                 supportedProtocols: new HashSet<ProtocolKind>
                 {
                     ProtocolKind.OpenAiChat,
                     ProtocolKind.OpenAiResponses
                 });
-            var pipeline = new WizardPipeline(console, [openAiOnly], store, keyStore);
+            WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly], store, keyStore);
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNull();
             await Assert.That(console.Prompts).IsEmpty();
@@ -539,19 +542,19 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_step_order_is_harness_endpoint_key_model()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings();
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("ordered-key");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(console.Prompts.Count).IsEqualTo(4);
@@ -569,32 +572,32 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_guard_path_writes_no_settings()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
             endpoint: "https://api.anthropic.example.com/v1",
             protocol: ProtocolKind.Anthropic,
             apiKey: "hgkey:default");
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         keyStore.Seed("hgkey:default", "saved-key");
         try
         {
-            var console = new TestConsole();
-            var openAiOnly = WizardTestHelper.CreateTestAdapter(
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
                 "OpenAiOnly",
                 supportedProtocols: new HashSet<ProtocolKind>
                 {
                     ProtocolKind.OpenAiChat,
                     ProtocolKind.OpenAiResponses
                 });
-            var anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
-            var pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
+            IHarnessAdapter anthropicCapable = WizardTestHelper.CreateTestAdapter("AnthropicCapable");
+            WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
 
             console.EnqueueChoice("OpenAiOnly");
             console.EnqueueChoice("AnthropicCapable");
             console.EnqueueText("https://api.anthropic.example.com/v1");
 
-            var before = store.Load();
-            var result = await pipeline.RunAsync();
-            var after = store.Load();
+            LauncherSettings before = store.Load();
+            WizardResult? result = await pipeline.RunAsync();
+            LauncherSettings after = store.Load();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(
@@ -612,20 +615,20 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_model_step_requires_input_when_harness_requires_model()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         keyStore.Seed("hgkey:default", "saved-key");
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter("RequiredAgent", requiresModel: true);
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter("RequiredAgent", requiresModel: true);
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("RequiredAgent");
             console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("required-model");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.Model).IsEqualTo("required-model");
@@ -644,20 +647,20 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_model_step_allows_skip_when_not_required()
     {
-        var settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
-        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         keyStore.Seed("hgkey:default", "saved-key");
         try
         {
-            var console = new TestConsole();
-            var adapter = WizardTestHelper.CreateTestAdapter();
-            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
             console.EnqueueChoice("[skip]");
 
-            var result = await pipeline.RunAsync();
+            WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result!.Model).IsNull();

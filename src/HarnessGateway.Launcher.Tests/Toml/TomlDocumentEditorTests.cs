@@ -48,9 +48,9 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task Round_trips_representative_config_byte_for_byte()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
 
-        var output = editor.ToToml();
+        string output = editor.ToToml();
 
         await Assert.That(output).IsEqualTo(ConfigWithoutProviderBlock);
         // Idempotent: re-parsing the serialised output reproduces it exactly.
@@ -60,7 +60,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task Round_trips_config_with_provider_block_byte_for_byte()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithProviderBlock);
 
         await Assert.That(editor.ToToml()).IsEqualTo(ConfigWithProviderBlock);
     }
@@ -82,7 +82,7 @@ public class TomlDocumentEditorTests
     {
         string crlfConfig = ConfigWithProviderBlock.ReplaceLineEndings("\r\n");
 
-        var editor = TomlDocumentEditor.Parse(crlfConfig);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(crlfConfig);
 
         await Assert.That(editor.ToToml()).IsEqualTo(crlfConfig);
     }
@@ -90,7 +90,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task BlockExists_probes_named_blocks()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
 
         await Assert.That(editor.BlockExists("model_providers.openai")).IsTrue();
         await Assert.That(editor.BlockExists("features")).IsTrue();
@@ -103,7 +103,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task NameInUse_matches_headers_and_conflicting_key_forms()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
 
         await Assert.That(editor.NameInUse("model_providers.openai")).IsTrue();
         await Assert.That(editor.NameInUse("features")).IsTrue();
@@ -115,7 +115,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task NameInUse_detects_table_array_headers()
     {
-        var editor = TomlDocumentEditor.Parse("[[model_providers.harnessgateway]]\nname = \"Mine\"\n");
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse("[[model_providers.harnessgateway]]\nname = \"Mine\"\n");
 
         await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
     }
@@ -123,7 +123,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task NameInUse_detects_inline_table_under_parent_section()
     {
-        var editor = TomlDocumentEditor.Parse(
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(
             "[model_providers]\nharnessgateway = { name = \"Mine\", wire_api = \"responses\" }\n");
 
         await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
@@ -134,7 +134,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task NameInUse_detects_dotted_keys_defining_the_name()
     {
-        var editor = TomlDocumentEditor.Parse(
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(
             "[model_providers]\nharnessgateway.name = \"Mine\"\n");
 
         await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
@@ -143,12 +143,12 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task NameInUse_detects_top_level_dotted_and_ancestor_keys()
     {
-        var editor = TomlDocumentEditor.Parse(
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(
             "model_providers.harnessgateway = \"scalar\"\n");
 
         await Assert.That(editor.NameInUse("model_providers.harnessgateway")).IsTrue();
 
-        var ancestorEditor = TomlDocumentEditor.Parse(
+        TomlDocumentEditor ancestorEditor = TomlDocumentEditor.Parse(
             "model_providers = \"scalar\"\n");
 
         await Assert.That(ancestorEditor.NameInUse("model_providers.harnessgateway")).IsTrue();
@@ -157,7 +157,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task UpsertBlock_inserts_missing_block_after_a_blank_line()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
 
         editor.UpsertBlock("model_providers.harnessgateway", ProviderBlockValues());
 
@@ -177,7 +177,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task UpsertBlock_inserts_block_into_empty_document()
     {
-        var editor = TomlDocumentEditor.Parse(string.Empty);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(string.Empty);
 
         editor.UpsertBlock("a", new Dictionary<string, object?> { ["b"] = "c" });
 
@@ -187,7 +187,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task UpsertBlock_replaces_existing_block_and_preserves_unrelated_sections()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithProviderBlock);
         const string blockHeader = "[model_providers.harnessgateway]";
         const string nextSection = "[features]";
         int blockStart = ConfigWithProviderBlock.IndexOf(blockHeader, StringComparison.Ordinal);
@@ -216,7 +216,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task SetTopLevelValue_replaces_existing_top_level_key_in_place()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
 
         editor.SetTopLevelValue("model", "gpt-5-mini");
 
@@ -232,7 +232,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task SetTopLevelValue_appends_missing_key_before_first_section()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
         int firstSectionStart = ConfigWithoutProviderBlock.IndexOf(
             "[model_providers.openai]",
             StringComparison.Ordinal);
@@ -251,7 +251,7 @@ public class TomlDocumentEditorTests
     [Test]
     public async Task SetTopLevelValue_writes_integer_scalars()
     {
-        var editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
         int firstSectionStart = ConfigWithoutProviderBlock.IndexOf(
             "[model_providers.openai]",
             StringComparison.Ordinal);

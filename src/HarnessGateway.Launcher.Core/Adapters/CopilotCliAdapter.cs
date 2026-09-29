@@ -1,7 +1,4 @@
 using CliInvoke;
-using CliInvoke.Core;
-using HarnessGateway.Launcher.Core.Backends;
-using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
@@ -36,16 +33,16 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _detectCommand("copilot", cancellationToken);
+        string? result = await _detectCommand("copilot", cancellationToken);
         return result is not null;
     }
 
     public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
     {
-        var actions = new List<ConfigurationAction>();
-        var envVars = new Dictionary<string, string>();
-
-        envVars["COPILOT_PROVIDER_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/');
+        Dictionary<string, string> envVars = new()
+        {
+            ["COPILOT_PROVIDER_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/')
+        };
 
         if (request.Backend.ApiKey is { Length: > 0 })
             envVars["COPILOT_PROVIDER_API_KEY"] = request.Backend.ApiKey;
@@ -57,14 +54,14 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
             _ => "openai"
         };
 
-        var args = new List<string>();
+        List<string> args = new();
         if (request.Model is { Length: > 0 })
         {
             args.Add("--model");
             args.Add(request.Model);
         }
 
-        var config = new ProcessConfiguration("copilot")
+        ProcessConfiguration config = new("copilot")
         {
             Arguments = args.Count > 0 ? string.Join(" ", args) : "",
             WorkingDirectoryPath = request.WorkingDirectory,
@@ -72,20 +69,20 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
             EnvironmentVariables = envVars
         };
 
-        return Task.FromResult(new LaunchPlan(config, actions));
+        return Task.FromResult(new LaunchPlan(config, []));
     }
 
     private static async Task<string?> DetectOnPath(string command, CancellationToken cancellationToken)
     {
         try
         {
-            var fileName = OperatingSystem.IsWindows() ? "where" : "which";
-            var config = new ProcessConfiguration(fileName, command)
+            string fileName = OperatingSystem.IsWindows() ? "where" : "which";
+            ProcessConfiguration config = new(fileName, command)
             {
                 OutputRedirection = true
             };
 
-            var result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
             return result.ExitCode == 0 ? command : null;
         }
         catch

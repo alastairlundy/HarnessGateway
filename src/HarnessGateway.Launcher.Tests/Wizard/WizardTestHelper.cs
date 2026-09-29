@@ -1,4 +1,6 @@
+using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
@@ -17,16 +19,16 @@ public static class WizardTestHelper
 
     private static string CreateTempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-wizard-test-{Guid.NewGuid():N}");
+        string dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-wizard-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         return dir;
     }
 
     private static SettingsStore CreateSettingsStore(string tempDir, LauncherSettings? settings = null)
     {
-        var settingsDir = Path.Combine(tempDir, "settings");
+        string settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
-        var store = new SettingsStore(settingsDir);
+        SettingsStore store = new SettingsStore(settingsDir);
         if (settings is not null)
         {
             store.Save(settings);
@@ -37,8 +39,8 @@ public static class WizardTestHelper
     public static (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) CreateTestEnvironment(
         LauncherSettings? settings = null)
     {
-        var tempDir = CreateTempDir();
-        var store = CreateSettingsStore(tempDir, settings);
+        string tempDir = CreateTempDir();
+        SettingsStore store = CreateSettingsStore(tempDir, settings);
         return (tempDir, store, new FakeSecureKeyStore());
     }
 
@@ -65,7 +67,7 @@ public static class WizardTestHelper
         };
     }
 
-    public static Core.Adapters.IHarnessAdapter CreateTestAdapter(
+    public static IHarnessAdapter CreateTestAdapter(
         string name = "TestAgent",
         bool isAvailable = true,
         bool requiresModel = false,
@@ -74,10 +76,10 @@ public static class WizardTestHelper
         return new TestHarnessAdapterForWizard(name, isAvailable, requiresModel, supportedProtocols);
     }
 
-    private sealed class TestHarnessAdapterForWizard : Core.Adapters.IHarnessAdapter
+    private sealed class TestHarnessAdapterForWizard : IHarnessAdapter
     {
         private readonly bool _isAvailable;
-        public Core.Adapters.HarnessMetadata Metadata { get; }
+        public HarnessMetadata Metadata { get; }
 
         public TestHarnessAdapterForWizard(
             string name,
@@ -86,7 +88,7 @@ public static class WizardTestHelper
             IReadOnlySet<ProtocolKind>? supportedProtocols)
         {
             _isAvailable = isAvailable;
-            Metadata = new Core.Adapters.HarnessMetadata(
+            Metadata = new HarnessMetadata(
                 name,
                 HarnessKind.Cli,
                 requiresModel,
@@ -103,7 +105,7 @@ public static class WizardTestHelper
 
         public Task<Core.Launch.LaunchPlan> PlanLaunchAsync(Core.Launch.LaunchRequest request, CancellationToken cancellationToken = default)
         {
-            var config = new CliInvoke.Core.ProcessConfiguration("test")
+            ProcessConfiguration config = new CliInvoke.Core.ProcessConfiguration("test")
             {
                 WorkingDirectoryPath = request.WorkingDirectory,
                 OutputRedirection = true

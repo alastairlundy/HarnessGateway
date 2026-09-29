@@ -5,6 +5,8 @@ namespace HarnessGateway.Launcher.Commands;
 
 public sealed class LaunchCommand : Command
 {
+    private readonly LaunchOrchestrator? _orchestrator;
+
     public static readonly Argument<string> AgentArgument = new("agent")
     {
         Description = "The agent harness to launch (opencode, kilo, copilot, pi, codex, claude-code)"
@@ -36,8 +38,15 @@ public sealed class LaunchCommand : Command
         AllowMultipleArgumentsPerToken = true
     };
 
-    public LaunchCommand() : base("launch", "Launch an agent harness with the specified backend configuration")
+    public LaunchCommand() : this(null)
     {
+    }
+
+    internal LaunchCommand(LaunchOrchestrator? orchestrator)
+        : base("launch", "Launch an agent harness with the specified backend configuration")
+    {
+        _orchestrator = orchestrator;
+
         Add(AgentArgument);
         Add(BackendOption);
         Add(EndpointOption);
@@ -83,6 +92,34 @@ public sealed class LaunchCommand : Command
         });
 
         TreatUnmatchedTokensAsErrors = true;
+
+        // The launch path's invocation seam: when the `launch` subcommand
+        // matches, this action runs with the subcommand's own parsed symbols
+        // and drives the orchestrator. Without it, System.CommandLine's
+        // no-action fallback silently succeeds with exit 0 - the root action
+        // can never see a child command's tokens.
+        SetAction(async (result, cancellationToken) =>
+        {
+            string agent = result.GetRequiredValue(AgentArgument);
+            string? backendName = result.GetValue(BackendOption);
+            string? endpoint = result.GetValue(EndpointOption);
+            string? protocol = result.GetValue(ProtocolOption);
+            string? model = result.GetValue(ModelOption);
+            string[]? persistValues = result.GetValue(PersistOption);
+            IReadOnlyList<string> persist = persistValues is not null
+                ? ParsePersistValues(persistValues)
+                : new List<string>();
+
+            return await _orchestrator!.RunAsync(
+                agent,
+                backendName,
+                endpoint,
+                protocol,
+                model,
+                persist,
+                Directory.GetCurrentDirectory(),
+                cancellationToken);
+        });
     }
 
     public static bool IsValidProtocol(string? value) => BackendResolution.IsValidProtocol(value);

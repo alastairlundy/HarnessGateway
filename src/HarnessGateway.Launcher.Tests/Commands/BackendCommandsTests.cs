@@ -10,14 +10,14 @@ public class BackendCommandsTests
 {
     private static string CreateTempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-backend-test-{Guid.NewGuid():N}");
+        string dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-backend-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         return dir;
     }
 
     private static SettingsStore CreateSettingsStore(string tempDir, FakeSecureKeyStore? keyStore = null)
     {
-        var settingsDir = Path.Combine(tempDir, "settings");
+        string settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
         return new SettingsStore(settingsDir, keyStore);
     }
@@ -28,9 +28,9 @@ public class BackendCommandsTests
         FakeSecureKeyStore? keyStore = null,
         IKeyPrompt? keyPrompt = null)
     {
-        var cmd = new ConfigCommand(store, keyStore ?? new FakeSecureKeyStore(), keyPrompt ?? new ScriptedKeyPrompt(null));
-        var rootCmd = new RootCommand { cmd };
-        var result = rootCmd.Parse(args);
+        ConfigCommand cmd = new ConfigCommand(store, keyStore ?? new FakeSecureKeyStore(), keyPrompt ?? new ScriptedKeyPrompt(null));
+        RootCommand rootCmd = new RootCommand { cmd };
+        ParseResult result = rootCmd.Parse(args);
         return result.Invoke();
     }
 
@@ -57,16 +57,16 @@ public class BackendCommandsTests
     [Test]
     public async Task Backend_command_exposes_four_verbs_with_no_aliases()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var cmd = new ConfigCommand(
+            ConfigCommand cmd = new ConfigCommand(
                 CreateSettingsStore(tempDir),
                 new FakeSecureKeyStore(),
                 new ScriptedKeyPrompt(null));
 
-            var backend = cmd.Subcommands.Single(s => s.Name == "backend");
-            var verbs = backend.Subcommands.Select(c => c.Name).ToList();
+            Command backend = cmd.Subcommands.Single(s => s.Name == "backend");
+            List<string> verbs = backend.Subcommands.Select(c => c.Name).ToList();
 
             await Assert.That(verbs.Count).IsEqualTo(4);
             await Assert.That(verbs).Contains("add");
@@ -74,16 +74,16 @@ public class BackendCommandsTests
             await Assert.That(verbs).Contains("list");
             await Assert.That(verbs).Contains("remove");
 
-            foreach (var sub in backend.Subcommands)
+            foreach (Command sub in backend.Subcommands)
             {
                 await Assert.That(sub.Aliases).IsEmpty();
-                foreach (var option in sub.Options)
+                foreach (Option option in sub.Options)
                 {
                     await Assert.That(option.Aliases).IsEmpty();
                 }
             }
 
-            var addVerb = backend.Subcommands.Single(c => c.Name == "add");
+            Command addVerb = backend.Subcommands.Single(c => c.Name == "add");
             await Assert.That(addVerb.Options.Count).IsEqualTo(3);
         }
         finally
@@ -95,14 +95,14 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_creates_keyless_entry_and_leaves_pointer_empty()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var keyStore = new FakeSecureKeyStore();
-            var prompt = new ScriptedKeyPrompt(null);
+            SettingsStore store = CreateSettingsStore(tempDir);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt(null);
 
-            var exitCode = InvokeConfig(
+            int exitCode = InvokeConfig(
                 store,
                 "config backend add work --endpoint https://api.work.example/v1 --protocol openai-chat",
                 keyStore,
@@ -110,7 +110,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends.Count).IsEqualTo(1);
             await Assert.That(saved.Backends[0].Name).IsEqualTo("work");
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
@@ -132,12 +132,12 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_replaces_entry_preserving_model_and_key_reference()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore();
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             keyStore.Seed("hgkey:work", "old-secret");
-            var store = CreateSettingsStore(tempDir, keyStore);
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
                 Backends =
@@ -152,8 +152,8 @@ public class BackendCommandsTests
                 DefaultBackend = "work"
             });
 
-            var prompt = new ScriptedKeyPrompt(null);
-            var exitCode = InvokeConfig(
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt(null);
+            int exitCode = InvokeConfig(
                 store,
                 "config backend add work --endpoint https://new.example.com/v1 --protocol anthropic",
                 keyStore,
@@ -161,7 +161,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends.Count).IsEqualTo(1);
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
             await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
@@ -180,25 +180,25 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_key_flag_stores_secret_and_persists_only_a_reference()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore();
-            var store = CreateSettingsStore(tempDir, keyStore);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
 
-            var exitCode = InvokeConfig(
+            int exitCode = InvokeConfig(
                 store,
                 "config backend add work --endpoint https://api.work.example/v1 --protocol openai-chat --key my-secret-key",
                 keyStore);
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
 
-            var fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = File.ReadAllText(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("my-secret-key")).IsFalse();
         }
@@ -211,13 +211,13 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_prompt_not_invoked_when_key_flag_given()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var prompt = new ScriptedKeyPrompt("ignored-because-flag-wins");
+            SettingsStore store = CreateSettingsStore(tempDir);
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("ignored-because-flag-wins");
 
-            var exitCode = InvokeConfig(
+            int exitCode = InvokeConfig(
                 store,
                 "config backend add work --endpoint https://api.work.example/v1 --protocol openai-chat --key flagged-secret",
                 null,
@@ -235,14 +235,14 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_prompt_flow_stores_secret_and_persists_only_a_reference()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore();
-            var store = CreateSettingsStore(tempDir, keyStore);
-            var prompt = new ScriptedKeyPrompt("prompted-secret");
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompted-secret");
 
-            var exitCode = InvokeConfig(
+            int exitCode = InvokeConfig(
                 store,
                 "config backend add work --endpoint https://api.work.example/v1 --protocol openai-chat",
                 keyStore,
@@ -250,12 +250,12 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(prompt.CallCount).IsEqualTo(1);
 
-            var fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = File.ReadAllText(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("prompted-secret")).IsFalse();
         }
@@ -268,12 +268,12 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_missing_both_flags_returns_usage_error()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend add work")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
@@ -289,18 +289,18 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_one_sided_pair_returns_resolver_messages()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
 
-            var (endpointOnlyExit, endpointOnlyError) = await ConsoleErrorCapture.RunAsync(() =>
+            (int endpointOnlyExit, string endpointOnlyError) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend add work --endpoint https://api.example.com/v1")));
 
             await Assert.That(endpointOnlyExit).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(endpointOnlyError).Contains("--endpoint requires --protocol to be specified");
 
-            var (protocolOnlyExit, protocolOnlyError) = await ConsoleErrorCapture.RunAsync(() =>
+            (int protocolOnlyExit, string protocolOnlyError) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend add work --protocol openai-chat")));
 
             await Assert.That(protocolOnlyExit).IsEqualTo((int)LaunchExitCode.UsageError);
@@ -315,12 +315,12 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_invalid_endpoint_or_protocol_returns_usage_error()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
 
-            var (badUrlExit, badUrlError) = await ConsoleErrorCapture.RunAsync(() =>
+            (int badUrlExit, string badUrlError) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
                     store,
                     "config backend add work --endpoint not-a-url --protocol openai-chat")));
@@ -328,7 +328,7 @@ public class BackendCommandsTests
             await Assert.That(badUrlExit).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(badUrlError).Contains("Invalid endpoint 'not-a-url'");
 
-            var (badProtocolExit, badProtocolError) = await ConsoleErrorCapture.RunAsync(() =>
+            (int badProtocolExit, string badProtocolError) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
                     store,
                     "config backend add work --endpoint https://api.example.com/v1 --protocol grpc")));
@@ -346,17 +346,17 @@ public class BackendCommandsTests
     [Test]
     public async Task Add_store_failure_returns_exit_7_without_writing_settings()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore { FailStore = true };
-            var store = CreateSettingsStore(tempDir, keyStore);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore { FailStore = true };
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{"backends":[{"name":"default","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"default","schemaVersion":2}""");
-            var before = Fingerprint(store);
+            string before = Fingerprint(store);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
                     store,
                     "config backend add new --endpoint https://api.new.example/v1 --protocol openai-chat --key sk-new",
@@ -375,10 +375,10 @@ public class BackendCommandsTests
     [Test]
     public async Task Switch_sets_pointer_and_prints_echo()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
                 Backends =
@@ -389,13 +389,13 @@ public class BackendCommandsTests
                 DefaultBackend = string.Empty
             });
 
-            var (exitCode, output) = await ConsoleOutputCapture.RunAsync(() =>
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend switch WORK")));
 
             await Assert.That(exitCode).IsEqualTo(0);
 
             // The pointer stores the canonical entry name, not the typed casing.
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.DefaultBackend).IsEqualTo("work");
             await Assert.That(output).Contains("backend 'work' is now the default");
         }
@@ -408,16 +408,16 @@ public class BackendCommandsTests
     [Test]
     public async Task Switch_to_current_default_is_idempotent_and_leaves_file_unchanged()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{"backends":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"work","schemaVersion":2}""");
-            var before = Fingerprint(store);
+            string before = Fingerprint(store);
 
-            var (exitCode, output) = await ConsoleOutputCapture.RunAsync(() =>
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend switch work")));
 
             await Assert.That(exitCode).IsEqualTo(0);
@@ -433,17 +433,17 @@ public class BackendCommandsTests
     [Test]
     public async Task Switch_unknown_name_returns_exit_8()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
                 Backends = [CreateBackend("work")],
                 DefaultBackend = string.Empty
             });
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend switch nope")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
@@ -458,12 +458,12 @@ public class BackendCommandsTests
     [Test]
     public async Task Remove_deletes_entry_and_store_secret()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore();
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             keyStore.Seed("hgkey:beta", "beta-secret");
-            var store = CreateSettingsStore(tempDir, keyStore);
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
                 Backends =
@@ -474,11 +474,11 @@ public class BackendCommandsTests
                 DefaultBackend = "alpha"
             });
 
-            var exitCode = InvokeConfig(store, "config backend remove beta", keyStore);
+            int exitCode = InvokeConfig(store, "config backend remove beta", keyStore);
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends.Count).IsEqualTo(1);
             await Assert.That(saved.Backends[0].Name).IsEqualTo("alpha");
             await Assert.That(keyStore.Contains("hgkey:beta")).IsFalse();
@@ -493,16 +493,16 @@ public class BackendCommandsTests
     [Test]
     public async Task Remove_last_entry_is_refused()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{"backends":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"work","schemaVersion":2}""");
-            var before = Fingerprint(store);
+            string before = Fingerprint(store);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend remove work")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
@@ -521,18 +521,18 @@ public class BackendCommandsTests
     [Test]
     public async Task Remove_current_default_is_refused()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore();
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             keyStore.Seed("hgkey:alpha", "alpha-secret");
-            var store = CreateSettingsStore(tempDir, keyStore);
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{"backends":[{"name":"alpha","baseUri":"https://alpha.example.com/v1","protocol":0,"apiKey":"hgkey:alpha"},{"name":"beta","baseUri":"https://beta.example.com/v1","protocol":0}],"defaultBackend":"alpha","schemaVersion":2}""");
-            var before = Fingerprint(store);
+            string before = Fingerprint(store);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend remove alpha", keyStore)));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
@@ -550,10 +550,10 @@ public class BackendCommandsTests
     [Test]
     public async Task Remove_unknown_name_returns_exit_8()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
                 Backends =
@@ -564,7 +564,7 @@ public class BackendCommandsTests
                 DefaultBackend = "alpha"
             });
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend remove nope")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
@@ -579,12 +579,12 @@ public class BackendCommandsTests
     [Test]
     public async Task Remove_store_delete_failure_returns_exit_7_and_keeps_entry()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore { FailDelete = true };
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore { FailDelete = true };
             keyStore.Seed("hgkey:beta", "beta-secret");
-            var store = CreateSettingsStore(tempDir, keyStore);
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
                 Backends =
@@ -595,13 +595,13 @@ public class BackendCommandsTests
                 DefaultBackend = "alpha"
             });
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend remove beta", keyStore)));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
             await Assert.That(errorOutput).Contains("backend 'beta'");
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends.Count).IsEqualTo(2);
             await Assert.That(keyStore.Contains("hgkey:beta")).IsTrue();
         }
@@ -614,10 +614,10 @@ public class BackendCommandsTests
     [Test]
     public async Task List_is_read_only_and_marks_only_the_default()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
                 Backends =
@@ -627,9 +627,9 @@ public class BackendCommandsTests
                 ],
                 DefaultBackend = "beta"
             });
-            var before = Fingerprint(store);
+            string before = Fingerprint(store);
 
-            var (exitCode, output) = await ConsoleOutputCapture.RunAsync(() =>
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend list")));
 
             await Assert.That(exitCode).IsEqualTo(0);
@@ -648,10 +648,10 @@ public class BackendCommandsTests
     [Test]
     public async Task List_without_default_notes_switch_in_footer()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
                 Backends =
@@ -662,7 +662,7 @@ public class BackendCommandsTests
                 DefaultBackend = string.Empty
             });
 
-            var (exitCode, output) = await ConsoleOutputCapture.RunAsync(() =>
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend list")));
 
             await Assert.That(exitCode).IsEqualTo(0);
@@ -679,12 +679,12 @@ public class BackendCommandsTests
     [Test]
     public async Task List_empty_returns_zero_with_add_guidance()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
 
-            var (exitCode, output) = await ConsoleOutputCapture.RunAsync(() =>
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend list")));
 
             await Assert.That(exitCode).IsEqualTo(0);
@@ -699,16 +699,16 @@ public class BackendCommandsTests
     [Test]
     public async Task Backend_verbs_refuse_unsupported_schema_version()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
-            var before = File.ReadAllText(store.SettingsFilePath);
+            string before = File.ReadAllText(store.SettingsFilePath);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend list")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);

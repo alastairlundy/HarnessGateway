@@ -19,11 +19,11 @@ public class ModelCatalogClientTests
             }
         };
 
-        var handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com") };
-        var catalogClient = new ModelCatalogClient(client);
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com") };
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "openai",
             BaseUri = new Uri("https://api.openai.com"),
@@ -31,7 +31,7 @@ public class ModelCatalogClientTests
             ApiKey = "sk-test"
         };
 
-        var catalog = await catalogClient.FetchModelsAsync(backend);
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
 
         await Assert.That(catalog.Models).Count().IsEqualTo(2);
         await Assert.That(catalog.Models[0].Id).IsEqualTo("gpt-4");
@@ -51,11 +51,11 @@ public class ModelCatalogClientTests
             }
         };
 
-        var handler = new StubHttpMessageHandler(JsonSerializer.Serialize(anthropicResponse));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.anthropic.com") };
-        var catalogClient = new ModelCatalogClient(client);
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(anthropicResponse));
+        HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.anthropic.com") };
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "anthropic",
             BaseUri = new Uri("https://api.anthropic.com"),
@@ -63,7 +63,7 @@ public class ModelCatalogClientTests
             ApiKey = "sk-ant-test"
         };
 
-        var catalog = await catalogClient.FetchModelsAsync(backend);
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
 
         await Assert.That(catalog.Models).Count().IsEqualTo(2);
         await Assert.That(catalog.Models[0].Id).IsEqualTo("claude-sonnet-5");
@@ -75,18 +75,18 @@ public class ModelCatalogClientTests
     [Test]
     public async Task Unreachable_endpoint_returns_graceful_empty_catalog()
     {
-        var handler = new StubHttpMessageHandler(null, isUnreachable: true);
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://unreachable.example.com") };
-        var catalogClient = new ModelCatalogClient(client);
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(null, isUnreachable: true);
+        HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://unreachable.example.com") };
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "unreachable",
             BaseUri = new Uri("https://unreachable.example.com"),
             Protocol = ProtocolKind.OpenAiChat
         };
 
-        var catalog = await catalogClient.FetchModelsAsync(backend);
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
 
         await Assert.That(catalog.Models).IsEmpty();
         await Assert.That(catalog.FetchedAt).IsNotEqualTo(default(DateTimeOffset));
@@ -95,18 +95,18 @@ public class ModelCatalogClientTests
     [Test]
     public async Task Malformed_response_returns_graceful_empty_catalog()
     {
-        var handler = new StubHttpMessageHandler("not valid json");
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example.com") };
-        var catalogClient = new ModelCatalogClient(client);
+        StubHttpMessageHandler handler = new StubHttpMessageHandler("not valid json");
+        HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example.com") };
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "malformed",
             BaseUri = new Uri("https://api.example.com"),
             Protocol = ProtocolKind.OpenAiChat
         };
 
-        var catalog = await catalogClient.FetchModelsAsync(backend);
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
 
         await Assert.That(catalog.Models).IsEmpty();
     }
@@ -122,11 +122,11 @@ public class ModelCatalogClientTests
             }
         };
 
-        var handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com") };
-        var catalogClient = new ModelCatalogClient(client);
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com") };
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "openai-responses",
             BaseUri = new Uri("https://api.openai.com"),
@@ -134,7 +134,7 @@ public class ModelCatalogClientTests
             ApiKey = "sk-test"
         };
 
-        var catalog = await catalogClient.FetchModelsAsync(backend);
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
 
         await Assert.That(catalog.Models).Count().IsEqualTo(1);
         await Assert.That(catalog.Models[0].Id).IsEqualTo("gpt-4o");
@@ -151,18 +151,18 @@ public class ModelCatalogClientTests
             }
         };
 
-        var handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://localhost:11434") };
-        var catalogClient = new ModelCatalogClient(client);
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://localhost:11434") };
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "local",
             BaseUri = new Uri("https://localhost:11434"),
             Protocol = ProtocolKind.OpenAiChat
         };
 
-        var catalog = await catalogClient.FetchModelsAsync(backend);
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
 
         await Assert.That(catalog.Models).Count().IsEqualTo(1);
         await Assert.That(handler.LastRequest?.Headers.Authorization).IsNull();
@@ -190,7 +190,7 @@ public class ModelCatalogClientTests
                 throw new HttpRequestException("Connection refused");
             }
 
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            HttpResponseMessage response = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(_response ?? "{}", System.Text.Encoding.UTF8, "application/json")
             };

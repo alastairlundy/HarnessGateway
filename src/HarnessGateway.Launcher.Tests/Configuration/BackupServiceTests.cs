@@ -7,14 +7,14 @@ public class BackupServiceTests
     [Test]
     public async Task Backup_captures_original_bytes()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
             await File.WriteAllTextAsync(targetFile, "original content");
 
-            var backupDir = Path.Combine(tempDir, "backups");
-            var service = new BackupService(backupDir);
+            string backupDir = Path.Combine(tempDir, "backups");
+            BackupService service = new BackupService(backupDir);
 
             await service.BackupAsync(targetFile);
 
@@ -33,14 +33,14 @@ public class BackupServiceTests
     [Test]
     public async Task Backup_does_not_duplicate_same_target()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
             await File.WriteAllTextAsync(targetFile, "content");
 
-            var backupDir = Path.Combine(tempDir, "backups");
-            var service = new BackupService(backupDir);
+            string backupDir = Path.Combine(tempDir, "backups");
+            BackupService service = new BackupService(backupDir);
 
             await service.BackupAsync(targetFile);
             await service.BackupAsync(targetFile);
@@ -56,13 +56,13 @@ public class BackupServiceTests
     [Test]
     public async Task Backup_records_null_bytes_for_missing_file()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "missing.txt");
+            string targetFile = Path.Combine(tempDir, "missing.txt");
 
-            var backupDir = Path.Combine(tempDir, "backups");
-            var service = new BackupService(backupDir);
+            string backupDir = Path.Combine(tempDir, "backups");
+            BackupService service = new BackupService(backupDir);
 
             await service.BackupAsync(targetFile);
 
@@ -77,22 +77,22 @@ public class BackupServiceTests
     [Test]
     public async Task Backup_persists_record_to_disk()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
             await File.WriteAllTextAsync(targetFile, "hello");
 
-            var backupDir = Path.Combine(tempDir, "backups");
-            var service = new BackupService(backupDir);
+            string backupDir = Path.Combine(tempDir, "backups");
+            BackupService service = new BackupService(backupDir);
 
             await service.BackupAsync(targetFile);
 
-            var backupFiles = Directory.GetFiles(backupDir, "*.json");
+            string[] backupFiles = Directory.GetFiles(backupDir, "*.json");
             await Assert.That(backupFiles).Count().IsEqualTo(1);
 
-            var json = await File.ReadAllTextAsync(backupFiles[0]);
-            var record = System.Text.Json.JsonSerializer.Deserialize<BackupRecord>(json);
+            string json = await File.ReadAllTextAsync(backupFiles[0]);
+            BackupRecord? record = System.Text.Json.JsonSerializer.Deserialize<BackupRecord>(json);
             await Assert.That(record).IsNotNull();
             await Assert.That(record!.TargetPath).IsEqualTo(targetFile);
         }
@@ -105,21 +105,21 @@ public class BackupServiceTests
     [Test]
     public async Task RestoreOnExit_restores_original_content()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
             await File.WriteAllTextAsync(targetFile, "original");
 
-            var backupDir = Path.Combine(tempDir, "backups");
-            var service = new BackupService(backupDir);
+            string backupDir = Path.Combine(tempDir, "backups");
+            BackupService service = new BackupService(backupDir);
 
             await service.BackupAsync(targetFile);
             await File.WriteAllTextAsync(targetFile, "modified");
 
             await service.RestoreOnExitAsync(persistConfig: false);
 
-            var restored = await File.ReadAllTextAsync(targetFile);
+            string restored = await File.ReadAllTextAsync(targetFile);
             await Assert.That(restored).IsEqualTo("original");
             await Assert.That(service.CurrentLaunchBackups).IsEmpty();
         }
@@ -132,19 +132,19 @@ public class BackupServiceTests
     [Test]
     public async Task RestoreOnExit_deletes_backup_files()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
             await File.WriteAllTextAsync(targetFile, "content");
 
-            var backupDir = Path.Combine(tempDir, "backups");
-            var service = new BackupService(backupDir);
+            string backupDir = Path.Combine(tempDir, "backups");
+            BackupService service = new BackupService(backupDir);
 
             await service.BackupAsync(targetFile);
             await service.RestoreOnExitAsync(persistConfig: false);
 
-            var backupFiles = Directory.Exists(backupDir) ? Directory.GetFiles(backupDir, "*.json") : [];
+            string[] backupFiles = Directory.Exists(backupDir) ? Directory.GetFiles(backupDir, "*.json") : [];
             await Assert.That(backupFiles).IsEmpty();
         }
         finally
@@ -156,26 +156,26 @@ public class BackupServiceTests
     [Test]
     public async Task SelfHeal_restores_unmarked_leftover_backups()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
             await File.WriteAllTextAsync(targetFile, "original");
 
-            var backupDir = Path.Combine(tempDir, "backups");
+            string backupDir = Path.Combine(tempDir, "backups");
             Directory.CreateDirectory(backupDir);
 
-            var record = new BackupRecord(targetFile, System.Text.Encoding.UTF8.GetBytes("original"), Persisted: false);
-            var backupPath = Path.Combine(backupDir, "test.json");
-            var json = System.Text.Json.JsonSerializer.Serialize(record);
+            BackupRecord record = new BackupRecord(targetFile, System.Text.Encoding.UTF8.GetBytes("original"), Persisted: false);
+            string backupPath = Path.Combine(backupDir, "test.json");
+            string json = System.Text.Json.JsonSerializer.Serialize(record);
             await File.WriteAllTextAsync(backupPath, json);
 
             await File.WriteAllTextAsync(targetFile, "corrupted");
 
-            var service = new BackupService(backupDir);
+            BackupService service = new BackupService(backupDir);
             await service.SelfHealAsync();
 
-            var restored = await File.ReadAllTextAsync(targetFile);
+            string restored = await File.ReadAllTextAsync(targetFile);
             await Assert.That(restored).IsEqualTo("original");
             await Assert.That(File.Exists(backupPath)).IsFalse();
         }
@@ -188,24 +188,24 @@ public class BackupServiceTests
     [Test]
     public async Task SelfHeal_skips_persisted_leftover_backups()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
             await File.WriteAllTextAsync(targetFile, "current");
 
-            var backupDir = Path.Combine(tempDir, "backups");
+            string backupDir = Path.Combine(tempDir, "backups");
             Directory.CreateDirectory(backupDir);
 
-            var record = new BackupRecord(targetFile, System.Text.Encoding.UTF8.GetBytes("old"), Persisted: true);
-            var backupPath = Path.Combine(backupDir, "test.json");
-            var json = System.Text.Json.JsonSerializer.Serialize(record);
+            BackupRecord record = new BackupRecord(targetFile, System.Text.Encoding.UTF8.GetBytes("old"), Persisted: true);
+            string backupPath = Path.Combine(backupDir, "test.json");
+            string json = System.Text.Json.JsonSerializer.Serialize(record);
             await File.WriteAllTextAsync(backupPath, json);
 
-            var service = new BackupService(backupDir);
+            BackupService service = new BackupService(backupDir);
             await service.SelfHealAsync();
 
-            var content = await File.ReadAllTextAsync(targetFile);
+            string content = await File.ReadAllTextAsync(targetFile);
             await Assert.That(content).IsEqualTo("current");
             await Assert.That(File.Exists(backupPath)).IsTrue();
         }
@@ -218,23 +218,23 @@ public class BackupServiceTests
     [Test]
     public async Task SelfHeal_restores_missing_file_from_backup()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var targetFile = Path.Combine(tempDir, "target.txt");
+            string targetFile = Path.Combine(tempDir, "target.txt");
 
-            var backupDir = Path.Combine(tempDir, "backups");
+            string backupDir = Path.Combine(tempDir, "backups");
             Directory.CreateDirectory(backupDir);
 
-            var record = new BackupRecord(targetFile, System.Text.Encoding.UTF8.GetBytes("was here"), Persisted: false);
-            var backupPath = Path.Combine(backupDir, "test.json");
-            var json = System.Text.Json.JsonSerializer.Serialize(record);
+            BackupRecord record = new BackupRecord(targetFile, System.Text.Encoding.UTF8.GetBytes("was here"), Persisted: false);
+            string backupPath = Path.Combine(backupDir, "test.json");
+            string json = System.Text.Json.JsonSerializer.Serialize(record);
             await File.WriteAllTextAsync(backupPath, json);
 
-            var service = new BackupService(backupDir);
+            BackupService service = new BackupService(backupDir);
             await service.SelfHealAsync();
 
-            var restored = await File.ReadAllTextAsync(targetFile);
+            string restored = await File.ReadAllTextAsync(targetFile);
             await Assert.That(restored).IsEqualTo("was here");
         }
         finally
@@ -245,7 +245,7 @@ public class BackupServiceTests
 
     private static string CreateTempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         return dir;
     }

@@ -113,7 +113,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
     {
         if (!File.Exists(_keysFilePath))
         {
-            return new Dictionary<string, string>(StringComparer.Ordinal);
+            return new(StringComparer.Ordinal);
         }
 
         try

@@ -9,8 +9,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_agent_argument()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsEqualTo("opencode");
@@ -19,8 +19,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_endpoint_and_protocol()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --endpoint https://api.example.com/v1 --protocol openai-chat");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --endpoint https://api.example.com/v1 --protocol openai-chat");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.EndpointOption)).IsEqualTo("https://api.example.com/v1");
@@ -30,8 +30,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_model_option()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --model gpt-4");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --model gpt-4");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.ModelOption)).IsEqualTo("gpt-4");
@@ -40,8 +40,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_model_short_alias()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode -m gpt-4");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode -m gpt-4");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.ModelOption)).IsEqualTo("gpt-4");
@@ -50,9 +50,9 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_model_short_alias_is_equivalent_to_long_form()
     {
-        var command = new LaunchCommand();
-        var shortForm = command.Parse("launch opencode -m claude-sonnet-5");
-        var longForm = command.Parse("launch opencode --model claude-sonnet-5");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult shortForm = command.Parse("launch opencode -m claude-sonnet-5");
+        ParseResult longForm = command.Parse("launch opencode --model claude-sonnet-5");
 
         await Assert.That(shortForm.Errors).IsEmpty();
         await Assert.That(shortForm.GetValue(LaunchCommand.ModelOption))
@@ -62,9 +62,9 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_model_short_alias_via_root_command()
     {
-        var root = new RootCommand { new LaunchCommand() };
-        var shortForm = root.Parse("launch opencode -m claude-sonnet-5");
-        var longForm = root.Parse("launch opencode --model claude-sonnet-5");
+        RootCommand root = new RootCommand { new LaunchCommand() };
+        ParseResult shortForm = root.Parse("launch opencode -m claude-sonnet-5");
+        ParseResult longForm = root.Parse("launch opencode --model claude-sonnet-5");
 
         await Assert.That(shortForm.Errors).IsEmpty();
         await Assert.That(shortForm.GetValue(LaunchCommand.ModelOption)).IsNotNull();
@@ -92,22 +92,22 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_persist_single_value()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --persist config");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --persist config");
 
         await Assert.That(result.Errors).IsEmpty();
-        var persistValues = result.GetValue(LaunchCommand.PersistOption);
+        string[]? persistValues = result.GetValue(LaunchCommand.PersistOption);
         await Assert.That(persistValues).Contains("config");
     }
 
     [Test]
     public async Task Parse_persist_multiple_values()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --persist config model");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --persist config model");
 
         await Assert.That(result.Errors).IsEmpty();
-        var persistValues = result.GetValue(LaunchCommand.PersistOption);
+        string[]? persistValues = result.GetValue(LaunchCommand.PersistOption);
         await Assert.That(persistValues).Contains("config");
         await Assert.That(persistValues).Contains("model");
     }
@@ -115,13 +115,13 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_persist_comma_list_sugar()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --persist config,model");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --persist config,model");
 
         await Assert.That(result.Errors).IsEmpty();
-        var persistValues = result.GetValue(LaunchCommand.PersistOption);
+        string[]? persistValues = result.GetValue(LaunchCommand.PersistOption);
         await Assert.That(persistValues).IsNotNull();
-        var parsed = LaunchCommand.ParsePersistValues(persistValues!);
+        IReadOnlyList<string> parsed = LaunchCommand.ParsePersistValues(persistValues!);
         await Assert.That(parsed).Contains("config");
         await Assert.That(parsed).Contains("model");
     }
@@ -129,8 +129,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_backend_option()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --backend production");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --backend production");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.BackendOption)).IsEqualTo("production");
@@ -139,8 +139,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_backend_without_value_fails()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --backend");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --backend");
 
         await Assert.That(result.Errors).IsNotEmpty();
     }
@@ -149,8 +149,8 @@ public class LaunchCommandFlagParsingTests
     public async Task Parse_key_option_is_rejected()
     {
         // Keys are not overridable per launch; the stored key is the sole source.
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --key sk-secret");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --key sk-secret");
 
         await Assert.That(result.Errors).IsNotEmpty();
     }
@@ -160,8 +160,8 @@ public class LaunchCommandFlagParsingTests
     {
         // The persist family stays closed at config|model: a --backend launch
         // cannot persist its selection.
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --backend production --persist backend");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --backend production --persist backend");
 
         await Assert.That(result.Errors).IsNotEmpty();
     }
@@ -169,8 +169,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_endpoint_without_protocol_fails()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --endpoint https://api.example.com/v1");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --endpoint https://api.example.com/v1");
 
         await Assert.That(result.Errors).IsNotEmpty();
         await Assert.That(result.Errors[0].Message).Contains("--endpoint requires --protocol");
@@ -179,8 +179,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_protocol_without_endpoint_fails()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --protocol openai-chat");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --protocol openai-chat");
 
         await Assert.That(result.Errors).IsNotEmpty();
         await Assert.That(result.Errors[0].Message).Contains("--protocol requires --endpoint");
@@ -189,8 +189,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_invalid_persist_value_fails()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --persist invalid");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --persist invalid");
 
         await Assert.That(result.Errors).IsNotEmpty();
     }
@@ -198,15 +198,15 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_all_options()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch kilo --endpoint https://api.example.com/v1 --protocol anthropic --model claude-sonnet-5 --persist config model");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch kilo --endpoint https://api.example.com/v1 --protocol anthropic --model claude-sonnet-5 --persist config model");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsEqualTo("kilo");
         await Assert.That(result.GetValue(LaunchCommand.EndpointOption)).IsEqualTo("https://api.example.com/v1");
         await Assert.That(result.GetValue(LaunchCommand.ProtocolOption)).IsEqualTo("anthropic");
         await Assert.That(result.GetValue(LaunchCommand.ModelOption)).IsEqualTo("claude-sonnet-5");
-        var persistValues = result.GetValue(LaunchCommand.PersistOption);
+        string[]? persistValues = result.GetValue(LaunchCommand.PersistOption);
         await Assert.That(persistValues).Contains("config");
         await Assert.That(persistValues).Contains("model");
     }
@@ -214,8 +214,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_protocol_anthropic()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --endpoint https://api.anthropic.com --protocol anthropic");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --endpoint https://api.anthropic.com --protocol anthropic");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.ProtocolOption)).IsEqualTo("anthropic");
@@ -224,8 +224,8 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_protocol_openai_responses()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode --endpoint https://api.openai.com/v1 --protocol openai-responses");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --endpoint https://api.openai.com/v1 --protocol openai-responses");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.ProtocolOption)).IsEqualTo("openai-responses");
@@ -234,22 +234,22 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_no_optional_flags()
     {
-        var command = new LaunchCommand();
-        var result = command.Parse("launch opencode");
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsEqualTo("opencode");
         await Assert.That(result.GetValue(LaunchCommand.EndpointOption)).IsNull();
         await Assert.That(result.GetValue(LaunchCommand.ProtocolOption)).IsNull();
         await Assert.That(result.GetValue(LaunchCommand.ModelOption)).IsNull();
-        var persistValues = result.GetValue(LaunchCommand.PersistOption);
+        string[]? persistValues = result.GetValue(LaunchCommand.PersistOption);
         await Assert.That(persistValues).IsEmpty();
     }
 
     [Test]
     public async Task ParseEndpoint_validates_absolute_uri()
     {
-        var uri = LaunchCommand.ParseEndpoint("https://api.example.com/v1");
+        Uri uri = LaunchCommand.ParseEndpoint("https://api.example.com/v1");
         await Assert.That(uri).IsEqualTo(new Uri("https://api.example.com/v1"));
     }
 
@@ -264,7 +264,7 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task ParsePersistValues_handles_comma_separated()
     {
-        var values = LaunchCommand.ParsePersistValues(["config,model"]);
+        IReadOnlyList<string> values = LaunchCommand.ParsePersistValues(["config,model"]);
         await Assert.That(values).Contains("config");
         await Assert.That(values).Contains("model");
     }
@@ -272,7 +272,7 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task ParsePersistValues_handles_space_separated()
     {
-        var values = LaunchCommand.ParsePersistValues(["config", "model"]);
+        IReadOnlyList<string> values = LaunchCommand.ParsePersistValues(["config", "model"]);
         await Assert.That(values).Contains("config");
         await Assert.That(values).Contains("model");
     }
@@ -280,7 +280,7 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task ParsePersistValues_ignores_invalid_values()
     {
-        var values = LaunchCommand.ParsePersistValues(["config", "invalid", "model"]);
+        IReadOnlyList<string> values = LaunchCommand.ParsePersistValues(["config", "invalid", "model"]);
         await Assert.That(values).Contains("config");
         await Assert.That(values).Contains("model");
         await Assert.That(values.Count).IsEqualTo(2);

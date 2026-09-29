@@ -40,7 +40,7 @@ public sealed class TomlDocumentEditor
                 diagnostics);
         }
 
-        return new TomlDocumentEditor(document, DetectNewLine(toml));
+        return new(document, DetectNewLine(toml));
     }
 
     /// <summary>
@@ -120,8 +120,8 @@ public sealed class TomlDocumentEditor
         TableSyntax? table = FindBlock(path);
         if (table is null)
         {
-            table = new TableSyntax(BuildKey(path));
-            table.EndOfLineToken = new SyntaxToken(TokenKind.NewLine, _newLine);
+            table = new(BuildKey(path));
+            table.EndOfLineToken = new(TokenKind.NewLine, _newLine);
             List<SyntaxTrivia>? separator = BuildAppendSeparator();
             if (separator is not null)
             {
@@ -305,17 +305,17 @@ public sealed class TomlDocumentEditor
 
     private KeyValueSyntax CreateKeyValue(string[] path, object? value)
     {
-        KeyValueSyntax keyValue = new KeyValueSyntax(BuildKey(path), CreateValue(value));
-        keyValue.EndOfLineToken = new SyntaxToken(TokenKind.NewLine, _newLine);
+        KeyValueSyntax keyValue = new(BuildKey(path), CreateValue(value));
+        keyValue.EndOfLineToken = new(TokenKind.NewLine, _newLine);
         return keyValue;
     }
 
     private static KeySyntax BuildKey(string[] path)
     {
-        KeySyntax key = new KeySyntax(path[0]);
+        KeySyntax key = new(path[0]);
         for (int i = 1; i < path.Length; i++)
         {
-            key.DotKeys.Add(new DottedKeyItemSyntax(path[i]));
+            key.DotKeys.Add(new(path[i]));
         }
 
         return key;
@@ -416,6 +416,6 @@ public sealed class TomlDocumentEditor
 
     private SyntaxTrivia CreateNewLineTrivia()
     {
-        return new SyntaxTrivia(TokenKind.NewLine, _newLine);
+        return new(TokenKind.NewLine, _newLine);
     }
 }

@@ -1,6 +1,4 @@
-using HarnessGateway.Launcher.Core.Backends;
-
-namespace HarnessGateway.Launcher.Core.Adapters;
+namespace HarnessGateway.Launcher.Core.Adapters.Abstractions;
 
 public sealed record HarnessMetadata(
     string Name,

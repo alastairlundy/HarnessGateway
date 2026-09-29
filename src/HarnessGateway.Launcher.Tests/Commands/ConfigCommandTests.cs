@@ -2,7 +2,6 @@ using System.CommandLine;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings;
-using HarnessGateway.Launcher.Core.Settings.Security;
 using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Commands;
@@ -11,38 +10,38 @@ public class ConfigCommandTests
 {
     private static string CreateTempDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-config-test-{Guid.NewGuid():N}");
+        string dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-config-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         return dir;
     }
 
     private static SettingsStore CreateSettingsStore(string tempDir, FakeSecureKeyStore? keyStore = null)
     {
-        var settingsDir = Path.Combine(tempDir, "settings");
+        string settingsDir = Path.Combine(tempDir, "settings");
         Directory.CreateDirectory(settingsDir);
         return new SettingsStore(settingsDir, keyStore);
     }
 
     private static int InvokeConfig(SettingsStore store, string args, FakeSecureKeyStore? keyStore = null)
     {
-        var cmd = new ConfigCommand(store, keyStore ?? new FakeSecureKeyStore());
-        var rootCmd = new RootCommand { cmd };
-        var result = rootCmd.Parse(args);
+        ConfigCommand cmd = new ConfigCommand(store, keyStore ?? new FakeSecureKeyStore());
+        RootCommand rootCmd = new RootCommand { cmd };
+        ParseResult result = rootCmd.Parse(args);
         return result.Invoke();
     }
 
     [Test]
     public async Task Config_verbs_define_no_short_aliases()
     {
-        var cmd = new ConfigCommand(CreateSettingsStore(CreateTempDir()));
+        ConfigCommand cmd = new ConfigCommand(CreateSettingsStore(CreateTempDir()));
 
-        var subcommands = cmd.Subcommands.ToList();
+        List<Command> subcommands = cmd.Subcommands.ToList();
         await Assert.That(subcommands).IsNotEmpty();
 
-        foreach (var sub in subcommands)
+        foreach (Command sub in subcommands)
         {
             await Assert.That(sub.Aliases).IsEmpty();
-            foreach (var option in sub.Options)
+            foreach (Option option in sub.Options)
             {
                 await Assert.That(option.Aliases).IsEmpty();
             }
@@ -54,7 +53,7 @@ public class ConfigCommandTests
     [Test]
     public async Task ResolveDefaultBackend_returns_default_backend_by_name()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -74,7 +73,7 @@ public class ConfigCommandTests
             DefaultBackend = "default"
         };
 
-        var backend = ConfigCommand.ResolveDefaultBackend(settings);
+        Backend? backend = ConfigCommand.ResolveDefaultBackend(settings);
 
         await Assert.That(backend).IsNotNull();
         await Assert.That(backend!.Name).IsEqualTo("default");
@@ -84,7 +83,7 @@ public class ConfigCommandTests
     [Test]
     public async Task ResolveDefaultBackend_returns_first_when_no_default_set()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -98,7 +97,7 @@ public class ConfigCommandTests
             DefaultBackend = string.Empty
         };
 
-        var backend = ConfigCommand.ResolveDefaultBackend(settings);
+        Backend? backend = ConfigCommand.ResolveDefaultBackend(settings);
 
         await Assert.That(backend).IsNotNull();
         await Assert.That(backend!.Name).IsEqualTo("first");
@@ -107,9 +106,9 @@ public class ConfigCommandTests
     [Test]
     public async Task ResolveDefaultBackend_returns_null_when_no_backends()
     {
-        var settings = new LauncherSettings();
+        LauncherSettings settings = new LauncherSettings();
 
-        var backend = ConfigCommand.ResolveDefaultBackend(settings);
+        Backend? backend = ConfigCommand.ResolveDefaultBackend(settings);
 
         await Assert.That(backend).IsNull();
     }
@@ -117,7 +116,7 @@ public class ConfigCommandTests
     [Test]
     public async Task UpdateBackend_updates_existing_backend()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [
@@ -131,7 +130,7 @@ public class ConfigCommandTests
             DefaultBackend = "default"
         };
 
-        var updated = new Backend
+        Backend updated = new Backend
         {
             Name = "default",
             BaseUri = new Uri("https://new.example.com/v1"),
@@ -148,13 +147,13 @@ public class ConfigCommandTests
     [Test]
     public async Task UpdateBackend_adds_new_backend_when_not_exists()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends = [],
             DefaultBackend = "new"
         };
 
-        var newBackend = new Backend
+        Backend newBackend = new Backend
         {
             Name = "new",
             BaseUri = new Uri("https://new.example.com/v1"),
@@ -170,11 +169,11 @@ public class ConfigCommandTests
     [Test]
     public async Task Show_verb_returns_zero()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var settings = new LauncherSettings
+            SettingsStore store = CreateSettingsStore(tempDir);
+            LauncherSettings settings = new LauncherSettings
             {
                 Backends =
                 [
@@ -191,7 +190,7 @@ public class ConfigCommandTests
             };
             store.Save(settings);
 
-            var exitCode = InvokeConfig(store, "config show");
+            int exitCode = InvokeConfig(store, "config show");
 
             await Assert.That(exitCode).IsEqualTo(0);
         }
@@ -204,11 +203,11 @@ public class ConfigCommandTests
     [Test]
     public async Task Show_verb_no_backend_returns_zero()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var exitCode = InvokeConfig(store, "config show");
+            SettingsStore store = CreateSettingsStore(tempDir);
+            int exitCode = InvokeConfig(store, "config show");
 
             await Assert.That(exitCode).IsEqualTo(0);
         }
@@ -221,15 +220,15 @@ public class ConfigCommandTests
     [Test]
     public async Task SetDefaultEndpoint_valid_protocol_persists()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var exitCode = InvokeConfig(store, "config set-default-endpoint https://api.openai.com/v1 openai-chat");
+            SettingsStore store = CreateSettingsStore(tempDir);
+            int exitCode = InvokeConfig(store, "config set-default-endpoint https://api.openai.com/v1 openai-chat");
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.DefaultBackend).IsEqualTo("default");
             await Assert.That(saved.Backends).Count().IsEqualTo(1);
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.openai.com/v1"));
@@ -244,11 +243,11 @@ public class ConfigCommandTests
     [Test]
     public async Task SetDefaultEndpoint_invalid_protocol_returns_usage_error()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var exitCode = InvokeConfig(store, "config set-default-endpoint https://api.example.com/v1 invalid-protocol");
+            SettingsStore store = CreateSettingsStore(tempDir);
+            int exitCode = InvokeConfig(store, "config set-default-endpoint https://api.example.com/v1 invalid-protocol");
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
         }
@@ -261,11 +260,11 @@ public class ConfigCommandTests
     [Test]
     public async Task SetDefaultEndpoint_preserves_existing_key_and_model()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var existing = new LauncherSettings
+            SettingsStore store = CreateSettingsStore(tempDir);
+            LauncherSettings existing = new LauncherSettings
             {
                 Backends =
                 [
@@ -282,11 +281,11 @@ public class ConfigCommandTests
             };
             store.Save(existing);
 
-            var exitCode = InvokeConfig(store, "config set-default-endpoint https://new.example.com/v1 anthropic");
+            int exitCode = InvokeConfig(store, "config set-default-endpoint https://new.example.com/v1 anthropic");
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
             await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:default");
@@ -301,11 +300,11 @@ public class ConfigCommandTests
     [Test]
     public async Task SetSavedKey_stores_the_secret_and_persists_only_a_reference()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var settings = new LauncherSettings
+            SettingsStore store = CreateSettingsStore(tempDir);
+            LauncherSettings settings = new LauncherSettings
             {
                 Backends =
                 [
@@ -320,17 +319,17 @@ public class ConfigCommandTests
             };
             store.Save(settings);
 
-            var keyStore = new FakeSecureKeyStore();
-            var exitCode = InvokeConfig(store, "config set-saved-key my-secret-key", keyStore);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            int exitCode = InvokeConfig(store, "config set-saved-key my-secret-key", keyStore);
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:default");
 
             // The secret lives only in the store, never in the settings file.
             await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
-            var fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("my-secret-key")).IsFalse();
         }
@@ -343,11 +342,11 @@ public class ConfigCommandTests
     [Test]
     public async Task SetSavedKey_store_failure_returns_exit_7()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var settings = new LauncherSettings
+            SettingsStore store = CreateSettingsStore(tempDir);
+            LauncherSettings settings = new LauncherSettings
             {
                 Backends =
                 [
@@ -362,16 +361,16 @@ public class ConfigCommandTests
             };
             store.Save(settings);
 
-            var keyStore = new FakeSecureKeyStore { FailStore = true };
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore { FailStore = true };
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config set-saved-key my-secret-key", keyStore)));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
             await Assert.That(errorOutput).Contains("config set-saved-key");
 
             // Nothing was persisted: the backend still has no key at all.
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends[0].ApiKey).IsNull();
         }
         finally
@@ -383,11 +382,11 @@ public class ConfigCommandTests
     [Test]
     public async Task SetSavedKey_no_backend_returns_usage_error()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var exitCode = InvokeConfig(store, "config set-saved-key my-key");
+            SettingsStore store = CreateSettingsStore(tempDir);
+            int exitCode = InvokeConfig(store, "config set-saved-key my-key");
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
         }
@@ -400,11 +399,11 @@ public class ConfigCommandTests
     [Test]
     public async Task ClearSavedKey_deletes_the_store_entry_and_nulls_the_reference()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var settings = new LauncherSettings
+            SettingsStore store = CreateSettingsStore(tempDir);
+            LauncherSettings settings = new LauncherSettings
             {
                 Backends =
                 [
@@ -420,14 +419,14 @@ public class ConfigCommandTests
             };
             store.Save(settings);
 
-            var keyStore = new FakeSecureKeyStore();
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             keyStore.Seed("hgkey:default", "old-key");
 
-            var exitCode = InvokeConfig(store, "config clear-saved-key", keyStore);
+            int exitCode = InvokeConfig(store, "config clear-saved-key", keyStore);
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends[0].ApiKey).IsNull();
             await Assert.That(keyStore.Contains("hgkey:default")).IsFalse();
             await Assert.That(keyStore.DeleteCallCount).IsEqualTo(1);
@@ -441,11 +440,11 @@ public class ConfigCommandTests
     [Test]
     public async Task ClearSavedKey_no_backend_returns_usage_error()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var exitCode = InvokeConfig(store, "config clear-saved-key");
+            SettingsStore store = CreateSettingsStore(tempDir);
+            int exitCode = InvokeConfig(store, "config clear-saved-key");
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
         }
@@ -458,11 +457,11 @@ public class ConfigCommandTests
     [Test]
     public async Task SetDefaultModel_persists_model_to_backend()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var settings = new LauncherSettings
+            SettingsStore store = CreateSettingsStore(tempDir);
+            LauncherSettings settings = new LauncherSettings
             {
                 Backends =
                 [
@@ -477,11 +476,11 @@ public class ConfigCommandTests
             };
             store.Save(settings);
 
-            var exitCode = InvokeConfig(store, "config set-default-model claude-sonnet-5");
+            int exitCode = InvokeConfig(store, "config set-default-model claude-sonnet-5");
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            var saved = store.Load();
+            LauncherSettings saved = store.Load();
             await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("claude-sonnet-5");
         }
         finally
@@ -493,11 +492,11 @@ public class ConfigCommandTests
     [Test]
     public async Task SetDefaultModel_no_backend_returns_usage_error()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
-            var exitCode = InvokeConfig(store, "config set-default-model gpt-4");
+            SettingsStore store = CreateSettingsStore(tempDir);
+            int exitCode = InvokeConfig(store, "config set-default-model gpt-4");
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
         }
@@ -510,21 +509,21 @@ public class ConfigCommandTests
     [Test]
     public async Task SetDefaultEndpoint_all_protocols_persist()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
 
             InvokeConfig(store, "config set-default-endpoint https://api.openai.com/v1 openai-chat");
-            var saved1 = store.Load();
+            LauncherSettings saved1 = store.Load();
             await Assert.That(saved1.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
 
             InvokeConfig(store, "config set-default-endpoint https://api.openai.com/v1 openai-responses");
-            var saved2 = store.Load();
+            LauncherSettings saved2 = store.Load();
             await Assert.That(saved2.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
 
             InvokeConfig(store, "config set-default-endpoint https://api.anthropic.com anthropic");
-            var saved3 = store.Load();
+            LauncherSettings saved3 = store.Load();
             await Assert.That(saved3.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
         }
         finally
@@ -536,16 +535,16 @@ public class ConfigCommandTests
     [Test]
     public async Task Show_on_unsupported_schema_version_returns_exit_9()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
-            var before = File.ReadAllText(store.SettingsFilePath);
+            string before = File.ReadAllText(store.SettingsFilePath);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config show")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
@@ -561,16 +560,16 @@ public class ConfigCommandTests
     [Test]
     public async Task SetDefaultEndpoint_on_unsupported_schema_version_returns_exit_9()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var store = CreateSettingsStore(tempDir);
+            SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
-            var before = File.ReadAllText(store.SettingsFilePath);
+            string before = File.ReadAllText(store.SettingsFilePath);
 
-            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
                     store,
                     "config set-default-endpoint https://api.example.com/v1 openai-chat")));
@@ -588,11 +587,11 @@ public class ConfigCommandTests
     [Test]
     public async Task Show_migrates_a_v1_plaintext_file_before_reading_it()
     {
-        var tempDir = CreateTempDir();
+        string tempDir = CreateTempDir();
         try
         {
-            var keyStore = new FakeSecureKeyStore();
-            var store = CreateSettingsStore(tempDir, keyStore);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             File.WriteAllText(
                 store.SettingsFilePath,
                 """
@@ -610,14 +609,14 @@ public class ConfigCommandTests
                 }
                 """);
 
-            var exitCode = InvokeConfig(store, "config show", keyStore);
+            int exitCode = InvokeConfig(store, "config show", keyStore);
 
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
             await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
 
-            var fileBytes = File.ReadAllText(store.SettingsFilePath);
-            var expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
+            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
             await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
             await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();
             await Assert.That(fileBytes.Contains("sk-legacy-plaintext")).IsFalse();

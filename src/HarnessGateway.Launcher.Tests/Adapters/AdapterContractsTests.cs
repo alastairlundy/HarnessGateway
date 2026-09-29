@@ -1,4 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
+using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 
@@ -9,7 +11,7 @@ public class HarnessMetadataTests
     [Test]
     public async Task HarnessMetadata_stores_all_fields()
     {
-        var metadata = new HarnessMetadata(
+        HarnessMetadata metadata = new HarnessMetadata(
             Name: "opencode",
             Kind: HarnessKind.Cli,
             RequiresModel: true,
@@ -29,13 +31,13 @@ public class HarnessMetadataTests
         await Assert.That(metadata.DetectionCommand).IsEqualTo("opencode --version");
         await Assert.That(metadata.ConfigFileCandidates).Count().IsEqualTo(2);
         await Assert.That(metadata.SupportedProtocols)
-            .IsEquivalentTo(new[] { Core.Backends.ProtocolKind.OpenAiChat });
+            .IsEquivalentTo([Core.Backends.ProtocolKind.OpenAiChat]);
     }
 
     [Test]
     public async Task HarnessMetadata_allows_null_detection_command()
     {
-        var metadata = new HarnessMetadata(
+        HarnessMetadata metadata = new HarnessMetadata(
             Name: "kilo",
             Kind: HarnessKind.Cli,
             RequiresModel: false,
@@ -53,7 +55,7 @@ public class HarnessMetadataTests
     [Test]
     public async Task HarnessMetadata_declares_only_the_protocols_it_is_given()
     {
-        var metadata = new HarnessMetadata(
+        HarnessMetadata metadata = new HarnessMetadata(
             Name: "claude-code",
             Kind: HarnessKind.Cli,
             RequiresModel: false,
@@ -110,7 +112,7 @@ public class ShippedAdapterContractTests
             ["claude-code"] = false
         };
 
-        string[] names = shipped.Select(adapter => adapter.Metadata.Name).ToArray();
+        string[] names = [.. shipped.Select(adapter => adapter.Metadata.Name)];
 
         await Assert.That(names.Length).IsEqualTo(expected.Count);
         foreach (string name in expected.Keys)
@@ -134,7 +136,7 @@ public class ConfigurationActionTests
     [Test]
     public async Task CliArgumentAction_stores_argument_and_value()
     {
-        var action = new CliArgumentAction("--model", "gpt-4");
+        CliArgumentAction action = new CliArgumentAction("--model", "gpt-4");
 
         await Assert.That(action.Argument).IsEqualTo("--model");
         await Assert.That(action.Value).IsEqualTo("gpt-4");
@@ -144,7 +146,7 @@ public class ConfigurationActionTests
     [Test]
     public async Task CliArgumentAction_allows_null_value()
     {
-        var action = new CliArgumentAction("--verbose", null);
+        CliArgumentAction action = new CliArgumentAction("--verbose", null);
 
         await Assert.That(action.Argument).IsEqualTo("--verbose");
         await Assert.That(action.Value).IsNull();
@@ -153,7 +155,7 @@ public class ConfigurationActionTests
     [Test]
     public async Task ConfigFileWriteAction_stores_path_and_content()
     {
-        var action = new ConfigFileWriteAction("/path/to/config.json", "{ \"key\": \"value\" }");
+        ConfigFileWriteAction action = new ConfigFileWriteAction("/path/to/config.json", "{ \"key\": \"value\" }");
 
         await Assert.That(action.TargetPath).IsEqualTo("/path/to/config.json");
         await Assert.That(action.Content).IsEqualTo("{ \"key\": \"value\" }");
@@ -178,14 +180,14 @@ public class LaunchRequestTests
     [Test]
     public async Task LaunchRequest_stores_backend_model_and_working_directory()
     {
-        var backend = new Core.Backends.Backend
+        Backend backend = new Core.Backends.Backend
         {
             Name = "test",
             BaseUri = new Uri("https://api.example.com"),
             Protocol = Core.Backends.ProtocolKind.OpenAiChat
         };
 
-        var request = new LaunchRequest(backend, "gpt-4", "/home/user/project");
+        LaunchRequest request = new LaunchRequest(backend, "gpt-4", "/home/user/project");
 
         await Assert.That(request.Backend).IsEqualTo(backend);
         await Assert.That(request.Model).IsEqualTo("gpt-4");
@@ -195,14 +197,14 @@ public class LaunchRequestTests
     [Test]
     public async Task LaunchRequest_allows_null_model()
     {
-        var backend = new Core.Backends.Backend
+        Backend backend = new Core.Backends.Backend
         {
             Name = "test",
             BaseUri = new Uri("https://api.example.com"),
             Protocol = Core.Backends.ProtocolKind.OpenAiChat
         };
 
-        var request = new LaunchRequest(backend, null, "/tmp");
+        LaunchRequest request = new LaunchRequest(backend, null, "/tmp");
 
         await Assert.That(request.Model).IsNull();
     }

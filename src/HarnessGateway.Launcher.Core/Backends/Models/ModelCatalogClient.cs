@@ -20,22 +20,22 @@ public sealed class ModelCatalogClient
             {
                 ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => await FetchOpenAiModelsAsync(backend, cancellationToken),
                 ProtocolKind.Anthropic => await FetchAnthropicModelsAsync(backend, cancellationToken),
-                _ => new ModelCatalog([], DateTimeOffset.UtcNow)
+                _ => new([], DateTimeOffset.UtcNow)
             };
         }
         catch
         {
-            return new ModelCatalog([], DateTimeOffset.UtcNow);
+            return new([], DateTimeOffset.UtcNow);
         }
     }
 
     private async Task<ModelCatalog> FetchOpenAiModelsAsync(Backend backend, CancellationToken cancellationToken)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "/v1/models");
+        HttpRequestMessage request = new(HttpMethod.Get, "/v1/models");
 
         if (!string.IsNullOrEmpty(backend.ApiKey))
         {
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", backend.ApiKey);
+            request.Headers.Authorization = new("Bearer", backend.ApiKey);
         }
 
         HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
@@ -45,12 +45,12 @@ public sealed class ModelCatalogClient
 
         List<ModelCatalogEntry> models = openAiResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.Id)).ToList() ?? [];
 
-        return new ModelCatalog(models, DateTimeOffset.UtcNow);
+        return new(models, DateTimeOffset.UtcNow);
     }
 
     private async Task<ModelCatalog> FetchAnthropicModelsAsync(Backend backend, CancellationToken cancellationToken)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "/v1/models");
+        HttpRequestMessage request = new(HttpMethod.Get, "/v1/models");
         request.Headers.Add("anthropic-version", "2023-06-01");
 
         if (!string.IsNullOrEmpty(backend.ApiKey))
@@ -65,7 +65,7 @@ public sealed class ModelCatalogClient
 
         List<ModelCatalogEntry> models = anthropicResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.DisplayName)).ToList() ?? [];
 
-        return new ModelCatalog(models, DateTimeOffset.UtcNow);
+        return new(models, DateTimeOffset.UtcNow);
     }
 
     private sealed class OpenAiModelsResponse

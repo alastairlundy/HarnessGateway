@@ -1,4 +1,5 @@
 using HarnessGateway.Launcher.Core.Adapters;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Launch;
 
@@ -26,73 +27,72 @@ public class OpenCodeAdapterTests
     [Test]
     public async Task Metadata_declares_cli_kind()
     {
-        var adapter = new OpenCodeAdapter();
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
         await Assert.That(adapter.Metadata.Kind).IsEqualTo(HarnessKind.Cli);
     }
 
     [Test]
     public async Task Metadata_requires_model()
     {
-        var adapter = new OpenCodeAdapter();
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
         await Assert.That(adapter.Metadata.RequiresModel).IsTrue();
     }
 
     [Test]
     public async Task Metadata_has_install_hint()
     {
-        var adapter = new OpenCodeAdapter();
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
         await Assert.That(adapter.Metadata.InstallHint).IsNotEmpty();
     }
 
     [Test]
     public async Task Metadata_has_detection_command()
     {
-        var adapter = new OpenCodeAdapter();
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
         await Assert.That(adapter.Metadata.DetectionCommand).IsNotNull();
     }
 
     [Test]
     public async Task Metadata_has_config_file_candidates()
     {
-        var adapter = new OpenCodeAdapter();
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
         await Assert.That(adapter.Metadata.ConfigFileCandidates).IsNotEmpty();
     }
 
     [Test]
     public async Task Metadata_declares_supported_protocols()
     {
-        var adapter = new OpenCodeAdapter();
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
 
         await Assert.That(adapter.Metadata.SupportedProtocols).IsEquivalentTo(
-            new[]
-            {
-                ProtocolKind.OpenAiChat,
+        [
+            ProtocolKind.OpenAiChat,
                 ProtocolKind.OpenAiResponses,
                 ProtocolKind.Anthropic
-            });
+        ]);
     }
 
     [Test]
     public async Task IsAvailable_returns_true_when_on_path()
     {
-        var adapter = new OpenCodeAdapter((string _, CancellationToken _) => Task.FromResult<string?>("opencode"));
+        OpenCodeAdapter adapter = new OpenCodeAdapter((string _, CancellationToken _) => Task.FromResult<string?>("opencode"));
         await Assert.That(adapter.IsAvailableAsync()).IsTrue();
     }
 
     [Test]
     public async Task IsAvailable_returns_false_when_not_on_path()
     {
-        var adapter = new OpenCodeAdapter((string _, CancellationToken _) => Task.FromResult<string?>(null));
+        OpenCodeAdapter adapter = new OpenCodeAdapter((string _, CancellationToken _) => Task.FromResult<string?>(null));
         await Assert.That(adapter.IsAvailableAsync()).IsFalse();
     }
 
     [Test]
     public async Task PlanLaunch_openai_sets_env_vars()
     {
-        var adapter = new OpenCodeAdapter();
-        var request = CreateRequest(ProtocolKind.OpenAiChat);
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        LaunchRequest request = CreateRequest(ProtocolKind.OpenAiChat);
 
-        var plan = await adapter.PlanLaunchAsync(request);
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.ConfigurationActions).IsEmpty();
         await Assert.That(plan.Process.TargetFilePath).IsEqualTo("opencode");
@@ -104,10 +104,10 @@ public class OpenCodeAdapterTests
     [Test]
     public async Task PlanLaunch_anthropic_sets_env_vars()
     {
-        var adapter = new OpenCodeAdapter();
-        var request = CreateRequest(ProtocolKind.Anthropic);
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        LaunchRequest request = CreateRequest(ProtocolKind.Anthropic);
 
-        var plan = await adapter.PlanLaunchAsync(request);
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("ANTHROPIC_BASE_URL");
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("ANTHROPIC_API_KEY");
@@ -117,10 +117,10 @@ public class OpenCodeAdapterTests
     [Test]
     public async Task PlanLaunch_with_model_sets_cli_args()
     {
-        var adapter = new OpenCodeAdapter();
-        var request = CreateRequest(model: "claude-sonnet-5");
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        LaunchRequest request = CreateRequest(model: "claude-sonnet-5");
 
-        var plan = await adapter.PlanLaunchAsync(request);
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.Arguments).Contains("--model");
         await Assert.That(plan.Process.Arguments).Contains("claude-sonnet-5");
@@ -129,10 +129,10 @@ public class OpenCodeAdapterTests
     [Test]
     public async Task PlanLaunch_without_model_omits_model_arg()
     {
-        var adapter = new OpenCodeAdapter();
-        var request = CreateRequest(model: null);
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        LaunchRequest request = CreateRequest(model: null);
 
-        var plan = await adapter.PlanLaunchAsync(request);
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.Arguments).DoesNotContain("--model");
     }
@@ -140,10 +140,10 @@ public class OpenCodeAdapterTests
     [Test]
     public async Task PlanLaunch_no_api_key_omits_env_var()
     {
-        var adapter = new OpenCodeAdapter();
-        var request = CreateRequest(apiKey: null);
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        LaunchRequest request = CreateRequest(apiKey: null);
 
-        var plan = await adapter.PlanLaunchAsync(request);
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("OPENAI_API_KEY");
     }

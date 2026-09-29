@@ -1,6 +1,6 @@
 using HarnessGateway.Launcher.Core.Launch;
 
-namespace HarnessGateway.Launcher.Core.Adapters;
+namespace HarnessGateway.Launcher.Core.Adapters.Abstractions;
 
 public interface IHarnessAdapter
 {

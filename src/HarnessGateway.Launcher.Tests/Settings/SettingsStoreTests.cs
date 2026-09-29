@@ -41,12 +41,12 @@ public class SettingsStoreTests
     [Test]
     public async Task Round_trip_persists_and_loads_settings()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var store = new SettingsStore(tempDir);
+            SettingsStore store = new SettingsStore(tempDir);
 
-            var settings = new LauncherSettings
+            LauncherSettings settings = new LauncherSettings
             {
                 Backends =
                 [
@@ -64,7 +64,7 @@ public class SettingsStoreTests
             };
 
             store.Save(settings);
-            var loaded = store.Load();
+            LauncherSettings loaded = store.Load();
 
             await Assert.That(loaded.DefaultBackend).IsEqualTo("test-backend");
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
@@ -87,12 +87,12 @@ public class SettingsStoreTests
     [Test]
     public async Task Load_returns_empty_settings_when_no_file_exists()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var store = new SettingsStore(tempDir);
+            SettingsStore store = new SettingsStore(tempDir);
 
-            var loaded = store.Load();
+            LauncherSettings loaded = store.Load();
 
             await Assert.That(loaded.DefaultBackend).IsEmpty();
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
@@ -110,10 +110,10 @@ public class SettingsStoreTests
     [Test]
     public async Task Environment_variable_overrides_file_value()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var settings = new LauncherSettings
+            LauncherSettings settings = new LauncherSettings
             {
                 Backends =
                 [
@@ -128,13 +128,13 @@ public class SettingsStoreTests
                 SchemaVersion = 1
             };
 
-            var store = new SettingsStore(tempDir);
+            SettingsStore store = new SettingsStore(tempDir);
             store.Save(settings);
 
             Environment.SetEnvironmentVariable("HarnessGateway_DEFAULT_BACKEND", "env-override", EnvironmentVariableTarget.Process);
             try
             {
-                var overrideValue = store.GetEnvironmentOverride("HarnessGateway_DEFAULT_BACKEND");
+                string? overrideValue = store.GetEnvironmentOverride("HarnessGateway_DEFAULT_BACKEND");
                 await Assert.That(overrideValue).IsEqualTo("env-override");
             }
             finally
@@ -154,23 +154,23 @@ public class SettingsStoreTests
     [Test]
     public async Task Load_migrates_a_v1_plaintext_key_to_a_store_reference()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var keyStore = new FakeSecureKeyStore();
-            var store = new SettingsStore(tempDir, keyStore);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = new SettingsStore(tempDir, keyStore);
             WriteRawSettings(store, RawV1Json("sk-legacy-plaintext"));
 
-            var loaded = store.Load();
+            LauncherSettings loaded = store.Load();
 
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
             await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:default");
 
-            var stored = await keyStore.RetrieveAsync("hgkey:default");
+            string? stored = await keyStore.RetrieveAsync("hgkey:default");
             await Assert.That(stored).IsEqualTo("sk-legacy-plaintext");
 
-            var fileBytes = File.ReadAllText(store.SettingsFilePath);
-            var expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
+            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
             await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
             await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();
             await Assert.That(fileBytes.Contains("sk-legacy-plaintext")).IsFalse();
@@ -187,21 +187,21 @@ public class SettingsStoreTests
     [Test]
     public async Task Load_v1_with_only_references_bumps_the_version_without_touching_the_store()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var keyStore = new FakeSecureKeyStore();
-            var store = new SettingsStore(tempDir, keyStore);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = new SettingsStore(tempDir, keyStore);
             WriteRawSettings(store, RawV1Json("hgkey:default"));
 
-            var loaded = store.Load();
+            LauncherSettings loaded = store.Load();
 
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
             await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:default");
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
 
-            var fileBytes = File.ReadAllText(store.SettingsFilePath);
-            var expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
+            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
             await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
         }
         finally
@@ -216,13 +216,13 @@ public class SettingsStoreTests
     [Test]
     public async Task Load_newer_version_throws_a_typed_refusal_and_leaves_the_file_untouched()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var keyStore = new FakeSecureKeyStore();
-            var store = new SettingsStore(tempDir, keyStore);
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = new SettingsStore(tempDir, keyStore);
             WriteRawSettings(store, RawVersionJson(3));
-            var before = File.ReadAllText(store.SettingsFilePath);
+            string before = File.ReadAllText(store.SettingsFilePath);
 
             Exception? caught = null;
             try
@@ -252,12 +252,12 @@ public class SettingsStoreTests
     [Test]
     public async Task Load_missing_schema_version_throws_a_typed_refusal()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var store = new SettingsStore(tempDir, new FakeSecureKeyStore());
+            SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
             WriteRawSettings(store, """{ "backends": [], "defaultBackend": "" }""");
-            var before = File.ReadAllText(store.SettingsFilePath);
+            string before = File.ReadAllText(store.SettingsFilePath);
 
             Exception? caught = null;
             try
@@ -286,14 +286,14 @@ public class SettingsStoreTests
     [Test]
     public async Task Load_non_integer_schema_version_throws_a_typed_refusal()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var store = new SettingsStore(tempDir, new FakeSecureKeyStore());
+            SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
             WriteRawSettings(
                 store,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": "x" }""");
-            var before = File.ReadAllText(store.SettingsFilePath);
+            string before = File.ReadAllText(store.SettingsFilePath);
 
             Exception? caught = null;
             try
@@ -321,10 +321,10 @@ public class SettingsStoreTests
     [Test]
     public async Task Load_zero_schema_version_throws_a_typed_refusal()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var store = new SettingsStore(tempDir, new FakeSecureKeyStore());
+            SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
             WriteRawSettings(store, RawVersionJson(0));
 
             Exception? caught = null;
@@ -352,11 +352,11 @@ public class SettingsStoreTests
     [Test]
     public async Task Save_stamps_the_current_schema_version_onto_the_file()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
         try
         {
-            var store = new SettingsStore(tempDir);
-            var settings = new LauncherSettings
+            SettingsStore store = new SettingsStore(tempDir);
+            LauncherSettings settings = new LauncherSettings
             {
                 DefaultBackend = string.Empty,
                 SchemaVersion = 1
@@ -364,8 +364,8 @@ public class SettingsStoreTests
 
             store.Save(settings);
 
-            using var document = JsonDocument.Parse(File.ReadAllText(store.SettingsFilePath));
-            var writtenVersion = document.RootElement.GetProperty("schemaVersion").GetInt32();
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(store.SettingsFilePath));
+            int writtenVersion = document.RootElement.GetProperty("schemaVersion").GetInt32();
             await Assert.That(writtenVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
         }
         finally

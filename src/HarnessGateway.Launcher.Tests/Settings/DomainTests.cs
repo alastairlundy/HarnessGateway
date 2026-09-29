@@ -19,7 +19,7 @@ public class BackendTests
     [Test]
     public async Task Backend_record_stores_all_fields()
     {
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "my-api",
             BaseUri = new Uri("https://api.openai.com/v1"),
@@ -38,7 +38,7 @@ public class BackendTests
     [Test]
     public async Task Backend_allows_null_optional_fields()
     {
-        var backend = new Backend
+        Backend backend = new Backend
         {
             Name = "minimal",
             BaseUri = new Uri("https://api.example.com"),
@@ -55,7 +55,7 @@ public class LauncherSettingsTests
     [Test]
     public async Task LauncherSettings_defaults_are_valid()
     {
-        var settings = new LauncherSettings();
+        LauncherSettings settings = new LauncherSettings();
 
         await Assert.That(settings.Backends).IsEmpty();
         await Assert.That(settings.DefaultBackend).IsEmpty();
@@ -65,7 +65,7 @@ public class LauncherSettingsTests
     [Test]
     public async Task LauncherSettings_tolerates_multiple_backends_without_behavior_change()
     {
-        var settings = new LauncherSettings
+        LauncherSettings settings = new LauncherSettings
         {
             Backends =
             [

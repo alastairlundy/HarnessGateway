@@ -1,6 +1,7 @@
 using System.CommandLine;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
@@ -26,38 +27,22 @@ Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
 LaunchRunner runner = new();
 
+LaunchOrchestrator orchestrator = new(
+    settingsStore,
+    backupService,
+    runner,
+    adapters,
+    keyStore);
+LaunchCommand launchCommand = new(orchestrator);
+
 RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
 {
-    new LaunchCommand(),
+    launchCommand,
     new ConfigCommand(settingsStore, keyStore)
 };
 
 rootCommand.SetAction(async (result, cancellationToken) =>
 {
-    string? agent = result.GetValue(LaunchCommand.AgentArgument);
-    string? backendName = result.GetValue(LaunchCommand.BackendOption);
-    string? endpoint = result.GetValue(LaunchCommand.EndpointOption);
-    string? protocol = result.GetValue(LaunchCommand.ProtocolOption);
-    string? model = result.GetValue(LaunchCommand.ModelOption);
-    string[]? persistValues = result.GetValue(LaunchCommand.PersistOption);
-    IReadOnlyList<string> persist = persistValues is not null
-        ? LaunchCommand.ParsePersistValues(persistValues)
-        : new List<string>();
-
-    if (agent is not null)
-    {
-        LaunchOrchestrator orchestrator = new(settingsStore, backupService, runner, adapters, keyStore);
-        return await orchestrator.RunAsync(
-            agent,
-            backendName,
-            endpoint,
-            protocol,
-            model,
-            persist,
-            Directory.GetCurrentDirectory(),
-            cancellationToken);
-    }
-
     SpectreConsoleAbstraction console = new();
     ModelCatalogClient catalogClient = new(new HttpClient());
     WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
@@ -83,8 +68,9 @@ rootCommand.SetAction(async (result, cancellationToken) =>
         return 0;
     }
 
-    LaunchOrchestrator orchestratorForWizard = new(settingsStore, backupService, runner, adapters, keyStore);
-    return await orchestratorForWizard.RunAsync(
+    // Direct launches run through the orchestrator too; the wizard result is
+    // launch-only input (the pipeline never persists settings).
+    return await orchestrator.RunAsync(
         wizardResult.AgentName,
         null,
         wizardResult.Endpoint,

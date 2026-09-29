@@ -77,18 +77,18 @@ public class LaunchExitCodeTests
     [Test]
     public async Task All_exit_codes_are_distinct()
     {
-        var values = Enum.GetValues<LaunchExitCode>();
-        var distinctValues = values.Distinct().ToList();
+        LaunchExitCode[] values = Enum.GetValues<LaunchExitCode>();
+        List<LaunchExitCode> distinctValues = values.Distinct().ToList();
         await Assert.That(distinctValues.Count).IsEqualTo(values.Length);
     }
 
     [Test]
     public async Task All_exit_codes_have_names()
     {
-        var values = Enum.GetValues<LaunchExitCode>();
-        foreach (var value in values)
+        LaunchExitCode[] values = Enum.GetValues<LaunchExitCode>();
+        foreach (LaunchExitCode value in values)
         {
-            var name = Enum.GetName(value);
+            string? name = Enum.GetName(value);
             await Assert.That(name).IsNotNull();
             await Assert.That(name!.Length).IsGreaterThan(0);
         }

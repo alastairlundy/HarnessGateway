@@ -1,6 +1,4 @@
 using CliInvoke;
-using CliInvoke.Core;
-using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Toml;
@@ -30,7 +28,7 @@ public sealed class CodexAdapter : IHarnessAdapter
         _detectCommand = detectCommand;
         _getEnvironmentVariable = getEnvironmentVariable ?? Environment.GetEnvironmentVariable;
 
-        Metadata = new HarnessMetadata(
+        Metadata = new(
             Name: "codex",
             Kind: HarnessKind.Cli,
             RequiresModel: true,
@@ -45,18 +43,18 @@ public sealed class CodexAdapter : IHarnessAdapter
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _detectCommand("codex", cancellationToken);
+        string? result = await _detectCommand("codex", cancellationToken);
         return result is not null;
     }
 
     public async Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
     {
-        var configPath = ResolveConfigPath(_getEnvironmentVariable);
-        var existing = File.Exists(configPath)
+        string configPath = ResolveConfigPath(_getEnvironmentVariable);
+        string existing = File.Exists(configPath)
             ? await File.ReadAllTextAsync(configPath, cancellationToken)
             : string.Empty;
 
-        var editor = TomlDocumentEditor.Parse(existing);
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(existing);
         if (editor.NameInUse(ProviderBlockName))
         {
             // Refuse before any write - never adopt or overwrite a user-authored block.
@@ -83,18 +81,18 @@ public sealed class CodexAdapter : IHarnessAdapter
         // Inject the saved key only when one exists; never a dummy value. The
         // key is scoped to the spawned codex process - codex reads it from
         // the environment variable named by the config block's env_key.
-        var envVars = new Dictionary<string, string>();
+        Dictionary<string, string> envVars = new();
         if (request.Backend.ApiKey is { Length: > 0 })
         {
             envVars[EnvKeyName] = request.Backend.ApiKey;
         }
 
-        var actions = new List<ConfigurationAction>
-        {
+        List<ConfigurationAction> actions =
+        [
             new ConfigFileWriteAction(configPath, editor.ToToml())
-        };
+        ];
 
-        var config = new ProcessConfiguration("codex")
+        ProcessConfiguration config = new("codex")
         {
             Arguments = string.Empty,
             WorkingDirectoryPath = request.WorkingDirectory,
@@ -102,7 +100,7 @@ public sealed class CodexAdapter : IHarnessAdapter
             EnvironmentVariables = envVars
         };
 
-        return new LaunchPlan(config, actions);
+        return new(config, actions);
     }
 
     /// <summary>
@@ -111,7 +109,7 @@ public sealed class CodexAdapter : IHarnessAdapter
     /// </summary>
     private static string ResolveConfigPath(Func<string, string?> getEnvironmentVariable)
     {
-        var codexHome = getEnvironmentVariable("CODEX_HOME");
+        string? codexHome = getEnvironmentVariable("CODEX_HOME");
         if (!string.IsNullOrWhiteSpace(codexHome))
         {
             return Path.Combine(codexHome, "config.toml");
@@ -127,13 +125,13 @@ public sealed class CodexAdapter : IHarnessAdapter
     {
         try
         {
-            var fileName = OperatingSystem.IsWindows() ? "where" : "which";
-            var config = new ProcessConfiguration(fileName, command)
+            string fileName = OperatingSystem.IsWindows() ? "where" : "which";
+            ProcessConfiguration config = new(fileName, command)
             {
                 OutputRedirection = true
             };
 
-            var result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
             return result.ExitCode == 0 ? command : null;
         }
         catch

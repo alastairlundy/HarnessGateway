@@ -155,7 +155,7 @@ public static class BackendResolution
             // as an ad-hoc override entry; otherwise there is no backend at all.
             if (parsedEndpoint is not null && parsedProtocol is not null)
             {
-                return Success(new Backend
+                return Success(new()
                 {
                     Name = "override",
                     BaseUri = parsedEndpoint,

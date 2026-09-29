@@ -1,5 +1,4 @@
 using System.Text.Json;
-using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings.Security;
 using Microsoft.Extensions.Configuration;
 
@@ -34,7 +33,7 @@ public sealed class SettingsStore
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new LauncherSettings();
+            return new();
         }
 
         string json = File.ReadAllText(_settingsFilePath);
@@ -141,7 +140,7 @@ public sealed class SettingsStore
 
     private static IConfiguration BuildConfiguration(string settingsDirectory)
     {
-        ConfigurationBuilder builder = new ConfigurationBuilder();
+        ConfigurationBuilder builder = new();
 
         string settingsFile = Path.Combine(settingsDirectory, "HarnessGateway-launcher.json");
         if (File.Exists(settingsFile))

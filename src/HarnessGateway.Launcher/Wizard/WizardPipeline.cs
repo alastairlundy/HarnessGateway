@@ -1,4 +1,5 @@
 using HarnessGateway.Launcher.Core.Adapters;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Backends.Models;
 using HarnessGateway.Launcher.Core.Settings;
@@ -190,7 +191,7 @@ public sealed class WizardPipeline
         bool showIncompatible,
         CancellationToken cancellationToken)
     {
-        List<ConsoleChoice> choices = new();
+        List<ConsoleChoice> choices = [];
 
         foreach (IHarnessAdapter adapter in _adapters)
         {
@@ -204,7 +205,7 @@ public sealed class WizardPipeline
                 incompatible = BackendResolution.ProtocolName(protocolToCheck.Value);
             }
 
-            List<string> annotations = new();
+            List<string> annotations = [];
             if (!isAvailable) annotations.Add("not installed");
             if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
 
@@ -262,12 +263,12 @@ public sealed class WizardPipeline
             return (input, protocol);
         }
 
-        List<ConsoleChoice> protocolChoices = new()
-        {
+        List<ConsoleChoice> protocolChoices =
+        [
             new("openai-chat"),
             new("openai-responses"),
             new("anthropic")
-        };
+        ];
 
         string protocolStr = await _console.PromptChoiceAsync("Protocol:", protocolChoices, cancellationToken);
         ProtocolKind parsedProtocol = protocolStr switch
