@@ -16,6 +16,7 @@ public sealed class FakeSecureKeyStore : ISecureKeyStore
     public int DeleteCallCount { get; private set; }
 
     public bool FailStore { get; set; }
+    public bool FailDelete { get; set; }
 
     public void Seed(string reference, string secret) => _secrets[reference] = secret;
 
@@ -47,6 +48,15 @@ public sealed class FakeSecureKeyStore : ISecureKeyStore
     public Task DeleteAsync(string reference, CancellationToken cancellationToken = default)
     {
         DeleteCallCount++;
+
+        if (FailDelete)
+        {
+            throw SecureKeyStoreException.OperationFailed(
+                KeyReference.BackendName(reference) ?? "unknown",
+                "remove from the platform credential store",
+                "the fake key store is configured to fail.");
+        }
+
         _secrets.Remove(reference);
         return Task.CompletedTask;
     }

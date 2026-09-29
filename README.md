@@ -35,6 +35,27 @@ Without `--backend`, launch resolves the entry named by the `defaultBackend` poi
 
 `--persist` accepts exactly `config` and `model`. A `--backend` launch persists nothing about its selection - changing the default backend remains `config backend switch`'s job.
 
+### config backend
+
+```bash
+harnessgateway config backend add <name> --endpoint URL --protocol PROTOCOL [--key SECRET]
+harnessgateway config backend switch <name>
+harnessgateway config backend list
+harnessgateway config backend remove <name>
+```
+
+`add` creates the named entry or replaces it when the name already exists. `--endpoint` and `--protocol` are both required on every add and travel together (the same pairing rule as launch overrides); a missing or one-sided pair, a bad URL, or an unknown protocol word exits 2. `add` never moves the default pointer - after a first `add`, run `config backend switch <name>` to make it the default (the success output for a new entry hints at this).
+
+Key input on `add` follows one contract: with no `--key`, an interactive terminal is asked first (`Set an API key for '<name>'? [y/N]`, worded `Replace` when the entry already has a key) and the key itself is then read with hidden input; declining the question, pressing Enter on an empty prompt, or running with redirected stdin yields a keyless entry, which is valid. `--key <secret>` skips the prompt for scripts, but the secret transits your shell history - prefer the interactive prompt outside of automation. Keys are stored only in the platform credential store; the settings JSON records just an `hgkey:<name>` reference, never the secret. A credential-store failure exits 7 and writes nothing.
+
+`switch` validates that the named entry exists, writes the `defaultBackend` pointer, and prints `backend '<name>' is now the default`. It never modifies the entry itself, and it is idempotent: switching to the current default succeeds with the same confirmation without rewriting the settings file.
+
+`list` is read-only and marks the default entry with `*`.
+
+`remove` deletes the entry and any credential stored for it (a store failure exits 7 and removes nothing). It refuses with exit 2 to remove the current default backend - `switch` to another entry first - and refuses to remove the last remaining backend, so settings never become backend-less.
+
+On `switch` and `remove`, a name that resolves no saved entry exits 8 with `unknown backend name '<name>'`; best-effort "did you mean" hints may accompany the message but are non-contractual.
+
 ## Exit codes
 
 | Code | Name | Meaning |

@@ -23,6 +23,11 @@ public sealed class ConfigCommand : Command
     }
 
     internal ConfigCommand(SettingsStore settingsStore, ISecureKeyStore keyStore)
+        : this(settingsStore, keyStore, new TerminalKeyPrompt())
+    {
+    }
+
+    internal ConfigCommand(SettingsStore settingsStore, ISecureKeyStore keyStore, IKeyPrompt keyPrompt)
         : base("config", "Show and manage saved default configuration")
     {
         _settingsStore = settingsStore;
@@ -39,10 +44,11 @@ public sealed class ConfigCommand : Command
         Add(setKeyVerb);
         Add(clearKeyVerb);
         Add(setModelVerb);
+        Add(new BackendCommands(settingsStore, keyStore, keyPrompt));
 
         showVerb.SetAction((result) =>
         {
-            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
             {
                 return loadExitCode;
             }
@@ -65,7 +71,7 @@ public sealed class ConfigCommand : Command
 
         clearKeyVerb.SetAction(async (result, cancellationToken) =>
         {
-            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
             {
                 return loadExitCode;
             }
@@ -103,11 +109,11 @@ public sealed class ConfigCommand : Command
         });
     }
 
-    private bool TryLoadSettings(out LauncherSettings settings, out int exitCode)
+    internal static bool TryLoadSettings(SettingsStore settingsStore, out LauncherSettings settings, out int exitCode)
     {
         try
         {
-            settings = _settingsStore.Load();
+            settings = settingsStore.Load();
             exitCode = 0;
             return true;
         }
@@ -156,7 +162,7 @@ public sealed class ConfigCommand : Command
             Uri parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
             ProtocolKind parsedProtocol = LaunchCommand.ParseProtocol(protocol);
 
-            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
             {
                 return loadExitCode;
             }
@@ -200,7 +206,7 @@ public sealed class ConfigCommand : Command
         cmd.SetAction(async (result, cancellationToken) =>
         {
             string key = result.GetRequiredValue(keyArg);
-            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
             {
                 return loadExitCode;
             }
@@ -247,7 +253,7 @@ public sealed class ConfigCommand : Command
         cmd.SetAction((result) =>
         {
             string model = result.GetRequiredValue(modelArg);
-            if (!TryLoadSettings(out LauncherSettings settings, out int loadExitCode))
+            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
             {
                 return loadExitCode;
             }

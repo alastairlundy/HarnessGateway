@@ -6,10 +6,12 @@ namespace HarnessGateway.Launcher.Tests;
 /// process-global while TUnit runs tests in parallel, so captures are
 /// serialized and always restored: an overlapping test capturing a writer this
 /// scope later disposes is what turns into a cascading ObjectDisposedException.
+/// <see cref="ConsoleOutputCapture"/> shares this class's gate - never add a
+/// second independent gate.
 /// </summary>
 public static class ConsoleErrorCapture
 {
-    private static readonly SemaphoreSlim Gate = new(1, 1);
+    internal static readonly SemaphoreSlim Gate = new(1, 1);
 
     public static async Task<(T Result, string Error)> RunAsync<T>(Func<Task<T>> body)
     {
