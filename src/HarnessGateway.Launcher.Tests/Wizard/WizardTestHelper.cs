@@ -7,6 +7,14 @@ namespace HarnessGateway.Launcher.Tests.Wizard;
 
 public static class WizardTestHelper
 {
+    private static readonly IReadOnlySet<ProtocolKind> AllProtocols =
+        new HashSet<ProtocolKind>
+        {
+            ProtocolKind.OpenAiChat,
+            ProtocolKind.OpenAiResponses,
+            ProtocolKind.Anthropic
+        };
+
     private static string CreateTempDir()
     {
         var dir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-wizard-test-{Guid.NewGuid():N}");
@@ -60,9 +68,10 @@ public static class WizardTestHelper
     public static Core.Adapters.IHarnessAdapter CreateTestAdapter(
         string name = "TestAgent",
         bool isAvailable = true,
-        bool requiresModel = false)
+        bool requiresModel = false,
+        IReadOnlySet<ProtocolKind>? supportedProtocols = null)
     {
-        return new TestHarnessAdapterForWizard(name, isAvailable, requiresModel);
+        return new TestHarnessAdapterForWizard(name, isAvailable, requiresModel, supportedProtocols);
     }
 
     private sealed class TestHarnessAdapterForWizard : Core.Adapters.IHarnessAdapter
@@ -70,7 +79,11 @@ public static class WizardTestHelper
         private readonly bool _isAvailable;
         public Core.Adapters.HarnessMetadata Metadata { get; }
 
-        public TestHarnessAdapterForWizard(string name, bool isAvailable, bool requiresModel)
+        public TestHarnessAdapterForWizard(
+            string name,
+            bool isAvailable,
+            bool requiresModel,
+            IReadOnlySet<ProtocolKind>? supportedProtocols)
         {
             _isAvailable = isAvailable;
             Metadata = new Core.Adapters.HarnessMetadata(
@@ -80,12 +93,7 @@ public static class WizardTestHelper
                 $"Install {name}",
                 DetectionCommand: null,
                 [],
-                new HashSet<Core.Backends.ProtocolKind>
-                {
-                    Core.Backends.ProtocolKind.OpenAiChat,
-                    Core.Backends.ProtocolKind.OpenAiResponses,
-                    Core.Backends.ProtocolKind.Anthropic
-                });
+                supportedProtocols ?? AllProtocols);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

@@ -1,4 +1,3 @@
-using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Backends.Models;
@@ -32,16 +31,74 @@ public sealed class WizardPipeline
     public async Task<WizardResult?> RunAsync(CancellationToken cancellationToken = default)
     {
         LauncherSettings settings = _settingsStore.Load();
-        Backend? defaultBackend = ConfigCommand.ResolveDefaultBackend(settings);
 
-        string? harnessName = await RunHarnessStepAsync(cancellationToken);
-        if (harnessName is null) return null;
+        // Strict default-pointer read (T033/TK006): no first-entry fallback.
+        // A dangling or absent pointer is user-rectifiable - surface the
+        // resolver's message (it names 'config backend switch') and abort;
+        // a first run resolves to null and prompts with no prefill.
+        BackendResolutionResult resolution = BackendResolution.Resolve(
+            settings,
+            backendName: null,
+            endpoint: null,
+            protocol: null,
+            model: null);
 
-        IHarnessAdapter? adapter = _adapters.FirstOrDefault(a =>
-            string.Equals(a.Metadata.Name, harnessName, StringComparison.OrdinalIgnoreCase));
+        if (!resolution.IsSuccess)
+        {
+            _console.WriteError(resolution.Message ?? string.Empty);
+            return null;
+        }
 
-        (string? endpoint, ProtocolKind protocol) endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken);
-        if (endpointResult.endpoint is null) return null;
+        Backend? defaultBackend = resolution.Backend;
+
+        // T034 locked order (harness, endpoint, key, model). The pairing
+        // guard re-enters only the harness step: the endpoint step runs
+        // exactly once and its typed endpoint/protocol survive a loop-back.
+        ProtocolKind? protocolToCheck = defaultBackend?.Protocol;
+        bool annotateIncompatible = false;
+        (string? endpoint, ProtocolKind protocol) endpointResult = (null, ProtocolKind.OpenAiChat);
+        string? harnessName = null;
+        IHarnessAdapter? adapter = null;
+
+        while (true)
+        {
+            harnessName = await RunHarnessStepAsync(
+                protocolToCheck, annotateIncompatible, cancellationToken);
+            if (harnessName is null) return null;
+
+            adapter = _adapters.FirstOrDefault(a =>
+                string.Equals(a.Metadata.Name, harnessName, StringComparison.OrdinalIgnoreCase));
+
+            if (endpointResult.endpoint is null)
+            {
+                endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken);
+                if (endpointResult.endpoint is null) return null;
+            }
+
+            if (adapter is null || adapter.Metadata.SupportedProtocols.Contains(endpointResult.protocol))
+            {
+                break;
+            }
+
+            // Post-endpoint re-verify (T028): the interactive counterpart of
+            // the direct-mode exit-3 pre-check. A dead end aborts before the
+            // refusal so an unsupported protocol can never trap the user in a
+            // re-prompt loop; otherwise mirror the direct-mode reason and loop
+            // back to the harness step only - the endpoint result stands.
+            if (!AnyAdapterSupports(endpointResult.protocol))
+            {
+                WriteNoHarnessSupports(endpointResult.protocol);
+                return null;
+            }
+
+            _console.WriteError(BuildIncompatibleMessage(
+                harnessName,
+                endpointResult.protocol,
+                adapter.Metadata.SupportedProtocols));
+
+            protocolToCheck = endpointResult.protocol;
+            annotateIncompatible = true;
+        }
 
         // Resolve the saved entry before the key and model steps so catalog HTTP
         // auth and the key step both see the secret, never the at-rest
@@ -83,24 +140,104 @@ public sealed class WizardPipeline
             Model: model);
     }
 
-    private async Task<string?> RunHarnessStepAsync(CancellationToken cancellationToken)
+    private async Task<string?> RunHarnessStepAsync(
+        ProtocolKind? protocolToCheck,
+        bool annotateIncompatible,
+        CancellationToken cancellationToken)
+    {
+        if (_adapters.Count == 0)
+        {
+            _console.WriteError("No agent harnesses found.");
+            return null;
+        }
+
+        // Dead-end guard (decision 4): if no harness can satisfy the protocol
+        // this flow will enforce, abort instead of re-prompting forever.
+        if (protocolToCheck is not null && !AnyAdapterSupports(protocolToCheck.Value))
+        {
+            WriteNoHarnessSupports(protocolToCheck.Value);
+            return null;
+        }
+
+        bool showIncompatible = annotateIncompatible;
+
+        while (true)
+        {
+            List<ConsoleChoice> choices = await BuildHarnessChoicesAsync(
+                protocolToCheck, showIncompatible, cancellationToken);
+
+            string pick = await _console.PromptChoiceAsync(
+                "Select a harness:", choices, cancellationToken);
+
+            IHarnessAdapter? selected = _adapters.FirstOrDefault(a =>
+                string.Equals(a.Metadata.Name, pick, StringComparison.OrdinalIgnoreCase));
+
+            if (protocolToCheck is null
+                || selected is null
+                || selected.Metadata.SupportedProtocols.Contains(protocolToCheck.Value))
+            {
+                return pick;
+            }
+
+            _console.WriteError(BuildIncompatibleMessage(
+                pick, protocolToCheck.Value, selected.Metadata.SupportedProtocols));
+            showIncompatible = true;
+        }
+    }
+
+    private async Task<List<ConsoleChoice>> BuildHarnessChoicesAsync(
+        ProtocolKind? protocolToCheck,
+        bool showIncompatible,
+        CancellationToken cancellationToken)
     {
         List<ConsoleChoice> choices = new();
 
         foreach (IHarnessAdapter adapter in _adapters)
         {
             bool isAvailable = await adapter.IsAvailableAsync(cancellationToken);
-            string? annotation = isAvailable ? null : "(not installed)";
-            choices.Add(new(adapter.Metadata.Name, annotation));
+
+            string? incompatible = null;
+            if (showIncompatible
+                && protocolToCheck is not null
+                && !adapter.Metadata.SupportedProtocols.Contains(protocolToCheck.Value))
+            {
+                incompatible = BackendResolution.ProtocolName(protocolToCheck.Value);
+            }
+
+            List<string> annotations = new();
+            if (!isAvailable) annotations.Add("not installed");
+            if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
+
+            choices.Add(new(
+                adapter.Metadata.Name,
+                annotations.Count > 0 ? $"({string.Join("; ", annotations)})" : null));
         }
 
-        if (choices.Count == 0)
-        {
-            _console.WriteError("No agent harnesses found.");
-            return null;
-        }
+        return choices;
+    }
 
-        return await _console.PromptChoiceAsync("Select a harness:", choices, cancellationToken);
+    private bool AnyAdapterSupports(ProtocolKind protocol) =>
+        _adapters.Any(adapter => adapter.Metadata.SupportedProtocols.Contains(protocol));
+
+    private void WriteNoHarnessSupports(ProtocolKind protocol) =>
+        _console.WriteError(
+            $"No agent harness supports the {BackendResolution.ProtocolName(protocol)} protocol.");
+
+    private static string BuildIncompatibleMessage(
+        string harnessName,
+        ProtocolKind protocol,
+        IReadOnlySet<ProtocolKind> supportedProtocols)
+    {
+        // Mirrors the direct-mode exit-3 refusal (harness name, protocol,
+        // supported set) minus the CLI-only advice, which does not apply
+        // interactively - so the two reasons cannot drift in substance.
+        string supported = string.Join(
+            ", ",
+            supportedProtocols.Select(BackendResolution.ProtocolName));
+
+        return $"Refusing to launch {harnessName}: the selected backend's protocol " +
+               $"({BackendResolution.ProtocolName(protocol)}) is not supported by {harnessName}, " +
+               $"which supports: {supported}.";
     }
 
     private async Task<(string? endpoint, ProtocolKind protocol)> RunEndpointStepAsync(
