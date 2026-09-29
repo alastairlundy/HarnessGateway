@@ -2,15 +2,9 @@
 
 ## Installation
 
-### NuGet tool (cross-platform)
-
-```bash
-dotnet tool install --global harnessgateway
-```
-
 ### Per-OS binaries
 
-Download the archive for your platform from [GitHub Releases](https://github.com/alast/HarnessGateway/releases):
+Download the archive for your platform from [GitHub Releases](https://github.com/alastairlundy/HarnessGateway/releases):
 
 | Platform | Archive |
 |----------|---------|

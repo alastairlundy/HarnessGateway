@@ -13,7 +13,7 @@
         <Description>Launch agent harnesses with the specified backend configuration.</Description>
         <PackageTags>agent;cli;tool</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/alast/HarnessGateway</RepositoryUrl>
+        <RepositoryUrl>https://github.com/alastairlundy/HarnessGateway</RepositoryUrl>
     </PropertyGroup>
 
     <ItemGroup>
