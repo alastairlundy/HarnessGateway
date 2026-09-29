@@ -1,36 +1,20 @@
 # TODO — HarnessGateway.Launcher
 
-Deferred decisions and future work, each citing the Decision Ledger (`docs/decisions/DECISIONS-LmProxy-agent-launcher.md#<id>`). Backed by `IMPLEMENTATION-HarnessLauncher.md` §6.
+Deferred decisions and future work, citing the Decision Ledger (`docs/decisions/DECISIONS-LmProxy-agent-launcher.md#<id>`). Standing "we deliberately don't do this" refusals live in `docs/agents/out-of-scope.md`.
 
 ## Adapters (future versions)
 
-- [ ] Codex adapter [`DECISIONS-LmProxy-agent-launcher.md#D007`]
-- [ ] Claude Code adapter [`#D007`]
-- [ ] OpenClaw adapter [`#D007`]
+- [ ] OpenClaw adapter [`DECISIONS-LmProxy-agent-launcher.md#D007`]
 - [ ] Hermes adapter [`#D007`]
 - [ ] Cline adapter [`#D007`]
-- [ ] Confirm warn-and-launch behavior for harnesses without a model-requirement declaration in the adapter spec [`#D014`]
 
 ## CLI surface
 
-- [ ] `--backend <name>` resolution for saved backend entries (joins flag contract) [`#T010`]
-- [ ] Short flag aliases (`-e`, `-f`, `-m`, …) if ever wanted [`#T010`]
-- [ ] Backend profiles: `add` / `switch` / `list` verbs (schema already supports a list + default pointer) [`#T011`]
-- [ ] Additional `--persist` value types, if real second targets appear beyond `config` and `model` — parameterized form already in place [`#T015`]
-- [ ] Document the exit-code table as a stable contract across release channels [`#T012`]
-
-## Settings
-
-- [ ] Settings schema migration path keyed on `SchemaVersion` [`#T021`]
-- [ ] Profile-aware handling when multiple backend entries exist (v1 reads only the default pointer) [`#T011`]
-
-## Security
-
-- [ ] Credential storage hardening: keychain/DPAPI instead of plaintext `ApiKey` in settings JSON (split-credentials record shape anticipated) [`#D012`], [`#T018`]
+- [ ] Short flag aliases beyond the single shipped `-m` (`-e`, `-b`, `-p`, …) only when typing friction justifies them [`#T041`]
 
 ## Testing
 
-- [ ] Real-harness integration test matrix (agent-optional integration suite) [`#T009`]
+- [ ] Real-harness integration test matrix (agent-optional integration suite) — fakes-only until adapter contract drift or release-quality concerns justify it [`#T009`], [`#T043`]
 
 ## Packaging and CLI identity
 
@@ -38,4 +22,4 @@ Deferred decisions and future work, each citing the Decision Ledger (`docs/decis
 
 ## Session housekeeping
 
-- [ ] Delete `docs/decisions/DECISIONS-LmProxy-agent-launcher.md` and retire `IMPLEMENTATION-HarnessLauncher.md` once implementation is complete (persisted-by-default decision artifacts)
+- [ ] Before deleting `docs/decisions/DECISIONS-LmProxy-agent-launcher.md`: confirm ledger-only knowledge (rejected-alternative rationales) is preserved in `docs/agents/out-of-scope.md` and harness research facts in adapter code/README, then sweep dangling `D###`/`T###` references in this file, `AGENTS.md`, and `GLOSSARY.md`, and retire `IMPLEMENTATION-TODO.md`

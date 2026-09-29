@@ -6,7 +6,7 @@ An API endpoint a harness is pointed at, identified by a base URL and a protocol
 
 ## Configuration action
 
-A step the launcher performs to make a harness use a chosen backend: setting environment variables, passing CLI flags, or writing a harness config file.
+A step the launcher performs to make a harness use a chosen backend: passing CLI flags or writing a harness config file. Harness environment variables are not configuration actions — they ride the spawned process plan and never mutate the launcher's own environment.
 
 ## Default endpoint
 
