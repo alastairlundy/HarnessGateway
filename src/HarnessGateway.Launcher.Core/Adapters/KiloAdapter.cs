@@ -7,6 +7,8 @@ public sealed class KiloAdapter : IHarnessAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "Kilo",
+        CommandName: "kilo",
+        Aliases: [],
         Kind: HarnessKind.Cli,
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @kilocode/cli",

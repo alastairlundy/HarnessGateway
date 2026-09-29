@@ -13,6 +13,8 @@ public class HarnessMetadataTests
     {
         HarnessMetadata metadata = new HarnessMetadata(
             Name: "opencode",
+            CommandName: "opencode",
+            Aliases: ["oc"],
             Kind: HarnessKind.Cli,
             RequiresModel: true,
             InstallHint: "Install via: npm install -g @anthropic-ai/opencode",
@@ -25,6 +27,9 @@ public class HarnessMetadataTests
         );
 
         await Assert.That(metadata.Name).IsEqualTo("opencode");
+        await Assert.That(metadata.CommandName).IsEqualTo("opencode");
+        await Assert.That(metadata.Aliases).Count().IsEqualTo(1);
+        await Assert.That(metadata.AcceptedTokens).IsEquivalentTo(["opencode", "oc"]);
         await Assert.That(metadata.Kind).IsEqualTo(HarnessKind.Cli);
         await Assert.That(metadata.RequiresModel).IsTrue();
         await Assert.That(metadata.InstallHint).IsEqualTo("Install via: npm install -g @anthropic-ai/opencode");
@@ -39,6 +44,8 @@ public class HarnessMetadataTests
     {
         HarnessMetadata metadata = new HarnessMetadata(
             Name: "kilo",
+            CommandName: "kilo",
+            Aliases: [],
             Kind: HarnessKind.Cli,
             RequiresModel: false,
             InstallHint: "Install from kilo.dev",
@@ -50,6 +57,10 @@ public class HarnessMetadataTests
         await Assert.That(metadata.DetectionCommand).IsNull();
         await Assert.That(metadata.ConfigFileCandidates).IsEmpty();
         await Assert.That(metadata.SupportedProtocols).IsEmpty();
+
+        // An empty alias list still yields the command name as the sole
+        // accepted token, so lookup never has to special-case "no aliases".
+        await Assert.That(metadata.AcceptedTokens).IsEquivalentTo(["kilo"]);
     }
 
     [Test]
@@ -57,6 +68,8 @@ public class HarnessMetadataTests
     {
         HarnessMetadata metadata = new HarnessMetadata(
             Name: "claude-code",
+            CommandName: "claude-code",
+            Aliases: [],
             Kind: HarnessKind.Cli,
             RequiresModel: false,
             InstallHint: "Install via: npm i -g @anthropic-ai/claude-code",
@@ -128,6 +141,79 @@ public class ShippedAdapterContractTests
             await Assert.That(adapter.Metadata.RequiresModel)
                 .IsEqualTo(expected[adapter.Metadata.Name]);
         }
+    }
+
+    [Test]
+    public async Task Shipped_adapters_declare_unique_command_names()
+    {
+        IHarnessAdapter[] shipped =
+        [
+            new OpenCodeAdapter(),
+            new KiloAdapter(),
+            new CopilotCliAdapter(),
+            new PiAdapter(),
+            new CodexAdapter(),
+            new ClaudeCodeAdapter()
+        ];
+
+        // A duplicate command name would make `launch <token>` resolve to
+        // whichever adapter happens to be first in Program.cs's list, which is
+        // a silent wrong-harness launch rather than a visible failure.
+        string[] commandNames = [.. shipped.Select(a => a.Metadata.CommandName)];
+
+        await Assert.That(commandNames.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+            .IsEqualTo(commandNames.Length);
+    }
+
+    [Test]
+    public async Task Shipped_adapters_resolve_their_own_command_names()
+    {
+        IHarnessAdapter[] shipped =
+        [
+            new OpenCodeAdapter(),
+            new KiloAdapter(),
+            new CopilotCliAdapter(),
+            new PiAdapter(),
+            new CodexAdapter(),
+            new ClaudeCodeAdapter()
+        ];
+
+        // The property the help text depends on: every token the launcher
+        // advertises must actually resolve. This is the check that would have
+        // caught the original defect, where help advertised "copilot" and
+        // lookup only matched "GitHub Copilot CLI".
+        foreach (IHarnessAdapter adapter in shipped)
+        {
+            await Assert.That(HarnessLookup.Resolve(shipped, adapter.Metadata.CommandName))
+                .IsSameReferenceAs(adapter);
+        }
+    }
+
+    [Test]
+    public async Task Copilot_resolves_its_command_name_but_not_its_display_name()
+    {
+        IHarnessAdapter[] shipped =
+        [
+            new OpenCodeAdapter(),
+            new KiloAdapter(),
+            new CopilotCliAdapter(),
+            new PiAdapter(),
+            new CodexAdapter(),
+            new ClaudeCodeAdapter()
+        ];
+
+        // Compare against the instance inside `shipped`, not a fresh
+        // construction: Resolve hands back the registered adapter, so
+        // reference identity is the thing under test.
+        CopilotCliAdapter copilot = (CopilotCliAdapter)shipped[2];
+
+        // Display name is a label, not a token. `launch "GitHub Copilot CLI"`
+        // failing is the intended contract, not an oversight.
+        await Assert.That(HarnessLookup.Resolve(shipped, "copilot")).IsSameReferenceAs(copilot);
+        await Assert.That(HarnessLookup.Resolve(shipped, "COPILOT")).IsSameReferenceAs(copilot);
+        await Assert.That(HarnessLookup.Resolve(shipped, "github-copilot-cli"))
+            .IsSameReferenceAs(copilot);
+        await Assert.That(HarnessLookup.Resolve(shipped, "GitHub Copilot CLI")).IsNull();
     }
 }
 

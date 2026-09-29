@@ -85,11 +85,17 @@ public static class WizardTestHelper
             string name,
             bool isAvailable,
             bool requiresModel,
-            IReadOnlySet<ProtocolKind>? supportedProtocols)
+            IReadOnlySet<ProtocolKind>? supportedProtocols,
+            string? commandName = null)
         {
             _isAvailable = isAvailable;
             Metadata = new HarnessMetadata(
                 name,
+                // Most fakes use one string for both the wizard label and the
+                // launch token, which is realistic. Pass commandName explicitly
+                // only to model a harness whose two differ.
+                commandName ?? name,
+                [],
                 HarnessKind.Cli,
                 requiresModel,
                 $"Install {name}",

@@ -1,4 +1,5 @@
 using System.CommandLine;
+using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends;
 
 namespace HarnessGateway.Launcher.Commands;
@@ -13,8 +14,12 @@ public sealed class LaunchCommand : Command
         // Optional: bare `launch` falls back to the interactive wizard, the
         // same pipeline the no-args root action runs. Options without an
         // agent are still rejected (see the validator below).
-        Arity = ArgumentArity.ZeroOrOne,
-        Description = "The agent harness to launch (opencode, kilo, copilot, pi, codex, claude-code); omit to run the interactive wizard"
+        //
+        // The Description is set in the constructor from the adapter list, not
+        // here: a hand-written name list drifts from Program.cs's registry, and
+        // it already had to lie once (it advertised "copilot" while lookup
+        // matched "GitHub Copilot CLI").
+        Arity = ArgumentArity.ZeroOrOne
     };
 
     public static readonly Option<string?> BackendOption = new("--backend")
@@ -47,13 +52,23 @@ public sealed class LaunchCommand : Command
     {
     }
 
+    public LaunchCommand(IEnumerable<IHarnessAdapter> adapters)
+        : this(null, null, adapters)
+    {
+    }
+
     internal LaunchCommand(
         LaunchOrchestrator? orchestrator,
-        Func<CancellationToken, Task<int>>? wizardAction = null)
+        Func<CancellationToken, Task<int>>? wizardAction = null,
+        IEnumerable<IHarnessAdapter>? adapters = null)
         : base("launch", "Launch an agent harness with the specified backend configuration")
     {
         _orchestrator = orchestrator;
         _wizardAction = wizardAction;
+
+        // Built from the registry so the help text cannot advertise a token the
+        // lookup rejects, or omit one it accepts.
+        AgentArgument.Description = BuildAgentDescription(adapters);
 
         Add(AgentArgument);
         Add(BackendOption);
@@ -162,6 +177,23 @@ public sealed class LaunchCommand : Command
                 Directory.GetCurrentDirectory(),
                 cancellationToken);
         });
+    }
+
+    /// <summary>
+    /// The agent argument's help text, listing the command-name token of every
+    /// registered harness. Display names and aliases are omitted on purpose:
+    /// the tokens are the only spelling the lookup accepts, so they are the
+    /// only ones worth printing.
+    /// </summary>
+    internal static string BuildAgentDescription(IEnumerable<IHarnessAdapter>? adapters)
+    {
+        string tokens = adapters is null
+            ? string.Empty
+            : string.Join(", ", adapters.Select(a => a.Metadata.CommandName));
+
+        return tokens.Length == 0
+            ? "The agent harness to launch; omit to run the interactive wizard"
+            : $"The agent harness to launch ({tokens}); omit to run the interactive wizard";
     }
 
     public static bool IsValidProtocol(string? value) => BackendResolution.IsValidProtocol(value);

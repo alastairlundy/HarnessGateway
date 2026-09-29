@@ -1,4 +1,5 @@
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Core.Text;
 
 namespace HarnessGateway.Launcher.Core.Backends;
 
@@ -215,80 +216,13 @@ public static class BackendResolution
 
         // Best-effort close-match hint; non-contractual UX that may be
         // improved or dropped without changing the resolution outcome.
-        string? hint = BestCloseMatch(settings.Backends, name);
+        string? hint = CloseMatch.Best(settings.Backends.Select(b => b.Name), name);
         if (hint is not null)
         {
             message += $" Did you mean '{hint}'?";
         }
 
         return message;
-    }
-
-    private static string? BestCloseMatch(IReadOnlyList<Backend> backends, string name)
-    {
-        if (string.IsNullOrEmpty(name))
-        {
-            return null;
-        }
-
-        foreach (Backend candidate in backends)
-        {
-            if (candidate.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase)
-                || name.StartsWith(candidate.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                return candidate.Name;
-            }
-        }
-
-        foreach (Backend candidate in backends)
-        {
-            if (EditDistanceWithin(candidate.Name, name, maxDistance: 2) <= 2)
-            {
-                return candidate.Name;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>Levenshtein distance, capped at <paramref name="maxDistance"/>.</summary>
-    private static int EditDistanceWithin(string a, string b, int maxDistance)
-    {
-        if (Math.Abs(a.Length - b.Length) > maxDistance)
-        {
-            return maxDistance + 1;
-        }
-
-        int[] previous = new int[b.Length + 1];
-        int[] current = new int[b.Length + 1];
-        for (int j = 0; j <= b.Length; j++)
-        {
-            previous[j] = j;
-        }
-
-        for (int i = 1; i <= a.Length; i++)
-        {
-            current[0] = i;
-            int rowMin = current[0];
-
-            for (int j = 1; j <= b.Length; j++)
-            {
-                int cost = char.ToLowerInvariant(a[i - 1]) == char.ToLowerInvariant(b[j - 1]) ? 0 : 1;
-                current[j] = Math.Min(
-                    Math.Min(current[j - 1] + 1, previous[j] + 1),
-                    previous[j - 1] + cost);
-                rowMin = Math.Min(rowMin, current[j]);
-            }
-
-            if (rowMin > maxDistance)
-            {
-                return maxDistance + 1;
-            }
-
-            (previous, current) = (current, previous);
-        }
-
-        return previous[b.Length];
     }
 
     private static BackendResolutionResult Fail(BackendResolutionFailure failure, string message) =>

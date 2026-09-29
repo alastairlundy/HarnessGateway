@@ -66,7 +66,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     // Direct launches run through the orchestrator too; the wizard result is
     // launch-only input (the pipeline never persists settings).
     return await orchestrator.RunAsync(
-        wizardResult.AgentName,
+        wizardResult.AgentCommandName,
         null,
         wizardResult.Endpoint,
         wizardResult.Protocol.ToString().ToLowerInvariant(),
@@ -76,7 +76,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         cancellationToken);
 }
 
-LaunchCommand launchCommand = new(orchestrator, RunWizardAsync);
+LaunchCommand launchCommand = new(orchestrator, RunWizardAsync, adapters);
 
 RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
 {

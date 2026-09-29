@@ -26,7 +26,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentName).IsEqualTo("AvailableAgent");
+            await Assert.That(result!.AgentCommandName).IsEqualTo("AvailableAgent");
             await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
         }
         finally
@@ -55,7 +55,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentName).IsEqualTo("AvailableAgent");
+            await Assert.That(result!.AgentCommandName).IsEqualTo("AvailableAgent");
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(2);
             // The refusal comes first and names the install hint; no endpoint
@@ -501,7 +501,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Endpoint).IsEqualTo("https://api.anthropic.example.com/v1");
             await Assert.That(result.ApiKey).IsEqualTo("anthropic-key");
 
@@ -586,7 +586,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Endpoint).IsEqualTo("https://new.example.com/v1");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
             await Assert.That(result.ApiKey).IsEqualTo("saved-key");
@@ -631,7 +631,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
             await Assert.That(result.ApiKey).IsEqualTo("first-run-key");
 

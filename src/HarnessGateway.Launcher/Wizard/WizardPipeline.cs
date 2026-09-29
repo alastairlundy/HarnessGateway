@@ -67,8 +67,7 @@ public sealed class WizardPipeline
                 protocolToCheck, annotateIncompatible, cancellationToken);
             if (harnessName is null) return null;
 
-            adapter = _adapters.FirstOrDefault(a =>
-                string.Equals(a.Metadata.Name, harnessName, StringComparison.OrdinalIgnoreCase));
+            adapter = HarnessLookup.Resolve(_adapters, harnessName);
 
             if (endpointResult.endpoint is null)
             {
@@ -93,7 +92,7 @@ public sealed class WizardPipeline
             }
 
             _console.WriteError(BuildIncompatibleMessage(
-                harnessName,
+                adapter.Metadata.Name,
                 endpointResult.protocol,
                 adapter.Metadata.SupportedProtocols));
 
@@ -134,7 +133,7 @@ public sealed class WizardPipeline
         string? model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken);
 
         return new(
-            AgentName: harnessName,
+            AgentCommandName: harnessName,
             Endpoint: endpointResult.endpoint!,
             Protocol: endpointResult.protocol,
             ApiKey: apiKey,
@@ -188,6 +187,10 @@ public sealed class WizardPipeline
             string pick = await _console.PromptChoiceAsync(
                 "Select a harness:", choices, cancellationToken);
 
+            // The picker labels each choice with Metadata.Name, so `pick` is a
+            // display label rather than an input token. Resolve it by display
+            // name, then return the command name: everything downstream (the
+            // launch argument, the orchestrator) speaks tokens only.
             IHarnessAdapter? selected = _adapters.FirstOrDefault(a =>
                 string.Equals(a.Metadata.Name, pick, StringComparison.OrdinalIgnoreCase));
 
@@ -205,7 +208,11 @@ public sealed class WizardPipeline
                 || selected is null
                 || selected.Metadata.SupportedProtocols.Contains(protocolToCheck.Value))
             {
-                return pick;
+                // Hand back the command name, not the label the user just saw.
+                // The wizard result feeds straight into the launch path, which
+                // resolves tokens; returning "GitHub Copilot CLI" there would
+                // not resolve once display names stopped being matchable.
+                return selected is null ? pick : selected.Metadata.CommandName;
             }
 
             _console.WriteError(BuildIncompatibleMessage(

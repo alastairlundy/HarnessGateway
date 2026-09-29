@@ -8,6 +8,11 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "claude-code",
+        CommandName: "claude-code",
+        // The binary and the vendor's docs both say "claude", so users reach
+        // for that spelling. Accepted as an input token only; help output and
+        // the wizard list show "claude-code".
+        Aliases: ["claude"],
         Kind: HarnessKind.Cli,
         RequiresModel: false,
         InstallHint: "Install via: npm i -g @anthropic-ai/claude-code. Note: pointing Claude Code at a "

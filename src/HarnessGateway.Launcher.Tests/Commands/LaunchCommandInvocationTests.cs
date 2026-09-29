@@ -190,6 +190,8 @@ public class LaunchCommandInvocationTests
         {
             Metadata = new HarnessMetadata(
                 name,
+                name,
+                [],
                 HarnessKind.Cli,
                 RequiresModel: false,
                 InstallHint: "Install via: test-install",

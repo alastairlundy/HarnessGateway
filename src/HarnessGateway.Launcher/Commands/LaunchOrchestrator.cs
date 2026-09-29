@@ -65,7 +65,7 @@ public sealed class LaunchOrchestrator
             IHarnessAdapter? adapter = FindAdapter(agentName);
             if (adapter is null)
             {
-                Console.Error.WriteLine($"Unknown agent: {agentName}");
+                Console.Error.WriteLine(HarnessLookup.UnknownAgentMessage(_adapters, agentName));
                 return (int)LaunchExitCode.UnknownAgent;
             }
 
@@ -166,8 +166,7 @@ public sealed class LaunchOrchestrator
             : (int)LaunchExitCode.UsageError;
 
     private IHarnessAdapter? FindAdapter(string agentName) =>
-        _adapters.FirstOrDefault(a =>
-            string.Equals(a.Metadata.Name, agentName, StringComparison.OrdinalIgnoreCase));
+        HarnessLookup.Resolve(_adapters, agentName);
 
     private string? ResolveModel(string? model, Backend? backend, IHarnessAdapter adapter, IReadOnlyList<string> persistValues)
     {

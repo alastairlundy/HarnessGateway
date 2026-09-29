@@ -1420,11 +1420,17 @@ public class LaunchOrchestratorTests
             bool isAvailable,
             bool requiresModel,
             string installHint,
-            IReadOnlySet<ProtocolKind>? supportedProtocols = null)
+            IReadOnlySet<ProtocolKind>? supportedProtocols = null,
+            string? commandName = null)
         {
             _isAvailable = isAvailable;
             Metadata = new HarnessMetadata(
                 name,
+                // Defaults to the label, which is what every existing call site
+                // means. Pass commandName to model a harness whose display name
+                // and launch token differ, as Copilot's do.
+                commandName ?? name,
+                [],
                 HarnessKind.Cli,
                 requiresModel,
                 installHint,
@@ -1457,6 +1463,8 @@ public class LaunchOrchestratorTests
 
         public HarnessMetadata Metadata { get; } = new(
             "ConfigWriter",
+            "ConfigWriter",
+            [],
             HarnessKind.Cli,
             RequiresModel: false,
             InstallHint: "N/A",

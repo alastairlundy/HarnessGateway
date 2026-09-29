@@ -30,6 +30,8 @@ public sealed class CodexAdapter : IHarnessAdapter
 
         Metadata = new(
             Name: "codex",
+            CommandName: "codex",
+            Aliases: ["codex-cli"],
             Kind: HarnessKind.Cli,
             RequiresModel: true,
             InstallHint: "Install via: npm i -g @openai/codex or brew install codex",

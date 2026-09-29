@@ -7,6 +7,8 @@ public sealed class PiAdapter : IHarnessAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "Pi",
+        CommandName: "pi",
+        Aliases: [],
         Kind: HarnessKind.Cli,
         RequiresModel: false,
         InstallHint: "Install via: npm i -g @earendil-works/pi-coding-agent",

@@ -7,6 +7,8 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "OpenCode",
+        CommandName: "opencode",
+        Aliases: [],
         Kind: HarnessKind.Cli,
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @opencode/cli",

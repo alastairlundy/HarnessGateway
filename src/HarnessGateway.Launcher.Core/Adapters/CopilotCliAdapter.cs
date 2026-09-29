@@ -6,7 +6,12 @@ namespace HarnessGateway.Launcher.Core.Adapters;
 public sealed class CopilotCliAdapter : IHarnessAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
+        // Display name is the vendor's full product name; the token is the
+        // binary's own name. Users type `copilot`, the wizard and the refusal
+        // prose say `GitHub Copilot CLI`, and neither has to compromise.
         Name: "GitHub Copilot CLI",
+        CommandName: "copilot",
+        Aliases: ["github-copilot-cli", "copilot-cli"],
         Kind: HarnessKind.Cli,
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @github/copilot",
