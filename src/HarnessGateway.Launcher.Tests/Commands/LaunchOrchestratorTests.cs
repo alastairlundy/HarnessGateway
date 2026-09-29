@@ -181,11 +181,14 @@ public class LaunchOrchestratorTests
         (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator();
         try
         {
-            int exitCode = await orchestrator.RunAsync(
-                "NonExistentAgent",
-                null,
-                null, null, null, [],
-                tempDir);
+            // Wrapped in the capture gate: the "Unknown agent" stderr write must
+            // not bleed into whoever holds Console.Error redirected in parallel.
+            (int exitCode, _) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync(
+                    "NonExistentAgent",
+                    null,
+                    null, null, null, [],
+                    tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownAgent);
         }
