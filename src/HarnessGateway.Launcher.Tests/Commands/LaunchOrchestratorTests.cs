@@ -217,7 +217,19 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_available_agent_runs_successfully()
     {
         var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://api.default.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                }
+            ],
+            DefaultBackend = "default"
+        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
             var exitCode = await orchestrator.RunAsync(
@@ -227,6 +239,25 @@ public class LaunchOrchestratorTests
                 tempDir);
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_without_configured_backend_refuses()
+    {
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        try
+        {
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
+            await Assert.That(errorOutput).Contains("no backend is configured");
         }
         finally
         {
@@ -301,7 +332,19 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_warns_and_launches_when_model_required_but_missing()
     {
         var adapter = CreateTestAdapter(requiresModel: true);
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://api.default.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                }
+            ],
+            DefaultBackend = "default"
+        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
             var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -322,7 +365,19 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_does_not_warn_when_model_provided_for_required_harness()
     {
         var adapter = CreateTestAdapter(requiresModel: true);
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://api.default.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                }
+            ],
+            DefaultBackend = "default"
+        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
             var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -342,7 +397,19 @@ public class LaunchOrchestratorTests
     public async Task RunAsync_does_not_warn_when_model_not_required()
     {
         var adapter = CreateTestAdapter();
-        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        var settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://api.default.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat
+                }
+            ],
+            DefaultBackend = "default"
+        };        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
         {
             var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -413,6 +480,19 @@ public class LaunchOrchestratorTests
             await File.WriteAllTextAsync(configFile, "{}");
 
             var settingsStore = new SettingsStore(settingsDir);
+            settingsStore.Save(new LauncherSettings
+            {
+                Backends =
+                [
+                    new Backend
+                    {
+                        Name = "default",
+                        BaseUri = new Uri("https://api.default.com/v1"),
+                        Protocol = ProtocolKind.OpenAiChat
+                    }
+                ],
+                DefaultBackend = "default"
+            });
             var backupService = new BackupService(backupsDir);
             var runner = new TestLaunchRunner();
             var adapter = new ConfigWritingAdapter(configFile);

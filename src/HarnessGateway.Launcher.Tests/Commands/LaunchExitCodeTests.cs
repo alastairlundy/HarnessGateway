@@ -1,5 +1,11 @@
 using HarnessGateway.Launcher.Commands;
 
+// These tests pin the documented exit-code contract: the subject is an enum
+// cast to int by design, so TUnit's "do not assert on a constant" rule is a
+// false positive here - the constant is recompiled with the enum, so a
+// renumbered exit code still fails the assertion.
+#pragma warning disable TUnitAssertions0005
+
 namespace HarnessGateway.Launcher.Tests.Commands;
 
 public class LaunchExitCodeTests
@@ -88,3 +94,4 @@ public class LaunchExitCodeTests
         }
     }
 }
+#pragma warning restore TUnitAssertions0005

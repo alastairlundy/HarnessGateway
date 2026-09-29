@@ -140,7 +140,7 @@ public class ConfigCommandTests
 
         ConfigCommand.UpdateBackend(settings, updated);
 
-        await Assert.That(settings.Backends).HasCount().EqualTo(1);
+        await Assert.That(settings.Backends).Count().IsEqualTo(1);
         await Assert.That(settings.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
         await Assert.That(settings.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
     }
@@ -163,7 +163,7 @@ public class ConfigCommandTests
 
         ConfigCommand.UpdateBackend(settings, newBackend);
 
-        await Assert.That(settings.Backends).HasCount().EqualTo(1);
+        await Assert.That(settings.Backends).Count().IsEqualTo(1);
         await Assert.That(settings.Backends[0].Name).IsEqualTo("new");
     }
 
@@ -231,7 +231,7 @@ public class ConfigCommandTests
 
             var saved = store.Load();
             await Assert.That(saved.DefaultBackend).IsEqualTo("default");
-            await Assert.That(saved.Backends).HasCount().EqualTo(1);
+            await Assert.That(saved.Backends).Count().IsEqualTo(1);
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.openai.com/v1"));
             await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
         }

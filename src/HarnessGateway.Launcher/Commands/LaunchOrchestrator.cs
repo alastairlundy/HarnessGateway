@@ -75,10 +75,24 @@ public sealed class LaunchOrchestrator
                 return (int)LaunchExitCode.HarnessUnavailable;
             }
 
+            // A successful resolution can still carry no backend at all: empty
+            // settings with no --endpoint/--protocol override. Adapters need a
+            // backend, so refuse here with a readable message instead of
+            // NRE-ing inside PlanLaunchAsync. Exit 7 preserves the code the
+            // unhandled-exception path produced before this guard existed (the
+            // exit-code table is append-only, so no dedicated code yet).
+            if (backend is null)
+            {
+                Console.Error.WriteLine(
+                    "Launch failed: no backend is configured. Run 'harnessgateway " +
+                    "config set-default-endpoint <url> <protocol>' to save one, or pass " +
+                    "--endpoint <url> --protocol <protocol> for a one-off launch.");
+                return (int)LaunchExitCode.ConfigRestoreFailure;
+            }
+
             // Fail before any configuration action when the resolved backend's
             // protocol is not supported by the chosen harness.
-            if (backend is not null
-                && !adapter.Metadata.SupportedProtocols.Contains(backend.Protocol))
+            if (!adapter.Metadata.SupportedProtocols.Contains(backend.Protocol))
             {
                 string supported = string.Join(
                     ", ",
@@ -98,10 +112,7 @@ public sealed class LaunchOrchestrator
             // Resolve the at-rest key reference into the secret on this local
             // copy only: `settings` keeps carrying the reference, so a later
             // Save (PersistDefaultModel) can never write a secret back out.
-            if (backend is not null)
-            {
-                backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, cancellationToken);
-            }
+            backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, cancellationToken);
 
             LaunchRequest request = new(backend, resolvedModel, workingDirectory);
             LaunchPlan plan = await adapter.PlanLaunchAsync(request, cancellationToken);

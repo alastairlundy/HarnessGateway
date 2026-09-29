@@ -9,6 +9,7 @@ namespace HarnessGateway.Launcher.Tests;
 /// <see cref="ConsoleOutputCapture"/> shares this class's gate - never add a
 /// second independent gate.
 /// </summary>
+#pragma warning disable TUnit0055 // Console redirection, serialized by this class's gate.
 public static class ConsoleErrorCapture
 {
     internal static readonly SemaphoreSlim Gate = new(1, 1);
@@ -33,3 +34,4 @@ public static class ConsoleErrorCapture
         }
     }
 }
+#pragma warning restore TUnit0055

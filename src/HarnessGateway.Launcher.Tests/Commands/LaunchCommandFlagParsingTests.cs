@@ -120,7 +120,8 @@ public class LaunchCommandFlagParsingTests
 
         await Assert.That(result.Errors).IsEmpty();
         var persistValues = result.GetValue(LaunchCommand.PersistOption);
-        var parsed = LaunchCommand.ParsePersistValues(persistValues);
+        await Assert.That(persistValues).IsNotNull();
+        var parsed = LaunchCommand.ParsePersistValues(persistValues!);
         await Assert.That(parsed).Contains("config");
         await Assert.That(parsed).Contains("model");
     }
