@@ -65,7 +65,7 @@ jobs:
           fi
           archive="publish/${root}-${rid}.${ext}"
           if [[ ! -f "$archive" ]]; then
-            echo "::error::Expected ${archive}: archive prefix must equal PackageId '${root}' (see T003 artifact contract)"
+            echo "::error::Expected ${archive}: archive prefix must equal the binary name '${root}' (see T003 artifact contract)"
             exit 1
           fi
           echo "Verified ${archive}"
