@@ -18,7 +18,7 @@ CLI (`harnessgateway`) that launches agent harnesses (OpenCode, Kilo, Copilot CL
 
 ## Structure
 
-- `HarnessGateway.Launcher` — `OutputType=Exe`, the dotnet tool (`PackageId=harnessgateway`, `ToolCommandName=harnessgateway`). Entry: `Program.cs` + `Commands/` (System.CommandLine) + `Wizard/` (Spectre.Console).
+- `HarnessGateway.Launcher` — `OutputType=Exe`, distribution is per-OS binaries only. Entry: `Program.cs` + `Commands/` (System.CommandLine) + `Wizard/` (Spectre.Console).
 - `HarnessGateway.Launcher.Core` — domain logic (Adapters, Backends, Settings, Launch, Execution, Configuration). Referenced by the exe; both are `InternalsVisibleTo` the tests.
 - Per-harness behavior lives in `Core/Adapters/*Adapter.cs`, one class per harness: detection, config actions, launch plan. Adding a harness = new adapter class + add it to the `List<IHarnessAdapter>` in `Program.cs` + tests (`HarnessKind` already has `Cli` and `Gui`).
 - Agent lookup is case-insensitive equality on `Metadata.Name` ("OpenCode", "Kilo", "GitHub Copilot CLI", "Pi") — not the short slugs in `LaunchCommand`'s help text; `launch copilot` will not match.
@@ -38,4 +38,4 @@ CLI (`harnessgateway`) that launches agent harnesses (OpenCode, Kilo, Copilot CL
 - Design decisions are locked and recorded in `docs/decisions/DECISIONS-LmProxy-agent-launcher.md` (D/T record IDs); `TODO.md` and `IMPLEMENTATION-TODO.md` cite them. `IMPLEMENTATION-TODO.md` is the planned Phase 2 (Codex/Claude Code adapters, `--backend` resolution, secure key store) — don't build it uninvited.
 - Style is mixed: command/orchestration files use explicit types, adapters use `var` — match the file you're editing. File-scoped namespaces everywhere.
 - Legacy names linger from the LmProxy → HarnessGateway rename: old `LmProxy.AgentLauncher.*` names persist in bin/obj artifacts, test-report filenames, and the decision-ledger title. Don't resurrect them.
-- CI is release-only: `.github/workflows/release.yml` on `v*` tags builds per-OS `harnessgateway-<rid>.zip/.tar.gz` archives plus the NuGet tool package; there is no PR build workflow (just Dependabot). Keep new commands lean — the plan (TODO `#D017`) is a unified CLI rename when proxy-server verbs arrive.
+- CI is release-only: `.github/workflows/release.yml` on `v*` tags builds per-OS `harnessgateway-<rid>.zip/.tar.gz` archives; there is no PR build workflow (just Dependabot). Keep new commands lean — the plan (TODO `#D017`) is a unified CLI rename when proxy-server verbs arrive.

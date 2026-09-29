@@ -56,8 +56,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          csproj=src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj
-          root="$(dotnet msbuild "$csproj" -getProperty:PackageId -nologo)"
+          root=harnessgateway
           rid="${{ matrix.runtime }}"
           if [[ "$rid" == win-* ]]; then
             ext=zip
@@ -77,56 +76,8 @@ jobs:
           name: harnessgateway-${{ matrix.runtime }}
           path: publish/harnessgateway-${{ matrix.runtime }}.*
 
-  build-nuget:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Validate tool package ID
-        shell: bash
-        run: |
-          set -euo pipefail
-          csproj=src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj
-          package_id="$(dotnet msbuild "$csproj" -getProperty:PackageId -nologo)"
-          tool_command="$(dotnet msbuild "$csproj" -getProperty:ToolCommandName -nologo)"
-          pack_as_tool="$(dotnet msbuild "$csproj" -getProperty:PackAsTool -nologo)"
-          # Working root name (D017): tool ID and binary archive prefix track it until the rename.
-          expected=harnessgateway
-          if [[ "$package_id" != "$expected" || "$tool_command" != "$expected" || "$pack_as_tool" != "true" ]]; then
-            echo "::error::Tool ID drift: PackageId='${package_id}', ToolCommandName='${tool_command}', PackAsTool='${pack_as_tool}'; expected '${expected}'/true. Rename is an explicit change (D017) - update workflow and README rows together."
-            exit 1
-          fi
-          echo "Verified tool package ID '${package_id}' (command '${tool_command}')"
-
-      - name: Pack NuGet tool
-        run: dotnet pack src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj -c Release -o artifacts
-
-      - name: Verify tool package artifact
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          packages=(artifacts/harnessgateway.*.nupkg)
-          if [[ ${#packages[@]} -ne 1 ]]; then
-            echo "::error::Expected exactly one artifacts/harnessgateway.*.nupkg, found ${#packages[@]}"
-            exit 1
-          fi
-          echo "Verified ${packages[0]}"
-
-      - name: Upload NuGet package
-        uses: actions/upload-artifact@v4
-        with:
-          name: harnessgateway-nuget
-          path: artifacts/*.nupkg
-
   release:
-    needs: [build-binaries, build-nuget]
+    needs: [build-binaries]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
 
@@ -142,15 +93,14 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          packages=(artifacts/*.nupkg)
           zips=(artifacts/*.zip)
           tarballs=(artifacts/*.tar.gz)
-          if [[ ${#packages[@]} -lt 1 || ${#zips[@]} -lt 1 || ${#tarballs[@]} -lt 1 ]]; then
-            echo "::error::Release needs both artifact kinds (T003): ${#packages[@]} tool package(s), ${#zips[@]} zip, ${#tarballs[@]} tar.gz"
+          if [[ ${#zips[@]} -lt 1 || ${#tarballs[@]} -lt 1 ]]; then
+            echo "::error::Release needs both artifact kinds (T003): ${#zips[@]} zip, ${#tarballs[@]} tar.gz"
             ls -la artifacts
             exit 1
           fi
-          echo "Verified ${#packages[@]} tool package(s), ${#zips[@]} zip archive(s), ${#tarballs[@]} tar.gz archive(s)"
+          echo "Verified ${#zips[@]} zip archive(s), ${#tarballs[@]} tar.gz archive(s)"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

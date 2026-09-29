@@ -35,7 +35,6 @@ Deferred decisions and future work, each citing the Decision Ledger (`docs/decis
 ## Packaging and CLI identity
 
 - [ ] Unified-CLI rename when proxy-server verbs are added (rename trigger) [`#D017`]
-- [ ] Build and verify two artifact kinds per release in CI (NuGet tool + per-OS binaries) [`#T003`]
 
 ## Session housekeeping
 

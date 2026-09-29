@@ -80,7 +80,7 @@
 ## Blueprint tasks (non-decision chores)
 
 - README: broaden code-3 label; add code-8 and code-9 rows; document `-m`; document `config backend` verbs and `--backend` layering [`DECISIONS-LmProxy-agent-launcher.md#T028`], [`DECISIONS-LmProxy-agent-launcher.md#T031`], [`DECISIONS-LmProxy-agent-launcher.md#T039`], [`DECISIONS-LmProxy-agent-launcher.md#T041`].
-- CI builds/verifies two artifact kinds per release (NuGet tool + per-OS binaries) [`DECISIONS-LmProxy-agent-launcher.md#T003`].
+- CI builds/verifies per-OS binaries per release (T003 amended to binaries-only; the NuGet tool channel was dropped) [`DECISIONS-LmProxy-agent-launcher.md#T003`].
 - Session housekeeping: delete the Decision Ledger and retire the blueprint once implementation completes (persisted-by-default artifacts; TODO.md housekeeping entry).
 - Real-harness integration matrix stays deferred this phase — fakes-only testing per [`DECISIONS-LmProxy-agent-launcher.md#T009`], [`DECISIONS-LmProxy-agent-launcher.md#T043`].
 

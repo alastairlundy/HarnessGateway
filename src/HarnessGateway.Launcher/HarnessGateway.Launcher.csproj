@@ -6,13 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
-        <PackAsTool>true</PackAsTool>
-        <ToolCommandName>harnessgateway</ToolCommandName>
-        <PackageId>harnessgateway</PackageId>
-        <Version>0.1.0</Version>
-        <Description>Launch agent harnesses with the specified backend configuration.</Description>
-        <PackageTags>agent;cli;tool</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/alastairlundy/HarnessGateway</RepositoryUrl>
     </PropertyGroup>
 
