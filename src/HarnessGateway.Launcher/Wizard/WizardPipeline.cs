@@ -160,6 +160,24 @@ public sealed class WizardPipeline
             return null;
         }
 
+        // Dead-end guard (D023): selection is restricted to installed
+        // harnesses, so a step that no available adapter can satisfy (no
+        // harness installed at all, or none installed that supports the
+        // required protocol) has no valid pick - abort with install hints
+        // instead of re-prompting forever.
+        if (!await AnyAdapterAvailableSupportsAsync(protocolToCheck, cancellationToken))
+        {
+            if (protocolToCheck is null)
+            {
+                WriteNoHarnessInstalled();
+            }
+            else
+            {
+                WriteNoInstalledSupports(protocolToCheck.Value);
+            }
+            return null;
+        }
+
         bool showIncompatible = annotateIncompatible;
 
         while (true)
@@ -172,6 +190,16 @@ public sealed class WizardPipeline
 
             IHarnessAdapter? selected = _adapters.FirstOrDefault(a =>
                 string.Equals(a.Metadata.Name, pick, StringComparison.OrdinalIgnoreCase));
+
+            // D023: refuse an unavailable harness at selection - the launch
+            // cannot work (direct mode's orchestrator check would refuse it
+            // later anyway, D018), so fail here with the install hint rather
+            // than after the endpoint, key, and model steps.
+            if (selected is not null && !await selected.IsAvailableAsync(cancellationToken))
+            {
+                _console.WriteError(BuildNotInstalledMessage(selected));
+                continue;
+            }
 
             if (protocolToCheck is null
                 || selected is null
@@ -221,6 +249,65 @@ public sealed class WizardPipeline
 
     private bool AnyAdapterSupports(ProtocolKind protocol) =>
         _adapters.Any(adapter => adapter.Metadata.SupportedProtocols.Contains(protocol));
+
+    /// <summary>
+    /// D023 selection guard: is there at least one harness that is both
+    /// installed and (when a protocol is pinned) able to speak it?
+    /// </summary>
+    private async Task<bool> AnyAdapterAvailableSupportsAsync(
+        ProtocolKind? protocol,
+        CancellationToken cancellationToken)
+    {
+        foreach (IHarnessAdapter adapter in _adapters)
+        {
+            if (protocol is not null && !adapter.Metadata.SupportedProtocols.Contains(protocol.Value))
+            {
+                continue;
+            }
+
+            if (await adapter.IsAvailableAsync(cancellationToken))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void WriteNoHarnessInstalled()
+    {
+        _console.WriteError(
+            "No agent harness is installed on this machine. Install one and re-run:");
+        foreach (IHarnessAdapter adapter in _adapters)
+        {
+            _console.WriteError($"  {adapter.Metadata.Name}: {adapter.Metadata.InstallHint}");
+        }
+    }
+
+    private void WriteNoInstalledSupports(ProtocolKind protocol)
+    {
+        _console.WriteError(
+            $"No installed agent harness supports the {BackendResolution.ProtocolName(protocol)} " +
+            "protocol. Install one and re-run:");
+        foreach (IHarnessAdapter adapter in _adapters.Where(
+            a => a.Metadata.SupportedProtocols.Contains(protocol)))
+        {
+            _console.WriteError($"  {adapter.Metadata.Name}: {adapter.Metadata.InstallHint}");
+        }
+    }
+
+    private static string BuildNotInstalledMessage(IHarnessAdapter adapter)
+    {
+        // Mirrors the direct-mode refusal's substance (name + install hint)
+        // and names the detection command so a PATH false negative is
+        // diagnosable without reading the source.
+        string detection = adapter.Metadata.DetectionCommand is { } command
+            ? $" (checked with '{command}')"
+            : string.Empty;
+
+        return $"Refusing to launch {adapter.Metadata.Name}: it is not installed on this machine" +
+               $"{detection}. {adapter.Metadata.InstallHint}";
+    }
 
     private void WriteNoHarnessSupports(ProtocolKind protocol) =>
         _console.WriteError(

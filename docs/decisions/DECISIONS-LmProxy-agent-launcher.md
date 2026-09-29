@@ -744,7 +744,7 @@ Created: 2026-09-09
 - **Resolution**: The dangling-default read failure (T033) is implemented as exit code 8 per T031's generalization established here; TK006's acceptance criteria bind code 8 to `--backend`, `switch`, `remove`, and the dangling-default read; the README code-8 row's wording covers unresolvable name references. No new table row needed.
 - **Notes**: Minor CLI-contract interpretation confirmed by the user in the decomposition session; T038's non-contractual hint policy still applies to phrasing. Closing constraint restated in TK006.
 
-<!-- next-d: D023 -->
+<!-- next-d: D024 -->
 <!-- next-t: T046 -->
 <!-- next-i: I038 -->
 
@@ -755,3 +755,11 @@ Created: 2026-09-09
 - **Normalized Requirement**: The ConfigurationAction family shall contain exactly `CliArgumentAction` and `ConfigFileWriteAction` under one abstract base record. Harness env-var configuration shall be declared on the plan's ProcessConfiguration; env-var actions shall not be emitted. Supersedes the three-variant wording of `#T023` and the env-action delivery wording of `#T025` and `#T026`.
 - **Constraints**: Consequence for `#T026` (Claude Code): its planned env-var configuration (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`) ships as ProcessConfiguration env vars when implemented - spec intent unchanged, delivery mechanism amended. The orchestrator's env snapshot/restore lane is removed (nothing to restore); the exit-code table is unaffected. D012 key handling unchanged: inject when present, omit when absent, never a dummy value.
 - **Cites**: T023, T025, T026, T019, T008, D011, D012
+
+### [D023] - Harness not installed amendment: wizard refusal
+
+- **Driver**: The wizard half of `#D018` only marked unavailable harnesses, so selecting one still walked the endpoint, key, and model steps toward the orchestrator's exit-4 refusal - a guaranteed-dead-end flow a user reported as a silent failure (compounded by the empty-endpoint abort, fixed separately). Direct mode already refused before any configuration action per D011's spirit; the interactive path did not, and the dim "not installed" annotation alone did not carry the message (users read the outcome as a bug, not as a warning).
+- **Resolved Answer**: Amend the wizard half of `#D018` from annotate-only to annotate + refuse: unavailable harnesses stay listed with their annotation, but selecting one writes a refusal naming the adapter, its detection command, and its install hint, then re-prompts the harness step. The harness step also aborts with install hints - instead of re-prompting forever - when no available adapter can satisfy it, either because nothing is installed or because no installed harness supports the protocol the step is pinned to.
+- **Normalized Requirement**: The wizard shall refuse to select an unavailable harness (`IsAvailableAsync` re-checked at selection), re-prompting the harness step with the adapter's `InstallHint`; and shall abort the harness step, writing per-harness install hints, when no available adapter can be a valid pick (no harness installed, or no installed harness supporting the pinned protocol). The "mark" half of `#D018` (annotations) and its direct-mode half (exit 4 before any configuration action) are unchanged.
+- **Constraints**: Detection stays a PATH heuristic (`#D018`'s constraint stands) - a false negative is surfaced earlier with its detection command named, not made more severe; the orchestrator's exit-4 check remains the backstop for availability that changes between selection and launch. Harness-step aborts keep the wizard's existing null-result convention (exit 0 after the written errors), consistent with the protocol dead-end guard. Error-text wording is not a compat surface (`#T038`).
+- **Cites**: D018, D011, T034, T028, T038

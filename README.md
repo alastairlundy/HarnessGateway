@@ -23,7 +23,7 @@ harnessgateway launch [<agent>] [--backend NAME] [--endpoint URL --protocol PROT
 
 `-m` is the short alias for `--model`; no other short flags are defined.
 
-Running `harnessgateway` with no arguments, or `harnessgateway launch` with no agent and no options, starts the interactive wizard (harness → endpoint → key → model). The wizard never writes settings. Launch options without an agent are still a parse error, so no flag you typed is silently dropped.
+Running `harnessgateway` with no arguments, or `harnessgateway launch` with no agent and no options, starts the interactive wizard (harness → endpoint → key → model). The wizard never writes settings. Harnesses that aren't installed are listed with a `not installed` annotation but are refused at selection with their install hint, and an empty endpoint re-prompts instead of exiting. Launch options without an agent are still a parse error, so no flag you typed is silently dropped.
 
 `--backend <name>` selects a saved backend entry to launch against. `--endpoint`, `--protocol`, and `--model` then layer on top of the resolved entry field by field: each flag replaces only its own field, and every other field - including the entry's stored API key - comes from the saved entry. Keys are not overridable per launch; the resolved entry's stored key is the only credential source.
 
