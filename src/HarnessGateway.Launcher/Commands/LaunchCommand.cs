@@ -6,10 +6,15 @@ namespace HarnessGateway.Launcher.Commands;
 public sealed class LaunchCommand : Command
 {
     private readonly LaunchOrchestrator? _orchestrator;
+    private readonly Func<CancellationToken, Task<int>>? _wizardAction;
 
-    public static readonly Argument<string> AgentArgument = new("agent")
+    public static readonly Argument<string?> AgentArgument = new("agent")
     {
-        Description = "The agent harness to launch (opencode, kilo, copilot, pi, codex, claude-code)"
+        // Optional: bare `launch` falls back to the interactive wizard, the
+        // same pipeline the no-args root action runs. Options without an
+        // agent are still rejected (see the validator below).
+        Arity = ArgumentArity.ZeroOrOne,
+        Description = "The agent harness to launch (opencode, kilo, copilot, pi, codex, claude-code); omit to run the interactive wizard"
     };
 
     public static readonly Option<string?> BackendOption = new("--backend")
@@ -42,10 +47,13 @@ public sealed class LaunchCommand : Command
     {
     }
 
-    internal LaunchCommand(LaunchOrchestrator? orchestrator)
+    internal LaunchCommand(
+        LaunchOrchestrator? orchestrator,
+        Func<CancellationToken, Task<int>>? wizardAction = null)
         : base("launch", "Launch an agent harness with the specified backend configuration")
     {
         _orchestrator = orchestrator;
+        _wizardAction = wizardAction;
 
         Add(AgentArgument);
         Add(BackendOption);
@@ -89,6 +97,21 @@ public sealed class LaunchCommand : Command
                     }
                 }
             }
+
+            // Options without an agent stay a parse error, so the bare-`launch`
+            // wizard fallback can never silently drop a flag the user typed.
+            if (result.GetValue(AgentArgument) is null &&
+                (result.GetValue(BackendOption) is not null
+                 || result.GetValue(EndpointOption) is not null
+                 || result.GetValue(ProtocolOption) is not null
+                 || result.GetValue(ModelOption) is not null
+                 || result.GetValue(PersistOption) is { Length: > 0 }))
+            {
+                result.AddError(
+                    "An agent is required when launch options are specified: " +
+                    "harnessgateway launch <agent> [options]. Run 'harnessgateway launch' " +
+                    "with no options to use the interactive wizard.");
+            }
         });
 
         TreatUnmatchedTokensAsErrors = true;
@@ -100,7 +123,26 @@ public sealed class LaunchCommand : Command
         // can never see a child command's tokens.
         SetAction(async (result, cancellationToken) =>
         {
-            string agent = result.GetRequiredValue(AgentArgument);
+            string? agent = result.GetValue(AgentArgument);
+
+            // Bare `launch` is the second wizard entry point: no agent and no
+            // options (options without an agent fail validation above), so
+            // nothing the user typed can be dropped here. When no wizard is
+            // wired - parse-only constructions - fail loudly instead of
+            // falling through to the orchestrator with a null agent.
+            if (agent is null)
+            {
+                if (_wizardAction is not null)
+                {
+                    return await _wizardAction(cancellationToken);
+                }
+
+                Console.Error.WriteLine(
+                    "An agent is required: harnessgateway launch <agent>. " +
+                    "Run 'harnessgateway launch' with no options to use the interactive wizard.");
+                return (int)LaunchExitCode.UsageError;
+            }
+
             string? backendName = result.GetValue(BackendOption);
             string? endpoint = result.GetValue(EndpointOption);
             string? protocol = result.GetValue(ProtocolOption);

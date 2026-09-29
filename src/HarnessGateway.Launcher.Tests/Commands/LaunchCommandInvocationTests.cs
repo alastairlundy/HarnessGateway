@@ -31,7 +31,8 @@ public class LaunchCommandInvocationTests
     private static (RootCommand Root, FakeHarnessAdapter Adapter, string TempDir) CreateRoot(
         FakeHarnessAdapter adapter,
         string? settingsJson = null,
-        int runnerExitCode = 0)
+        int runnerExitCode = 0,
+        Func<CancellationToken, Task<int>>? wizardAction = null)
     {
         string tempDir = CreateTempDir();
         string settingsDir = Path.Combine(tempDir, "settings");
@@ -49,8 +50,54 @@ public class LaunchCommandInvocationTests
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             settingsStore, backupService, new StubLaunchRunner(runnerExitCode), [adapter], new FakeSecureKeyStore());
 
-        LaunchCommand launchCommand = new LaunchCommand(orchestrator);
+        LaunchCommand launchCommand = new LaunchCommand(orchestrator, wizardAction);
         return (new RootCommand { launchCommand }, adapter, tempDir);
+    }
+
+    [Test]
+    public async Task Invoke_bare_launch_runs_the_wizard_not_the_orchestrator()
+    {
+        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        bool wizardCalled = false;
+        (RootCommand root, _, string tempDir) = CreateRoot(
+            adapter,
+            wizardAction: _ =>
+            {
+                wizardCalled = true;
+                return Task.FromResult(17);
+            });
+        try
+        {
+            int exitCode = await root.Parse("launch").InvokeAsync();
+
+            await Assert.That(wizardCalled).IsTrue();
+            await Assert.That(exitCode).IsEqualTo(17);
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Invoke_bare_launch_without_a_wizard_fails_loudly_not_silently()
+    {
+        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        (RootCommand root, _, string tempDir) = CreateRoot(adapter);
+        try
+        {
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                root.Parse("launch").InvokeAsync());
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("An agent is required");
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
     }
 
     [Test]

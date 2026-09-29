@@ -205,13 +205,15 @@ public sealed class WizardPipeline
                 incompatible = BackendResolution.ProtocolName(protocolToCheck.Value);
             }
 
+            // Annotations are raw text: the presenter owns the parenthesised
+            // rendering, so wrapping here would print "((not installed))".
             List<string> annotations = [];
             if (!isAvailable) annotations.Add("not installed");
             if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
 
             choices.Add(new(
                 adapter.Metadata.Name,
-                annotations.Count > 0 ? $"({string.Join("; ", annotations)})" : null));
+                annotations.Count > 0 ? string.Join("; ", annotations) : null));
         }
 
         return choices;
@@ -246,12 +248,31 @@ public sealed class WizardPipeline
         CancellationToken cancellationToken)
     {
         string? defaultValue = defaultBackend?.BaseUri.ToString().TrimEnd('/');
-        string input = await _console.PromptTextAsync(
-            "Endpoint URL:",
-            defaultValue: defaultValue,
-            cancellationToken: cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(input)) return (null, ProtocolKind.OpenAiChat);
+        // A null endpoint aborts the whole wizard, and the caller maps that to
+        // exit 0 with no output - an empty submission therefore looked like a
+        // silent crash. Nothing downstream can default the endpoint, so
+        // re-prompt instead; only cancellation still returns null (the user
+        // deliberately backing out).
+        string input;
+        while (true)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return (null, ProtocolKind.OpenAiChat);
+            }
+
+            input = await _console.PromptTextAsync(
+                "Endpoint URL:",
+                defaultValue: defaultValue,
+                cancellationToken: cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(input)) break;
+
+            _console.WriteError(
+                "Endpoint URL is required, e.g. https://api.example.com/v1. " +
+                "Press Ctrl+C to cancel.");
+        }
 
         input = input.Trim();
 

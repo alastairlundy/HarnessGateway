@@ -66,8 +66,9 @@ public sealed class ModelStep
 
         foreach (ModelCatalogEntry model in catalog.Models)
         {
+            // Raw text - SpectreConsoleAbstraction renders annotations in parens.
             string? annotation = string.Equals(model.Id, savedDefaultModel, StringComparison.OrdinalIgnoreCase)
-                ? "(saved default)"
+                ? "saved default"
                 : null;
             choices.Add(new(model.Id, annotation));
         }

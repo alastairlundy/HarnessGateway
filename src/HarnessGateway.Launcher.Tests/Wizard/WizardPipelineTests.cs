@@ -93,6 +93,37 @@ public class WizardPipelineTests
     }
 
     [Test]
+    public async Task RunAsync_empty_endpoint_reprompts_instead_of_aborting()
+    {
+        // A blank endpoint used to return null from the pipeline, which the
+        // root action mapped to exit 0 with no output - a silent "crash" the
+        // user saw as soon as they left the URL empty.
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueText("");
+            console.EnqueueText("https://api.example.com/v1");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result!.Endpoint).IsEqualTo("https://api.example.com/v1");
+            await Assert.That(console.Prompts.Count(p => p.Title == "Endpoint URL:")).IsEqualTo(2);
+            await Assert.That(console.ErrorMessages).IsNotEmpty();
+            await Assert.That(console.ErrorMessages[0]).Contains("Endpoint URL is required");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task RunAsync_key_step_asks_when_no_saved_key_and_no_env_var()
     {
         LauncherSettings settings = WizardTestHelper.CreateDefaultSettings();
@@ -367,10 +398,10 @@ public class WizardPipelineTests
                 console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(2);
             await Assert.That(
                 console.Prompts[0].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
-                .IsEqualTo("(not installed)");
+                .IsEqualTo("not installed");
             await Assert.That(
                 console.Prompts[1].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
-                .IsEqualTo("(not installed; incompatible: anthropic)");
+                .IsEqualTo("not installed; incompatible: anthropic");
             await Assert.That(
                 console.Prompts[1].Choices.Single(c => c.Name == "AnthropicCapable").Annotation)
                 .IsNull();
@@ -451,7 +482,7 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts[4].Title).IsEqualTo("Model catalogue unavailable:");
             await Assert.That(
                 console.Prompts[3].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
-                .IsEqualTo("(incompatible: anthropic)");
+                .IsEqualTo("incompatible: anthropic");
             await Assert.That(console.ErrorMessages.Count).IsEqualTo(1);
             await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
         }
@@ -500,7 +531,7 @@ public class WizardPipelineTests
             await Assert.That(console.ErrorMessages[0]).Contains("anthropic");
             await Assert.That(
                 console.Prompts[3].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
-                .IsEqualTo("(incompatible: anthropic)");
+                .IsEqualTo("incompatible: anthropic");
         }
         finally
         {

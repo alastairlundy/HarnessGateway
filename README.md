@@ -18,10 +18,12 @@ Extract the archive and add the directory to your `PATH`.
 ## Usage
 
 ```bash
-harnessgateway launch <agent> [--backend NAME] [--endpoint URL --protocol PROTOCOL] [--model MODEL | -m MODEL] [--persist config|model]
+harnessgateway launch [<agent>] [--backend NAME] [--endpoint URL --protocol PROTOCOL] [--model MODEL | -m MODEL] [--persist config|model]
 ```
 
 `-m` is the short alias for `--model`; no other short flags are defined.
+
+Running `harnessgateway` with no arguments, or `harnessgateway launch` with no agent and no options, starts the interactive wizard (harness → endpoint → key → model). The wizard never writes settings. Launch options without an agent are still a parse error, so no flag you typed is silently dropped.
 
 `--backend <name>` selects a saved backend entry to launch against. `--endpoint`, `--protocol`, and `--model` then layer on top of the resolved entry field by field: each flag replaces only its own field, and every other field - including the entry's stored API key - comes from the saved entry. Keys are not overridable per launch; the resolved entry's stored key is the only credential source.
 
@@ -49,6 +51,10 @@ Key input on `add` follows one contract: with no `--key`, an interactive termina
 `remove` deletes the entry and any credential stored for it (a store failure exits 7 and removes nothing). It refuses with exit 2 to remove the current default backend - `switch` to another entry first - and refuses to remove the last remaining backend, so settings never become backend-less.
 
 On `switch` and `remove`, a name that resolves no saved entry exits 8 with `unknown backend name '<name>'`; best-effort "did you mean" hints may accompany the message but are non-contractual.
+
+## License
+
+This project is licensed under the [Mozilla Public License 2.0](https://www.mozilla.org/en-US/MPL/2.0/).
 
 ## Exit codes
 

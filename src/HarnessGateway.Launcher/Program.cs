@@ -33,15 +33,10 @@ LaunchOrchestrator orchestrator = new(
     runner,
     adapters,
     keyStore);
-LaunchCommand launchCommand = new(orchestrator);
-
-RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
-{
-    launchCommand,
-    new ConfigCommand(settingsStore, keyStore)
-};
-
-rootCommand.SetAction(async (result, cancellationToken) =>
+// The wizard is the no-args root action and, via LaunchCommand's own
+// action, also what a bare `launch` runs - one implementation, two entry
+// points, so the two can never drift in exception handling or exit codes.
+async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 {
     SpectreConsoleAbstraction console = new();
     ModelCatalogClient catalogClient = new(new HttpClient());
@@ -79,6 +74,16 @@ rootCommand.SetAction(async (result, cancellationToken) =>
         wizardResult.ApiKey is not null ? ["config"] : [],
         Directory.GetCurrentDirectory(),
         cancellationToken);
-});
+}
+
+LaunchCommand launchCommand = new(orchestrator, RunWizardAsync);
+
+RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
+{
+    launchCommand,
+    new ConfigCommand(settingsStore, keyStore)
+};
+
+rootCommand.SetAction(async (result, cancellationToken) => await RunWizardAsync(cancellationToken));
 
 return rootCommand.Parse(args).Invoke();

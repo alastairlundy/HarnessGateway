@@ -17,6 +17,28 @@ public class LaunchCommandFlagParsingTests
     }
 
     [Test]
+    public async Task Parse_bare_launch_is_valid_and_carries_no_agent()
+    {
+        // Bare `launch` is a wizard entry point, not a missing-argument error.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch");
+
+        await Assert.That(result.Errors).IsEmpty();
+        await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsNull();
+    }
+
+    [Test]
+    public async Task Parse_options_without_agent_fail()
+    {
+        // The wizard fallback must never swallow a flag the user typed.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch --model gpt-4");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+        await Assert.That(result.Errors[0].Message).Contains("An agent is required");
+    }
+
+    [Test]
     public async Task Parse_endpoint_and_protocol()
     {
         LaunchCommand command = new LaunchCommand();
