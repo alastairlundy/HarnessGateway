@@ -35,9 +35,12 @@ the ones you want from the table below, and the launcher will find them on your
 "chat" is `openai-chat`, "responses" is `openai-responses`. Asking for a
 protocol a harness doesn't speak exits 3 and names the ones it does.
 
-The agent argument matches the name in the table, case-insensitively and in
-full, so `launch opencode` and `launch OpenCode` are the same thing.
-`launch copilot` is not the same as `launch "GitHub Copilot CLI"` and exits 3.
+Type the **Agent** column, not the product name. `launch copilot` works;
+`launch "GitHub Copilot CLI"` exits 3, because the product name is a label the
+wizard displays, not a token the parser accepts. Matching is case-insensitive,
+so `launch COPILOT` is fine. A handful of extra spellings are accepted as
+aliases (`claude` for `claude-code`, `github-copilot-cli` for `copilot`), and
+`--help` lists only the canonical tokens.
 
 Detection is a `PATH` lookup, so a harness that is installed but not on `PATH`
 reads as missing. Naming the binary is how you check:
@@ -196,7 +199,7 @@ exit 9 and left untouched.
 |------|------|---------|
 | 0 | Ok | Command succeeded |
 | 2 | UsageError | Invalid arguments, or a `remove` that would break the default pointer or empty the entry list |
-| 3 | UnknownAgent | Unrecognized agent name, or a protocol the chosen harness doesn't speak |
+| 3 | UnknownAgent | Unrecognized agent token, or a protocol the chosen harness doesn't speak. A near miss suggests the token it meant |
 | 4 | HarnessUnavailable | The harness binary isn't on `PATH` |
 | 5 | EndpointUnreachable | Reserved; not currently returned |
 | 6 | RequiredModelMissing | Reserved; a missing model currently warns and launches anyway |

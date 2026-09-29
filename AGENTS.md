@@ -21,7 +21,8 @@ CLI (`harnessgateway`) that launches agent harnesses (OpenCode, Kilo, Copilot CL
 - `HarnessGateway.Launcher` — `OutputType=Exe`, distribution is per-OS binaries only. Entry: `Program.cs` + `Commands/` (System.CommandLine) + `Wizard/` (Spectre.Console).
 - `HarnessGateway.Launcher.Core` — domain logic (Adapters, Backends, Settings, Launch, Execution, Configuration). Referenced by the exe; both are `InternalsVisibleTo` the tests.
 - Per-harness behavior lives in `Core/Adapters/*Adapter.cs`, one class per harness: detection, config actions, launch plan. Adding a harness = new adapter class + add it to the `List<IHarnessAdapter>` in `Program.cs` + tests (`HarnessKind` already has `Cli` and `Gui`).
-- Agent lookup is case-insensitive equality on `Metadata.Name` ("OpenCode", "Kilo", "GitHub Copilot CLI", "Pi") — not the short slugs in `LaunchCommand`'s help text; `launch copilot` will not match.
+- `HarnessMetadata.Name` is a **display label** ("GitHub Copilot CLI") and is **not** an input token. `CommandName` is the token (`copilot`); `Aliases` adds extra accepted spellings (`claude`, `github-copilot-cli`). Agent lookup goes through `HarnessLookup.Resolve`, which matches `CommandName` + `Aliases` case-insensitively and never `Name` — so `launch copilot` works and `launch "GitHub Copilot CLI"` exits 3 by design. `LaunchCommand`'s agent help text is **generated** from the registry (`BuildAgentDescription`), never hand-written; `Shipped_adapters_resolve_their_own_command_names` gates that invariant. The wizard lists `Name` but returns `CommandName` in `WizardResult.AgentCommandName`, so the launch path only ever sees tokens.
+- "Did you mean" hints on both the agent and backend paths share `Core/Text/CloseMatch.cs` (prefix, then Levenshtein within 2). Non-contractual UX: tests must not pin hint text.
 
 ## CLI surface & gotchas
 
