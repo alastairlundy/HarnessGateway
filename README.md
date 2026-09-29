@@ -48,8 +48,8 @@ copilot --version
 ```
 
 A named harness that isn't found exits 4 and prints its install line. The
-wizard only offers harnesses it can actually detect, annotating the rest
-`not installed` and refusing them at selection with the same hint.
+wizard annotates harnesses it can't detect `not installed` and refuses them at
+selection with the same hint.
 
 HarnessGateway never edits your shell profile or its own environment. Every
 setting below is scoped to the process it starts:
