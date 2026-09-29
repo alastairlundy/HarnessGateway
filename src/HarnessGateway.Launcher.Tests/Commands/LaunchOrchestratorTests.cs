@@ -304,13 +304,52 @@ public class LaunchOrchestratorTests
         var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
         try
         {
-            var exitCode = await orchestrator.RunAsync(
-                "TestAgent",
-                null,
-                null, null, null, [],
-                tempDir);
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(errorOutput).Contains("requires a model but none was specified");
+            // The warning never blocks: planning still produced a request.
+            await Assert.That(adapter.LastRequest).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_does_not_warn_when_model_provided_for_required_harness()
+    {
+        var adapter = CreateTestAdapter(requiresModel: true);
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        try
+        {
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, "gpt-4", [], tempDir));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
+            await Assert.That(adapter.LastRequest).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_does_not_warn_when_model_not_required()
+    {
+        var adapter = CreateTestAdapter();
+        var (orchestrator, tempDir) = CreateOrchestrator(adapter: adapter);
+        try
+        {
+            var (exitCode, errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
         }
         finally
         {

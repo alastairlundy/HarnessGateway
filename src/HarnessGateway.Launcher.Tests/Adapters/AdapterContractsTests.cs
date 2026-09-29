@@ -81,6 +81,54 @@ public class HarnessMetadataTests
     }
 }
 
+public class ShippedAdapterContractTests
+{
+    // Mirrors the adapter registry inline at Program.cs (the same six
+    // parameterless constructions). Program.cs has no shared factory, so a
+    // seventh adapter added there will not fail this test automatically -
+    // keep both lists in sync.
+    [Test]
+    public async Task Shipped_adapters_declare_expected_model_requirements()
+    {
+        IHarnessAdapter[] shipped =
+        [
+            new OpenCodeAdapter(),
+            new KiloAdapter(),
+            new CopilotCliAdapter(),
+            new PiAdapter(),
+            new CodexAdapter(),
+            new ClaudeCodeAdapter()
+        ];
+
+        Dictionary<string, bool> expected = new()
+        {
+            ["OpenCode"] = true,
+            ["Kilo"] = true,
+            ["GitHub Copilot CLI"] = true,
+            ["Pi"] = false,
+            ["codex"] = true,
+            ["claude-code"] = false
+        };
+
+        string[] names = shipped.Select(adapter => adapter.Metadata.Name).ToArray();
+
+        await Assert.That(names.Length).IsEqualTo(expected.Count);
+        foreach (string name in expected.Keys)
+        {
+            await Assert.That(names.Contains(name)).IsTrue();
+        }
+
+        // RequiresModel is a non-nullable bool, so "no declaration" is
+        // compile-time unrepresentable; this pins the per-harness values so
+        // an adapter flip fails the gate.
+        foreach (IHarnessAdapter adapter in shipped)
+        {
+            await Assert.That(adapter.Metadata.RequiresModel)
+                .IsEqualTo(expected[adapter.Metadata.Name]);
+        }
+    }
+}
+
 public class ConfigurationActionTests
 {
     [Test]

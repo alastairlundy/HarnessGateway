@@ -608,4 +608,65 @@ public class WizardPipelineTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task RunAsync_model_step_requires_input_when_harness_requires_model()
+    {
+        var settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
+        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            var console = new TestConsole();
+            var adapter = WizardTestHelper.CreateTestAdapter("RequiredAgent", requiresModel: true);
+            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("RequiredAgent");
+            console.EnqueueText("https://api.example.com/v1");
+            console.EnqueueText("required-model");
+
+            var result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result!.Model).IsEqualTo("required-model");
+            await Assert.That(
+                console.Prompts.Count(p => p.Title == "Enter model name (required):")).IsEqualTo(1);
+            // Skip is never offered when the harness requires a model.
+            await Assert.That(
+                console.Prompts.Any(p => p.Title == "Model catalogue unavailable:")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_model_step_allows_skip_when_not_required()
+    {
+        var settings = WizardTestHelper.CreateDefaultSettings(apiKey: "hgkey:default");
+        var (tempDir, store, keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            var console = new TestConsole();
+            var adapter = WizardTestHelper.CreateTestAdapter();
+            var pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueText("https://api.example.com/v1");
+            console.EnqueueChoice("[skip]");
+
+            var result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result!.Model).IsNull();
+            await Assert.That(
+                console.Prompts.Count(p => p.Title == "Model catalogue unavailable:")).IsEqualTo(1);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

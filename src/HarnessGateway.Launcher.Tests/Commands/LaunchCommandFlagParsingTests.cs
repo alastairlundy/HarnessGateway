@@ -1,3 +1,4 @@
+using System.CommandLine;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Backends;
 
@@ -54,6 +55,19 @@ public class LaunchCommandFlagParsingTests
         var longForm = command.Parse("launch opencode --model claude-sonnet-5");
 
         await Assert.That(shortForm.Errors).IsEmpty();
+        await Assert.That(shortForm.GetValue(LaunchCommand.ModelOption))
+            .IsEqualTo(longForm.GetValue(LaunchCommand.ModelOption));
+    }
+
+    [Test]
+    public async Task Parse_model_short_alias_via_root_command()
+    {
+        var root = new RootCommand { new LaunchCommand() };
+        var shortForm = root.Parse("launch opencode -m claude-sonnet-5");
+        var longForm = root.Parse("launch opencode --model claude-sonnet-5");
+
+        await Assert.That(shortForm.Errors).IsEmpty();
+        await Assert.That(shortForm.GetValue(LaunchCommand.ModelOption)).IsNotNull();
         await Assert.That(shortForm.GetValue(LaunchCommand.ModelOption))
             .IsEqualTo(longForm.GetValue(LaunchCommand.ModelOption));
     }
