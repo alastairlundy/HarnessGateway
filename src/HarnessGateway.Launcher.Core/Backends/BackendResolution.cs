@@ -4,52 +4,6 @@ using HarnessGateway.Launcher.Core.Text;
 namespace HarnessGateway.Launcher.Core.Backends;
 
 /// <summary>
-/// Typed failure classes for backend resolution. Callers map these to their
-/// own exit codes; the resolver itself never exits.
-/// </summary>
-public enum BackendResolutionFailure
-{
-    None = 0,
-
-    /// <summary>--backend named no saved backend entry.</summary>
-    UnknownBackendName,
-
-    /// <summary>The DefaultBackend pointer names no saved backend entry.</summary>
-    DanglingDefaultBackend,
-
-    /// <summary>The DefaultBackend pointer is empty while entries exist (no first-entry fallback).</summary>
-    AbsentDefaultBackend,
-
-    /// <summary>--protocol was given without --endpoint.</summary>
-    ProtocolWithoutEndpoint,
-
-    /// <summary>--endpoint was given without --protocol.</summary>
-    EndpointWithoutProtocol,
-
-    /// <summary>--endpoint is not an absolute URL.</summary>
-    InvalidEndpoint,
-
-    /// <summary>--protocol is not one of the known protocol words.</summary>
-    InvalidProtocol
-}
-
-/// <summary>
-/// Outcome of a backend resolution: either a resolved backend (which may be
-/// null when nothing is configured at all) or a typed failure with a
-/// user-facing message.
-/// </summary>
-public sealed record BackendResolutionResult
-{
-    public Backend? Backend { get; init; }
-
-    public BackendResolutionFailure Failure { get; init; } = BackendResolutionFailure.None;
-
-    public string? Message { get; init; }
-
-    public bool IsSuccess => Failure == BackendResolutionFailure.None;
-}
-
-/// <summary>
 /// Profile-aware backend resolution shared by the launch path and the
 /// config/wizard read paths: named-entry selection, the strict
 /// <c>DefaultBackend</c> pointer read (no first-entry fallback, no
