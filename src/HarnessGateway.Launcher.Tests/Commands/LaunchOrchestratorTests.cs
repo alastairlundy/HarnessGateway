@@ -261,8 +261,15 @@ public class LaunchOrchestratorTests
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
-            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
-            await Assert.That(errorOutput).Contains("no backend is configured");
+            // A missing backend is a usage error. It exited 7 before, which is
+            // the code for credential-store failures and unhandled exceptions,
+            // so a first-run mistake read as a config-restore failure.
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("No backend is configured");
+
+            // The "Launch failed:" prefix is reserved for the unhandled-exception
+            // path; a user-rectifiable usage error must not borrow it.
+            await Assert.That(errorOutput).DoesNotContain("Launch failed:");
         }
         finally
         {

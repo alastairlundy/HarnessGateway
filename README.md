@@ -199,12 +199,12 @@ exit 9 and left untouched.
 | Code | Name | Meaning |
 |------|------|---------|
 | 0 | Ok | Command succeeded |
-| 2 | UsageError | Invalid arguments, or a `remove` that would break the default pointer or empty the entry list |
+| 2 | UsageError | Invalid arguments, a launch with no backend configured, or a `remove` that would break the default pointer or empty the entry list |
 | 3 | UnknownAgent | Unrecognized agent token, or a protocol the chosen harness doesn't speak. A near miss suggests the token it meant |
 | 4 | HarnessUnavailable | The harness binary isn't on `PATH` |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
 | 6 | RequiredModelMissing | **Reserved.** Declared but never returned; a harness that needs a model and has none is warned about, then launched anyway |
-| 7 | ConfigRestoreFailure | Credential-store failure, no backend configured, or an unhandled launch error |
+| 7 | ConfigRestoreFailure | Credential-store failure, or an unhandled launch error. Messages from the unhandled path start with `Launch failed:` |
 | 8 | UnknownBackendName | `--backend` named no entry, or the `defaultBackend` pointer dangles or is empty while entries exist |
 | 9 | UnsupportedSettingsSchema | `schemaVersion` is missing, malformed, or newer than this build. Nothing is written |
 | 10 | ConfigConflict | A user-authored `model_providers.harnessgateway` block already exists in the codex config |

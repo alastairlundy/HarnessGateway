@@ -79,16 +79,26 @@ public sealed class LaunchOrchestrator
             // A successful resolution can still carry no backend at all: empty
             // settings with no --endpoint/--protocol override. Adapters need a
             // backend, so refuse here with a readable message instead of
-            // NRE-ing inside PlanLaunchAsync. Exit 7 preserves the code the
-            // unhandled-exception path produced before this guard existed (the
-            // exit-code table is append-only, so no dedicated code yet).
+            // NRE-ing inside PlanLaunchAsync.
+            //
+            // This is a usage error, not a restore failure: nothing is corrupt
+            // and nothing threw, the caller simply has not supplied a backend.
+            // It used to exit 7 purely because that was what the
+            // unhandled-exception path produced before this guard existed, and
+            // scripts learned to read a first-run mistake as a config-restore
+            // failure. Exit 2 already means "the invocation was missing
+            // something it needs".
+            //
+            // No "Launch failed:" prefix: that marker is reserved for the
+            // unhandled-exception path, and a user-rectifiable usage error
+            // should not read like an internal one.
             if (backend is null)
             {
                 Console.Error.WriteLine(
-                    "Launch failed: no backend is configured. Run 'harnessgateway " +
+                    "No backend is configured. Run 'harnessgateway " +
                     "config set-default-endpoint <url> <protocol>' to save one, or pass " +
                     "--endpoint <url> --protocol <protocol> for a one-off launch.");
-                return (int)LaunchExitCode.ConfigRestoreFailure;
+                return (int)LaunchExitCode.UsageError;
             }
 
             // Fail before any configuration action when the resolved backend's
@@ -108,7 +118,7 @@ public sealed class LaunchOrchestrator
                 return (int)LaunchExitCode.UnknownAgent;
             }
 
-            string? resolvedModel = ResolveModel(model, backend, adapter, persistValues);
+            string? resolvedModel = ResolveModel(model, backend, adapter);
 
             // Resolve the at-rest key reference into the secret on this local
             // copy only: `settings` keeps carrying the reference, so a later
@@ -168,7 +178,19 @@ public sealed class LaunchOrchestrator
     private IHarnessAdapter? FindAdapter(string agentName) =>
         HarnessLookup.Resolve(_adapters, agentName);
 
-    private string? ResolveModel(string? model, Backend? backend, IHarnessAdapter adapter, IReadOnlyList<string> persistValues)
+    /// <summary>
+    /// Picks the model for this launch: the explicit <c>--model</c> value, else
+    /// the resolved entry's saved default.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately unaware of <c>--persist</c>. Whether the model is saved is
+    /// decided by the caller after the child process exits, not here, so this
+    /// takes only what model resolution actually needs. (It used to accept
+    /// <c>persistValues</c> and ignore it, from the orchestrator's first
+    /// commit.) This is also where a missing required model is warned about,
+    /// and where exit code 6 would belong if that ever became a refusal.
+    /// </remarks>
+    private string? ResolveModel(string? model, Backend? backend, IHarnessAdapter adapter)
     {
         string? resolvedModel = model;
 
