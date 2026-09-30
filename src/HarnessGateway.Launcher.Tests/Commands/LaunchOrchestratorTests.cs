@@ -896,7 +896,7 @@ public class LaunchOrchestratorTests
             await Assert.That(planDuringLaunch.ConfigurationActions).IsEmpty();
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
 
-            // D012: a keyless backend never reaches the store at all.
+            // A keyless backend never reaches the store at all.
             await Assert.That(keyStore.RetrieveCallCount).IsEqualTo(0);
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
         }

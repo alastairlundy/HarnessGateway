@@ -32,7 +32,7 @@ public sealed class WizardPipeline
     {
         LauncherSettings settings = _settingsStore.Load();
 
-        // Strict default-pointer read (T033/TK006): no first-entry fallback.
+        // Strict default-pointer read: no first-entry fallback.
         // A dangling or absent pointer is user-rectifiable - surface the
         // resolver's message (it names 'config backend switch') and abort;
         // a first run resolves to null and prompts with no prefill.
@@ -51,7 +51,7 @@ public sealed class WizardPipeline
 
         Backend? defaultBackend = resolution.Backend;
 
-        // T034 locked order (harness, endpoint, key, model). The pairing
+        // Locked step order (harness, endpoint, key, model). The pairing
         // guard re-enters only the harness step: the endpoint step runs
         // exactly once and its typed endpoint/protocol survive a loop-back.
         ProtocolKind? protocolToCheck = defaultBackend?.Protocol;
@@ -79,7 +79,7 @@ public sealed class WizardPipeline
                 break;
             }
 
-            // Post-endpoint re-verify (T028): the interactive counterpart of
+            // Post-endpoint re-verify: the interactive counterpart of
             // the direct-mode exit-3 pre-check. A dead end aborts before the
             // refusal so an unsupported protocol can never trap the user in a
             // re-prompt loop; otherwise mirror the direct-mode reason and loop
@@ -159,7 +159,7 @@ public sealed class WizardPipeline
             return null;
         }
 
-        // Dead-end guard (D023): selection is restricted to installed
+        // Dead-end guard: selection is restricted to installed
         // harnesses, so a step that no available adapter can satisfy (no
         // harness installed at all, or none installed that supports the
         // required protocol) has no valid pick - abort with install hints
@@ -194,9 +194,9 @@ public sealed class WizardPipeline
             IHarnessAdapter? selected = _adapters.FirstOrDefault(a =>
                 string.Equals(a.Metadata.Name, pick, StringComparison.OrdinalIgnoreCase));
 
-            // D023: refuse an unavailable harness at selection - the launch
+            // Refuse an unavailable harness at selection - the launch
             // cannot work (direct mode's orchestrator check would refuse it
-            // later anyway, D018), so fail here with the install hint rather
+            // later anyway), so fail here with the install hint rather
             // than after the endpoint, key, and model steps.
             if (selected is not null && !await selected.IsAvailableAsync(cancellationToken).ConfigureAwait(true))
             {
@@ -258,7 +258,7 @@ public sealed class WizardPipeline
         _adapters.Any(adapter => adapter.Metadata.SupportedProtocols.Contains(protocol));
 
     /// <summary>
-    /// D023 selection guard: is there at least one harness that is both
+    /// Selection guard: is there at least one harness that is both
     /// installed and (when a protocol is pinned) able to speak it?
     /// </summary>
     private async Task<bool> AnyAdapterAvailableSupportsAsync(

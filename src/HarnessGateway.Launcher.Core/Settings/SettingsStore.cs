@@ -183,7 +183,7 @@ public sealed class SettingsStore
 /// Failure raised when the settings file's declared <c>schemaVersion</c> cannot
 /// be read by this build: the field is missing, is not a supported version
 /// number, or names a version newer than the tool understands. Messages carry
-/// the T039 phrase "unsupported settings schema version", the file path, the
+/// the "unsupported settings schema version" phrase, the file path, the
 /// declared vs. supported version, and a remedy - never secret material.
 /// Callers map this to exit code 9 (<c>UnsupportedSettingsSchema</c>).
 /// </summary>

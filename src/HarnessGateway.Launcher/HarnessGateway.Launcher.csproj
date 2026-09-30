@@ -3,7 +3,7 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
-        <!-- Binary is `harnessgateway`; project and namespace stay HarnessGateway.Launcher (D017: one CLI project owns proxy verbs later). -->
+        <!-- Binary is `harnessgateway`; project and namespace stay HarnessGateway.Launcher (one CLI project owns proxy verbs later). -->
         <AssemblyName>harnessgateway</AssemblyName>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>

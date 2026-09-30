@@ -5,7 +5,7 @@ namespace HarnessGateway.Launcher.Tests.Fakes;
 /// <summary>
 /// In-memory <see cref="ISecureKeyStore"/> for the test gate: no keychain, no
 /// external process, and no launcher-owned file. Call counters let tests prove
-/// that a keyless backend never reaches the store (D012).
+/// that a keyless backend never reaches the store.
 /// </summary>
 public sealed class FakeSecureKeyStore : ISecureKeyStore
 {

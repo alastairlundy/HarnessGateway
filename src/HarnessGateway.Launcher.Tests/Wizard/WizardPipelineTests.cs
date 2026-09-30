@@ -38,7 +38,7 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_refuses_unavailable_harness_and_reprompts()
     {
-        // D023: selecting a harness that is not installed must not walk the
+        // Selecting a harness that is not installed must not walk the
         // endpoint/key/model steps towards the orchestrator's exit-4 refusal.
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try

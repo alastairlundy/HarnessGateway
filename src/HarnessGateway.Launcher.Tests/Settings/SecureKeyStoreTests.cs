@@ -5,7 +5,7 @@ namespace HarnessGateway.Launcher.Tests.Settings;
 
 /// <summary>
 /// Construction-level coverage only: the gate never opens a real keychain or
-/// spawns a real credential process (T009 fakes strategy) - the interface
+/// spawns a real credential process (fakes strategy) - the interface
 /// contract runs against <see cref="FakeSecureKeyStore"/>, and the real
 /// round-trips are review-level OS checks outside the gate.
 /// </summary>

@@ -117,7 +117,7 @@ public class BackendCommandsTests
             await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
 
             // Decision 3: add never moves the default pointer (switch owns it),
-            // and a declined prompt yields a keyless entry (D012) with no store call.
+            // and a declined prompt yields a keyless entry with no store call.
             await Assert.That(saved.DefaultBackend).IsEqualTo(string.Empty);
             await Assert.That(saved.Backends[0].ApiKey).IsNull();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
