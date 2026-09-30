@@ -45,7 +45,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     WizardResult? wizardResult;
     try
     {
-        wizardResult = await wizard.RunAsync(cancellationToken);
+        wizardResult = await wizard.RunAsync(cancellationToken).ConfigureAwait(true);
     }
     catch (UnsupportedSettingsSchemaException ex)
     {
@@ -73,7 +73,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         wizardResult.Model,
         wizardResult.ApiKey is not null ? ["config"] : [],
         Directory.GetCurrentDirectory(),
-        cancellationToken);
+        cancellationToken).ConfigureAwait(true);
 }
 
 LaunchCommand launchCommand = new(orchestrator, RunWizardAsync, adapters);
@@ -84,6 +84,6 @@ RootCommand rootCommand = new("harnessgateway - Configure and launch agent harne
     new ConfigCommand(settingsStore, keyStore)
 };
 
-rootCommand.SetAction(async (result, cancellationToken) => await RunWizardAsync(cancellationToken));
+rootCommand.SetAction(async (result, cancellationToken) => await RunWizardAsync(cancellationToken).ConfigureAwait(true));
 
 return rootCommand.Parse(args).Invoke();

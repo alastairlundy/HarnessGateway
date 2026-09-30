@@ -1,6 +1,5 @@
-using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Backends.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Core.Settings.Security;
@@ -46,7 +45,7 @@ public sealed class WizardPipeline
 
         if (!resolution.IsSuccess)
         {
-            _console.WriteError(resolution.Message ?? string.Empty);
+            await _console.WriteErrorAsync(resolution.Message ?? string.Empty, cancellationToken).ConfigureAwait(true);
             return null;
         }
 
@@ -58,20 +57,20 @@ public sealed class WizardPipeline
         ProtocolKind? protocolToCheck = defaultBackend?.Protocol;
         bool annotateIncompatible = false;
         (string? endpoint, ProtocolKind protocol) endpointResult = (null, ProtocolKind.OpenAiChat);
-        string? harnessName = null;
-        IHarnessAdapter? adapter = null;
+        string? harnessName;
+        IHarnessAdapter? adapter;
 
         while (true)
         {
             harnessName = await RunHarnessStepAsync(
-                protocolToCheck, annotateIncompatible, cancellationToken);
+                protocolToCheck, annotateIncompatible, cancellationToken).ConfigureAwait(true);
             if (harnessName is null) return null;
 
             adapter = HarnessLookup.Resolve(_adapters, harnessName);
 
             if (endpointResult.endpoint is null)
             {
-                endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken);
+                endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken).ConfigureAwait(true);
                 if (endpointResult.endpoint is null) return null;
             }
 
@@ -91,16 +90,16 @@ public sealed class WizardPipeline
                 return null;
             }
 
-            _console.WriteError(BuildIncompatibleMessage(
+            await _console.WriteErrorAsync(BuildIncompatibleMessage(
                 adapter.Metadata.Name,
                 endpointResult.protocol,
-                adapter.Metadata.SupportedProtocols));
+                adapter.Metadata.SupportedProtocols), cancellationToken).ConfigureAwait(true);
 
             protocolToCheck = endpointResult.protocol;
             annotateIncompatible = true;
         }
 
-        // Resolve the saved entry before the key and model steps so catalog HTTP
+        // Resolve the saved entry before the key and model steps so catalogue HTTP
         // auth and the key step both see the secret, never the at-rest
         // reference - and so a dangling reference names the saved backend.
         Backend? resolvedBackend = defaultBackend;
@@ -108,11 +107,11 @@ public sealed class WizardPipeline
         {
             try
             {
-                resolvedBackend = await BackendKeyResolver.ResolveAsync(resolvedBackend, _keyStore, cancellationToken);
+                resolvedBackend = await BackendKeyResolver.ResolveAsync(resolvedBackend, _keyStore, cancellationToken).ConfigureAwait(true);
             }
             catch (SecureKeyStoreException ex)
             {
-                _console.WriteError(ex.Message);
+                await _console.WriteErrorAsync(ex.Message, cancellationToken).ConfigureAwait(true);
                 return null;
             }
         }
@@ -120,19 +119,19 @@ public sealed class WizardPipeline
         Backend effectiveBackend = new()
         {
             Name = "wizard",
-            BaseUri = new(endpointResult.endpoint),
+            BaseUri = new Uri(endpointResult.endpoint),
             Protocol = endpointResult.protocol,
             ApiKey = resolvedBackend?.ApiKey
         };
 
-        string? apiKey = await RunKeyStepAsync(effectiveBackend, cancellationToken);
+        string? apiKey = await RunKeyStepAsync(effectiveBackend, cancellationToken).ConfigureAwait(true);
 
         ModelStep modelStep = new(_console, _catalogClient, effectiveBackend);
         bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
         string? savedDefaultModel = defaultBackend?.DefaultModel;
-        string? model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken);
+        string? model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
 
-        return new(
+        return new WizardResult(
             AgentCommandName: harnessName,
             Endpoint: endpointResult.endpoint!,
             Protocol: endpointResult.protocol,
@@ -147,7 +146,8 @@ public sealed class WizardPipeline
     {
         if (_adapters.Count == 0)
         {
-            _console.WriteError("No agent harnesses found.");
+            await _console.WriteErrorAsync("No agent harnesses found.",
+                cancellationToken).ConfigureAwait(true);
             return null;
         }
 
@@ -164,7 +164,7 @@ public sealed class WizardPipeline
         // harness installed at all, or none installed that supports the
         // required protocol) has no valid pick - abort with install hints
         // instead of re-prompting forever.
-        if (!await AnyAdapterAvailableSupportsAsync(protocolToCheck, cancellationToken))
+        if (!await AnyAdapterAvailableSupportsAsync(protocolToCheck, cancellationToken).ConfigureAwait(true))
         {
             if (protocolToCheck is null)
             {
@@ -182,10 +182,10 @@ public sealed class WizardPipeline
         while (true)
         {
             List<ConsoleChoice> choices = await BuildHarnessChoicesAsync(
-                protocolToCheck, showIncompatible, cancellationToken);
+                protocolToCheck, showIncompatible, cancellationToken).ConfigureAwait(true);
 
             string pick = await _console.PromptChoiceAsync(
-                "Select a harness:", choices, cancellationToken);
+                "Select a harness:", choices, cancellationToken).ConfigureAwait(true);
 
             // The picker labels each choice with Metadata.Name, so `pick` is a
             // display label rather than an input token. Resolve it by display
@@ -198,9 +198,9 @@ public sealed class WizardPipeline
             // cannot work (direct mode's orchestrator check would refuse it
             // later anyway, D018), so fail here with the install hint rather
             // than after the endpoint, key, and model steps.
-            if (selected is not null && !await selected.IsAvailableAsync(cancellationToken))
+            if (selected is not null && !await selected.IsAvailableAsync(cancellationToken).ConfigureAwait(true))
             {
-                _console.WriteError(BuildNotInstalledMessage(selected));
+                await _console.WriteErrorAsync(BuildNotInstalledMessage(selected), cancellationToken).ConfigureAwait(true);
                 continue;
             }
 
@@ -215,8 +215,8 @@ public sealed class WizardPipeline
                 return selected is null ? pick : selected.Metadata.CommandName;
             }
 
-            _console.WriteError(BuildIncompatibleMessage(
-                pick, protocolToCheck.Value, selected.Metadata.SupportedProtocols));
+            await _console.WriteErrorAsync(BuildIncompatibleMessage(
+                pick, protocolToCheck.Value, selected.Metadata.SupportedProtocols), cancellationToken).ConfigureAwait(true);
             showIncompatible = true;
         }
     }
@@ -230,7 +230,7 @@ public sealed class WizardPipeline
 
         foreach (IHarnessAdapter adapter in _adapters)
         {
-            bool isAvailable = await adapter.IsAvailableAsync(cancellationToken);
+            bool isAvailable = await adapter.IsAvailableAsync(cancellationToken).ConfigureAwait(true);
 
             string? incompatible = null;
             if (showIncompatible
@@ -246,7 +246,7 @@ public sealed class WizardPipeline
             if (!isAvailable) annotations.Add("not installed");
             if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
 
-            choices.Add(new(
+            choices.Add(new ConsoleChoice(
                 adapter.Metadata.Name,
                 annotations.Count > 0 ? string.Join("; ", annotations) : null));
         }
@@ -272,7 +272,7 @@ public sealed class WizardPipeline
                 continue;
             }
 
-            if (await adapter.IsAvailableAsync(cancellationToken))
+            if (await adapter.IsAvailableAsync(cancellationToken).ConfigureAwait(true))
             {
                 return true;
             }
@@ -297,7 +297,7 @@ public sealed class WizardPipeline
             $"No installed agent harness supports the {BackendResolution.ProtocolName(protocol)} " +
             "protocol. Install one and re-run:");
         foreach (IHarnessAdapter adapter in _adapters.Where(
-            a => a.Metadata.SupportedProtocols.Contains(protocol)))
+                     a => a.Metadata.SupportedProtocols.Contains(protocol)))
         {
             _console.WriteError($"  {adapter.Metadata.Name}: {adapter.Metadata.InstallHint}");
         }
@@ -359,13 +359,13 @@ public sealed class WizardPipeline
             input = await _console.PromptTextAsync(
                 "Endpoint URL:",
                 defaultValue: defaultValue,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken).ConfigureAwait(true);
 
             if (!string.IsNullOrWhiteSpace(input)) break;
 
-            _console.WriteError(
+            await _console.WriteErrorAsync(
                 "Endpoint URL is required, e.g. https://api.example.com/v1. " +
-                "Press Ctrl+C to cancel.");
+                "Press Ctrl+C to cancel.", cancellationToken).ConfigureAwait(true);
         }
 
         input = input.Trim();
@@ -385,7 +385,8 @@ public sealed class WizardPipeline
             new("anthropic")
         ];
 
-        string protocolStr = await _console.PromptChoiceAsync("Protocol:", protocolChoices, cancellationToken);
+        string protocolStr = await _console.PromptChoiceAsync("Protocol:", 
+            protocolChoices, cancellationToken).ConfigureAwait(true);
         ProtocolKind parsedProtocol = protocolStr switch
         {
             "openai-chat" => ProtocolKind.OpenAiChat,
@@ -423,7 +424,7 @@ public sealed class WizardPipeline
         string key = await _console.PromptTextAsync(
             "API key (will not be saved):",
             secret: true,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(true);
 
         return string.IsNullOrWhiteSpace(key) ? null : key.Trim();
     }

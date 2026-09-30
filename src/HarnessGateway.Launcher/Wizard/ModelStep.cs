@@ -1,4 +1,3 @@
-using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Backends.Models;
 
 namespace HarnessGateway.Launcher.Wizard;
@@ -33,22 +32,23 @@ public sealed class ModelStep
         {
             try
             {
-                catalog = await _fetchModels(_backend, cancellationToken);
+                catalog = await _fetchModels(_backend, cancellationToken).ConfigureAwait(true);
             }
             catch
             {
-                _console.WriteError("Could not fetch model catalog. Endpoint may be unreachable.");
+                await _console.WriteErrorAsync("Could not fetch model catalogue. Endpoint may be unreachable.", cancellationToken).ConfigureAwait(true);
             }
         }
 
         bool hasCatalog = catalog is { Models.Count: > 0 };
 
-        if (!hasCatalog)
+        if (!hasCatalog || catalog is null)
         {
-            return await RunDegradedAsync(requiresModel, savedDefaultModel, cancellationToken);
+            return await RunDegradedAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
         }
 
-        return await RunWithCatalogAsync(catalog!, requiresModel, savedDefaultModel, cancellationToken);
+        return await RunWithCatalogAsync(catalog,
+            requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
     }
 
     private async Task<string?> RunWithCatalogAsync(
@@ -70,16 +70,16 @@ public sealed class ModelStep
             string? annotation = string.Equals(model.Id, savedDefaultModel, StringComparison.OrdinalIgnoreCase)
                 ? "saved default"
                 : null;
-            choices.Add(new(model.Id, annotation));
+            choices.Add(new ConsoleChoice(model.Id, annotation));
         }
 
         string title = requiresModel
             ? "Select a model (required):"
             : "Select a model (or skip):";
 
-        string selected = await _console.PromptChoiceAsync(title, choices, cancellationToken);
+        string selected = await _console.PromptChoiceAsync(title, choices, cancellationToken).ConfigureAwait(true);
 
-        if (selected == "[skip]")
+        if (string.Equals(selected, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -94,27 +94,27 @@ public sealed class ModelStep
     {
         if (savedDefaultModel is not null)
         {
-            _console.WriteMarkup($"Using saved default model: [green]{savedDefaultModel}[/]");
+            await _console.WriteMarkupAsync($"Using saved default model: [green]{savedDefaultModel}[/]", cancellationToken).ConfigureAwait(true);
             return savedDefaultModel;
         }
 
         if (requiresModel)
         {
-            string model = await _console.PromptTextAsync("Enter model name (required):", cancellationToken: cancellationToken);
+            string model = await _console.PromptTextAsync("Enter model name (required):", cancellationToken: cancellationToken).ConfigureAwait(true);
             return string.IsNullOrWhiteSpace(model) ? null : model.Trim();
         }
 
         string skip = await _console.PromptChoiceAsync("Model catalogue unavailable:", [
-            new("[skip]", "do not set a model"),
-            new("[manual]", "enter a model name manually")
-        ], cancellationToken);
+            new ConsoleChoice("[skip]", "do not set a model"),
+            new ConsoleChoice("[manual]", "enter a model name manually"),
+        ], cancellationToken).ConfigureAwait(true);
 
-        if (skip == "[skip]")
+        if (string.Equals(skip, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        string manualModel = await _console.PromptTextAsync("Enter model name:", cancellationToken: cancellationToken);
+        string manualModel = await _console.PromptTextAsync("Enter model name:", cancellationToken: cancellationToken).ConfigureAwait(true);
         return string.IsNullOrWhiteSpace(manualModel) ? null : manualModel.Trim();
     }
 }

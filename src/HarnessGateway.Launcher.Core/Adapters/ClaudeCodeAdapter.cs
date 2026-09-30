@@ -39,7 +39,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
-        string? result = await _detectCommand("claude", cancellationToken);
+        string? result = await _detectCommand("claude", cancellationToken).ConfigureAwait(false);
         return result is not null;
     }
 
@@ -49,7 +49,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
         // scoped to the spawned process. No config file is ever read or written,
         // so the user's durable Claude Code settings are untouched and the
         // launcher's own process environment is never mutated.
-        List<ConfigurationAction> actions = new();
+        List<ConfigurationAction> actions = [];
         Dictionary<string, string> envVars = new()
         {
             ["ANTHROPIC_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/')
@@ -79,7 +79,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
             Arguments = string.Empty,
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
-            EnvironmentVariables = envVars
+            EnvironmentVariables = envVars,
         };
 
         return Task.FromResult(new LaunchPlan(config, actions));
@@ -92,10 +92,11 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
             string fileName = OperatingSystem.IsWindows() ? "where" : "which";
             ProcessConfiguration config = new(fileName, command)
             {
-                OutputRedirection = true
+                OutputRedirection = true,
             };
 
-            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
             return result.ExitCode == 0 ? command : null;
         }
         catch

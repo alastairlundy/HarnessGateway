@@ -52,7 +52,7 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
             StoreOperation,
             SpawnFailure,
             writer,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         if (result.ExitCode != 0)
         {
@@ -74,7 +74,7 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
             LoadOperation,
             SpawnFailure,
             standardInput: null,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
 
         // A non-zero exit is the miss path: no item, or an item this user may not
         // read. Either way the interface reports "no entry".
@@ -102,6 +102,6 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
             DeleteOperation,
             SpawnFailure,
             standardInput: null,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 }

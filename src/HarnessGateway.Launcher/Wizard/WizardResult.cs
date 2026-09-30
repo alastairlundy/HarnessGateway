@@ -1,5 +1,3 @@
-using HarnessGateway.Launcher.Core.Backends;
-
 namespace HarnessGateway.Launcher.Wizard;
 
 /// <summary>

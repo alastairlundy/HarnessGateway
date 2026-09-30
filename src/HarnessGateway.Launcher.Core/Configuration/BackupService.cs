@@ -30,7 +30,7 @@ public sealed class BackupService
         byte[]? originalBytes = null;
         if (File.Exists(targetPath))
         {
-            originalBytes = await File.ReadAllBytesAsync(targetPath, cancellationToken);
+            originalBytes = await File.ReadAllBytesAsync(targetPath, cancellationToken).ConfigureAwait(false);
         }
 
         BackupRecord record = new(targetPath, originalBytes, Persisted: false);
@@ -38,7 +38,7 @@ public sealed class BackupService
 
         string backupPath = GetBackupPath(targetPath);
         string json = JsonSerializer.Serialize(record, SerializerOptions);
-        await File.WriteAllTextAsync(backupPath, json, cancellationToken);
+        await File.WriteAllTextAsync(backupPath, json, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task RestoreOnExitAsync(bool persistConfig, CancellationToken cancellationToken = default)
@@ -55,7 +55,7 @@ public sealed class BackupService
                 continue;
             }
 
-            await RestoreRecordAsync(record, cancellationToken);
+            await RestoreRecordAsync(record, cancellationToken).ConfigureAwait(false);
 
             string backupFilePath = GetBackupPath(record.TargetPath);
             if (File.Exists(backupFilePath))
@@ -77,7 +77,7 @@ public sealed class BackupService
         string[] backupFiles = Directory.GetFiles(_backupsDirectory, "*.json");
         foreach (string backupFile in backupFiles)
         {
-            string json = await File.ReadAllTextAsync(backupFile, cancellationToken);
+            string json = await File.ReadAllTextAsync(backupFile, cancellationToken).ConfigureAwait(false);
             BackupRecord? record = JsonSerializer.Deserialize<BackupRecord>(json, SerializerOptions);
             if (record is null)
             {
@@ -89,7 +89,7 @@ public sealed class BackupService
                 continue;
             }
 
-            await RestoreRecordAsync(record, cancellationToken);
+            await RestoreRecordAsync(record, cancellationToken).ConfigureAwait(false);
             File.Delete(backupFile);
         }
     }
@@ -127,7 +127,7 @@ public sealed class BackupService
 
         if (record.OriginalBytes is not null)
         {
-            await File.WriteAllBytesAsync(record.TargetPath, record.OriginalBytes, cancellationToken);
+            await File.WriteAllBytesAsync(record.TargetPath, record.OriginalBytes, cancellationToken).ConfigureAwait(false);
         }
         else if (File.Exists(record.TargetPath))
         {

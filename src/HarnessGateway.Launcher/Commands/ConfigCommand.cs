@@ -1,5 +1,4 @@
 using System.CommandLine;
-using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Core.Settings.Security;
 
@@ -92,7 +91,7 @@ public sealed class ConfigCommand : Command
                 {
                     await _keyStore.DeleteAsync(
                         KeyReference.ForBackend(backend.Name),
-                        cancellationToken);
+                        cancellationToken).ConfigureAwait(true);
                 }
                 catch (SecureKeyStoreException ex)
                 {
@@ -144,9 +143,11 @@ public sealed class ConfigCommand : Command
             Description = "The protocol (openai-chat, openai-responses, anthropic)"
         };
 
-        Command cmd = new("set-default-endpoint", "Set the default backend endpoint and protocol");
-        cmd.Add(endpointArg);
-        cmd.Add(protocolArg);
+        Command cmd = new("set-default-endpoint", "Set the default backend endpoint and protocol")
+        {
+            endpointArg,
+            protocolArg
+        };
 
         cmd.SetAction((result) =>
         {
@@ -200,8 +201,7 @@ public sealed class ConfigCommand : Command
             Description = "The API key to save"
         };
 
-        Command cmd = new("set-saved-key", "Save an API key for the default backend");
-        cmd.Add(keyArg);
+        Command cmd = new("set-saved-key", "Save an API key for the default backend") { keyArg };
 
         cmd.SetAction(async (result, cancellationToken) =>
         {
@@ -215,18 +215,18 @@ public sealed class ConfigCommand : Command
 
             if (backend is null)
             {
-                Console.Error.WriteLine("No default backend configured. Run 'harnessgateway config set-default-endpoint' first.");
+                await Console.Error.WriteLineAsync("No default backend configured. Run 'harnessgateway config set-default-endpoint' first.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
             string reference = KeyReference.ForBackend(backend.Name);
             try
             {
-                await _keyStore.StoreAsync(reference, key, cancellationToken);
+                await _keyStore.StoreAsync(reference, key, cancellationToken).ConfigureAwait(true);
             }
             catch (SecureKeyStoreException ex)
             {
-                Console.Error.WriteLine(ex.Message);
+                await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
                 return (int)LaunchExitCode.ConfigRestoreFailure;
             }
 
@@ -247,8 +247,7 @@ public sealed class ConfigCommand : Command
             Description = "The default model name"
         };
 
-        Command cmd = new("set-default-model", "Set the default model for the default backend");
-        cmd.Add(modelArg);
+        Command cmd = new("set-default-model", "Set the default model for the default backend") { modelArg };
 
         cmd.SetAction((result) =>
         {

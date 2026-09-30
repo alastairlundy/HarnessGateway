@@ -1,6 +1,5 @@
 using System.CommandLine;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
 
 namespace HarnessGateway.Launcher.Commands;
 
@@ -16,7 +15,7 @@ public sealed class LaunchCommand : Command
         // agent are still rejected (see the validator below).
         //
         // The Description is set in the constructor from the adapter list, not
-        // here: a hand-written name list drifts from Program.cs's registry, and
+        // here: a handwritten name list drifts from Program.cs's registry, and
         // it already had to lie once (it advertised "copilot" while lookup
         // matched "GitHub Copilot CLI").
         Arity = ArgumentArity.ZeroOrOne
@@ -48,7 +47,7 @@ public sealed class LaunchCommand : Command
         AllowMultipleArgumentsPerToken = true
     };
 
-    public LaunchCommand() : this(null)
+    public LaunchCommand() : this(null, null)
     {
     }
 
@@ -149,12 +148,12 @@ public sealed class LaunchCommand : Command
             {
                 if (_wizardAction is not null)
                 {
-                    return await _wizardAction(cancellationToken);
+                    return await _wizardAction(cancellationToken).ConfigureAwait(true);
                 }
 
-                Console.Error.WriteLine(
+                await Console.Error.WriteLineAsync(
                     "An agent is required: harnessgateway launch <agent>. " +
-                    "Run 'harnessgateway launch' with no options to use the interactive wizard.");
+                    "Run 'harnessgateway launch' with no options to use the interactive wizard.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
@@ -167,7 +166,12 @@ public sealed class LaunchCommand : Command
                 ? ParsePersistValues(persistValues)
                 : new List<string>();
 
-            return await _orchestrator!.RunAsync(
+            if (orchestrator is null)
+            {
+                
+            }
+            
+            return await _orchestrator.RunAsync(
                 agent,
                 backendName,
                 endpoint,
@@ -175,7 +179,7 @@ public sealed class LaunchCommand : Command
                 model,
                 persist,
                 Directory.GetCurrentDirectory(),
-                cancellationToken);
+                cancellationToken).ConfigureAwait(true);
         });
     }
 
@@ -200,7 +204,7 @@ public sealed class LaunchCommand : Command
 
     public static ProtocolKind ParseProtocol(string value) =>
         BackendResolution.TryParseProtocol(value)
-            ?? throw new ArgumentException($"Unknown protocol: {value}");
+        ?? throw new ArgumentException($"Unknown protocol: {value}");
 
     public static string ProtocolName(ProtocolKind protocol) => BackendResolution.ProtocolName(protocol);
 
@@ -208,7 +212,7 @@ public sealed class LaunchCommand : Command
 
     public static IReadOnlyList<string> ParsePersistValues(string[] values)
     {
-        List<string> result = new();
+        List<string> result = [];
         foreach (string value in values)
         {
             foreach (string part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))

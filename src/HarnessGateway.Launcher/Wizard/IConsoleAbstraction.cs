@@ -6,6 +6,7 @@ public interface IConsoleAbstraction
     Task<string> PromptTextAsync(string prompt, string? defaultValue = null, bool secret = false, CancellationToken cancellationToken = default);
     void WriteMarkup(string message);
     void WriteError(string message);
+    
+    Task WriteErrorAsync(string message, CancellationToken cancellationToken = default);
+    Task WriteMarkupAsync(string message, CancellationToken cancellationToken = default);
 }
-
-public sealed record ConsoleChoice(string Name, string? Annotation = null);

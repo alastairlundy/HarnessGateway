@@ -18,8 +18,8 @@ public sealed class ModelCatalogClient
         {
             return backend.Protocol switch
             {
-                ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => await FetchOpenAiModelsAsync(backend, cancellationToken),
-                ProtocolKind.Anthropic => await FetchAnthropicModelsAsync(backend, cancellationToken),
+                ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => await FetchOpenAiModelsAsync(backend, cancellationToken).ConfigureAwait(false),
+                ProtocolKind.Anthropic => await FetchAnthropicModelsAsync(backend, cancellationToken).ConfigureAwait(false),
                 _ => new([], DateTimeOffset.UtcNow)
             };
         }
@@ -38,10 +38,10 @@ public sealed class ModelCatalogClient
             request.Headers.Authorization = new("Bearer", backend.ApiKey);
         }
 
-        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
+        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        OpenAiModelsResponse? openAiResponse = await response.Content.ReadFromJsonAsync<OpenAiModelsResponse>(cancellationToken: cancellationToken);
+        OpenAiModelsResponse? openAiResponse = await response.Content.ReadFromJsonAsync<OpenAiModelsResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
 
         List<ModelCatalogEntry> models = openAiResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.Id)).ToList() ?? [];
 
@@ -58,10 +58,10 @@ public sealed class ModelCatalogClient
             request.Headers.Add("x-api-key", backend.ApiKey);
         }
 
-        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
+        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        AnthropicModelsResponse? anthropicResponse = await response.Content.ReadFromJsonAsync<AnthropicModelsResponse>(cancellationToken: cancellationToken);
+        AnthropicModelsResponse? anthropicResponse = await response.Content.ReadFromJsonAsync<AnthropicModelsResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
 
         List<ModelCatalogEntry> models = anthropicResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.DisplayName)).ToList() ?? [];
 

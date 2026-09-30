@@ -4,7 +4,7 @@ namespace HarnessGateway.Launcher.Wizard;
 
 public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
 {
-    public Task<string> PromptChoiceAsync(string title, IReadOnlyList<ConsoleChoice> choices, CancellationToken cancellationToken = default)
+    public async Task<string> PromptChoiceAsync(string title, IReadOnlyList<ConsoleChoice> choices, CancellationToken cancellationToken = default)
     {
         SelectionPrompt<string> selection = new SelectionPrompt<string>()
             .Title(title)
@@ -18,20 +18,22 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
             selection.AddChoice(display);
         }
 
-        string result = AnsiConsole.Prompt(selection);
+        string result = await AnsiConsole.PromptAsync(selection, cancellationToken)
+            .ConfigureAwait(true);
 
         foreach (ConsoleChoice choice in choices)
         {
             string display = choice.Annotation is not null
                 ? $"{choice.Name} [dim]({choice.Annotation})[/]"
                 : choice.Name;
-            if (result == display)
+            
+            if (string.Equals(result, display, StringComparison.OrdinalIgnoreCase))
             {
-                return Task.FromResult(choice.Name);
+                return await Task.FromResult(choice.Name).ConfigureAwait(true);
             }
         }
 
-        return Task.FromResult(result);
+        return await Task.FromResult(result).ConfigureAwait(true);
     }
 
     public Task<string> PromptTextAsync(string prompt, string? defaultValue = null, bool secret = false, CancellationToken cancellationToken = default)
@@ -61,5 +63,15 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
     public void WriteError(string message)
     {
         AnsiConsole.MarkupLine($"[red]{message}[/]");
+    }
+
+    public Task WriteErrorAsync(string message, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => WriteError(message), cancellationToken);
+    }
+
+    public Task WriteMarkupAsync(string message, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => WriteMarkup(message), cancellationToken);
     }
 }

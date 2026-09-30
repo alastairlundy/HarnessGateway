@@ -1,5 +1,4 @@
 using System.CommandLine;
-using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Core.Settings.Security;
 
@@ -11,7 +10,8 @@ internal sealed class BackendCommands : Command
     private readonly ISecureKeyStore _keyStore;
     private readonly IKeyPrompt _keyPrompt;
 
-    internal BackendCommands(SettingsStore settingsStore, ISecureKeyStore keyStore, IKeyPrompt keyPrompt)
+    internal BackendCommands(SettingsStore settingsStore, ISecureKeyStore keyStore,
+        IKeyPrompt keyPrompt)
         : base("backend", "Manage saved backend profiles")
     {
         _settingsStore = settingsStore;
@@ -45,11 +45,13 @@ internal sealed class BackendCommands : Command
                 "Warning: the value is visible in your shell history - prefer the interactive prompt"
         };
 
-        Command cmd = new("add", "Create or replace a saved backend entry");
-        cmd.Add(nameArg);
-        cmd.Add(endpointOption);
-        cmd.Add(protocolOption);
-        cmd.Add(keyOption);
+        Command cmd = new("add", "Create or replace a saved backend entry")
+        {
+            nameArg,
+            endpointOption,
+            protocolOption,
+            keyOption,
+        };
 
         cmd.SetAction(async (result, cancellationToken) =>
         {
@@ -65,14 +67,15 @@ internal sealed class BackendCommands : Command
 
             if (endpoint is null && protocol is null)
             {
-                Console.Error.WriteLine("config backend add requires --endpoint and --protocol");
+                await Console.Error.WriteLineAsync("config backend add requires --endpoint and --protocol")
+                    .ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
             BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint, protocol, null);
             if (!resolution.IsSuccess && resolution.Failure != BackendResolutionFailure.UnknownBackendName)
             {
-                Console.Error.WriteLine(resolution.Message);
+                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
                 return ExitCodeFor(resolution.Failure);
             }
 
@@ -82,30 +85,23 @@ internal sealed class BackendCommands : Command
                 {
                     Name = name,
                     BaseUri = LaunchCommand.ParseEndpoint(endpoint!),
-                    Protocol = LaunchCommand.ParseProtocol(protocol!)
+                    Protocol = LaunchCommand.ParseProtocol(protocol!),
                 }
                 : resolution.Backend!;
 
-            string? secret;
-            if (key is not null)
-            {
-                secret = key;
-            }
-            else
-            {
-                secret = _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
-            }
+            string? secret = key ??
+                             _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
 
             if (secret is not null)
             {
                 string reference = KeyReference.ForBackend(entry.Name);
                 try
                 {
-                    await _keyStore.StoreAsync(reference, secret, cancellationToken);
+                    await _keyStore.StoreAsync(reference, secret, cancellationToken).ConfigureAwait(true);
                 }
                 catch (SecureKeyStoreException ex)
                 {
-                    Console.Error.WriteLine(ex.Message);
+                    await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
                     return (int)LaunchExitCode.ConfigRestoreFailure;
                 }
 
@@ -134,8 +130,7 @@ internal sealed class BackendCommands : Command
             Description = "The saved backend entry to make the default"
         };
 
-        Command cmd = new("switch", "Make a saved backend entry the default");
-        cmd.Add(nameArg);
+        Command cmd = new("switch", "Make a saved backend entry the default") { nameArg };
 
         cmd.SetAction((result) =>
         {
@@ -190,7 +185,7 @@ internal sealed class BackendCommands : Command
             foreach (Backend entry in settings.Backends)
             {
                 bool isDefault = !string.IsNullOrEmpty(settings.DefaultBackend)
-                    && string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase);
+                                 && string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase);
 
                 string marker = isDefault ? "* " : "  ";
                 Console.WriteLine(
@@ -221,8 +216,7 @@ internal sealed class BackendCommands : Command
             Description = "The saved backend entry to remove"
         };
 
-        Command cmd = new("remove", "Delete a saved backend entry");
-        cmd.Add(nameArg);
+        Command cmd = new("remove", "Delete a saved backend entry") { nameArg };
 
         cmd.SetAction(async (result, cancellationToken) =>
         {
@@ -236,25 +230,25 @@ internal sealed class BackendCommands : Command
             BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, null, null, null);
             if (!resolution.IsSuccess)
             {
-                Console.Error.WriteLine(resolution.Message);
+                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
                 return ExitCodeFor(resolution.Failure);
             }
 
-            Backend entry = resolution.Backend!;
+            Backend entry = resolution.Backend;
 
             if (settings.Backends.Count == 1)
             {
-                Console.Error.WriteLine(
+                await Console.Error.WriteLineAsync(
                     $"Cannot remove '{entry.Name}': it is the last saved backend; " +
-                    "settings must always keep at least one backend.");
+                    "settings must always keep at least one backend.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
             if (string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase))
             {
-                Console.Error.WriteLine(
+                await Console.Error.WriteLineAsync(
                     $"Cannot remove '{entry.Name}': it is the current default backend. " +
-                    "Run 'harnessgateway config backend switch <name>' to choose a new default first.");
+                    "Run 'harnessgateway config backend switch <name>' to choose a new default first.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
@@ -262,11 +256,12 @@ internal sealed class BackendCommands : Command
             {
                 try
                 {
-                    await _keyStore.DeleteAsync(KeyReference.ForBackend(entry.Name), cancellationToken);
+                    await _keyStore.DeleteAsync(KeyReference.ForBackend(entry.Name), cancellationToken)
+                        .ConfigureAwait(true);
                 }
                 catch (SecureKeyStoreException ex)
                 {
-                    Console.Error.WriteLine(ex.Message);
+                    await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
                     return (int)LaunchExitCode.ConfigRestoreFailure;
                 }
             }
@@ -287,60 +282,4 @@ internal sealed class BackendCommands : Command
             or BackendResolutionFailure.AbsentDefaultBackend
             ? (int)LaunchExitCode.UnknownBackendName
             : (int)LaunchExitCode.UsageError;
-}
-
-internal interface IKeyPrompt
-{
-    string? PromptForNewKey(string backendName, bool entryHasKey);
-}
-
-internal sealed class TerminalKeyPrompt : IKeyPrompt
-{
-    public string? PromptForNewKey(string backendName, bool entryHasKey)
-    {
-        if (Console.IsInputRedirected)
-        {
-            return null;
-        }
-
-        string verb = entryHasKey ? "Replace" : "Set";
-        Console.Write($"{verb} an API key for '{backendName}'? [y/N] ");
-        string? answer = Console.ReadLine();
-
-        if (!string.Equals(answer?.Trim(), "y", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        Console.Write("API key (input hidden, Enter to confirm): ");
-        string secret = string.Empty;
-
-        while (true)
-        {
-            ConsoleKeyInfo info = Console.ReadKey(intercept: true);
-
-            if (info.Key == ConsoleKey.Enter)
-            {
-                Console.WriteLine();
-                break;
-            }
-
-            if (info.Key == ConsoleKey.Backspace)
-            {
-                if (secret.Length > 0)
-                {
-                    secret = secret[..^1];
-                }
-
-                continue;
-            }
-
-            if (info.KeyChar != '\0')
-            {
-                secret += info.KeyChar;
-            }
-        }
-
-        return secret.Length == 0 ? null : secret;
-    }
 }

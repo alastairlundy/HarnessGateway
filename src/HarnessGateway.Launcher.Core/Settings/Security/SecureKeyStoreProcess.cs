@@ -38,7 +38,7 @@ internal static class SecureKeyStoreProcess
                 builder.SetStandardInputPipe(standardInput);
             }
 
-            return await CliRun.RunBufferedAsync(builder.Build(), cancellationToken: cancellationToken);
+            return await CliRun.RunBufferedAsync(builder.Build(), cancellationToken: cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

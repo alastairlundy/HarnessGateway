@@ -45,7 +45,7 @@ public sealed class CodexAdapter : IHarnessAdapter
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
-        string? result = await _detectCommand("codex", cancellationToken);
+        string? result = await _detectCommand("codex", cancellationToken).ConfigureAwait(false);
         return result is not null;
     }
 
@@ -54,7 +54,7 @@ public sealed class CodexAdapter : IHarnessAdapter
         string configPath = ResolveConfigPath(_getEnvironmentVariable);
         string existing = File.Exists(configPath)
             ? await File.ReadAllTextAsync(configPath, cancellationToken)
-            : string.Empty;
+.ConfigureAwait(false) : string.Empty;
 
         TomlDocumentEditor editor = TomlDocumentEditor.Parse(existing);
         if (editor.NameInUse(ProviderBlockName))
@@ -133,7 +133,7 @@ public sealed class CodexAdapter : IHarnessAdapter
                 OutputRedirection = true
             };
 
-            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.ExitCode == 0 ? command : null;
         }
         catch

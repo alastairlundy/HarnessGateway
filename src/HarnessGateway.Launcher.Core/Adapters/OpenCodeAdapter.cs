@@ -35,7 +35,8 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
-        string? result = await _detectCommand("opencode", cancellationToken);
+        string? result = await _detectCommand("opencode",
+            cancellationToken).ConfigureAwait(false);
         return result is not null;
     }
 
@@ -87,7 +88,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
                 OutputRedirection = true
             };
 
-            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken);
+            ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.ExitCode == 0 ? command : null;
         }
         catch

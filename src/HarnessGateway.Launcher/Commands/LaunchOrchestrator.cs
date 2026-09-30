@@ -1,6 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -54,25 +54,25 @@ public sealed class LaunchOrchestrator
 
             if (!resolution.IsSuccess)
             {
-                Console.Error.WriteLine(resolution.Message);
+                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
                 return ExitCodeFor(resolution.Failure);
             }
 
             Backend? backend = resolution.Backend;
 
-            await _backupService.SelfHealAsync(cancellationToken);
+            await _backupService.SelfHealAsync(cancellationToken).ConfigureAwait(true);
 
             IHarnessAdapter? adapter = FindAdapter(agentName);
             if (adapter is null)
             {
-                Console.Error.WriteLine(HarnessLookup.UnknownAgentMessage(_adapters, agentName));
+                await Console.Error.WriteLineAsync(HarnessLookup.UnknownAgentMessage(_adapters, agentName)).ConfigureAwait(true);
                 return (int)LaunchExitCode.UnknownAgent;
             }
 
-            bool isAvailable = await adapter.IsAvailableAsync(cancellationToken);
+            bool isAvailable = await adapter.IsAvailableAsync(cancellationToken).ConfigureAwait(true);
             if (!isAvailable)
             {
-                Console.Error.WriteLine(adapter.Metadata.InstallHint);
+                await Console.Error.WriteLineAsync(adapter.Metadata.InstallHint).ConfigureAwait(true);
                 return (int)LaunchExitCode.HarnessUnavailable;
             }
 
@@ -94,10 +94,10 @@ public sealed class LaunchOrchestrator
             // should not read like an internal one.
             if (backend is null)
             {
-                Console.Error.WriteLine(
+                await Console.Error.WriteLineAsync(
                     "No backend is configured. Run 'harnessgateway " +
                     "config set-default-endpoint <url> <protocol>' to save one, or pass " +
-                    "--endpoint <url> --protocol <protocol> for a one-off launch.");
+                    "--endpoint <url> --protocol <protocol> for a one-off launch.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
@@ -108,13 +108,13 @@ public sealed class LaunchOrchestrator
                 string supported = string.Join(
                     ", ",
                     adapter.Metadata.SupportedProtocols.Select(LaunchCommand.ProtocolName));
-                Console.Error.WriteLine(
+                await Console.Error.WriteLineAsync(
                     $"Refusing to launch {agentName}: the selected backend's protocol " +
                     $"({LaunchCommand.ProtocolName(backend.Protocol)}) is not supported by " +
                     $"{adapter.Metadata.Name}, which supports: {supported}. " +
                     "Override the launch with --endpoint <backend-url> --protocol <supported-protocol>, " +
                     "or re-point the default backend with " +
-                    "'harnessgateway config set-default-endpoint <url> <protocol>'.");
+                    "'harnessgateway config set-default-endpoint <url> <protocol>'.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UnknownAgent;
             }
 
@@ -123,22 +123,22 @@ public sealed class LaunchOrchestrator
             // Resolve the at-rest key reference into the secret on this local
             // copy only: `settings` keeps carrying the reference, so a later
             // Save (PersistDefaultModel) can never write a secret back out.
-            backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, cancellationToken);
+            backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, cancellationToken).ConfigureAwait(true);
 
             LaunchRequest request = new(backend, resolvedModel, workingDirectory);
-            LaunchPlan plan = await adapter.PlanLaunchAsync(request, cancellationToken);
+            LaunchPlan plan = await adapter.PlanLaunchAsync(request, cancellationToken).ConfigureAwait(true);
 
             foreach (ConfigurationAction action in plan.ConfigurationActions)
             {
-                await ExecuteConfigurationActionAsync(action, cancellationToken);
+                await ExecuteConfigurationActionAsync(action, cancellationToken).ConfigureAwait(true);
             }
 
-            int exitCode = await _runner.RunAsync(plan, cancellationToken);
+            int exitCode = await _runner.RunAsync(plan, cancellationToken).ConfigureAwait(true);
 
-            bool persistConfig = persistValues.Contains("config");
-            await _backupService.RestoreOnExitAsync(persistConfig, cancellationToken);
+            bool persistConfig = persistValues.Contains("config", StringComparer.OrdinalIgnoreCase);
+            await _backupService.RestoreOnExitAsync(persistConfig, cancellationToken).ConfigureAwait(true);
 
-            if (persistValues.Contains("model") && resolvedModel is not null)
+            if (persistValues.Contains("model", StringComparer.OrdinalIgnoreCase) && resolvedModel is not null)
             {
                 PersistDefaultModel(settings, backend, resolvedModel);
             }
@@ -147,23 +147,23 @@ public sealed class LaunchOrchestrator
         }
         catch (LaunchRefusalException ex)
         {
-            Console.Error.WriteLine(ex.Message);
+            await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
             return (int)LaunchExitCode.ConfigConflict;
         }
         catch (SecureKeyStoreException ex)
         {
             // User-rectifiable: the message names the backend and how to re-save.
-            Console.Error.WriteLine(ex.Message);
+            await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
             return (int)LaunchExitCode.ConfigRestoreFailure;
         }
         catch (UnsupportedSettingsSchemaException ex)
         {
-            Console.Error.WriteLine(ex.Message);
+            await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
             return (int)LaunchExitCode.UnsupportedSettingsSchema;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Launch failed: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Launch failed: {ex.Message}").ConfigureAwait(true);
             return (int)LaunchExitCode.ConfigRestoreFailure;
         }
     }
@@ -217,8 +217,8 @@ public sealed class LaunchOrchestrator
                 {
                     Directory.CreateDirectory(directory);
                 }
-                await _backupService.BackupAsync(fileWrite.TargetPath, cancellationToken);
-                await File.WriteAllTextAsync(fileWrite.TargetPath, fileWrite.Content, cancellationToken);
+                await _backupService.BackupAsync(fileWrite.TargetPath, cancellationToken).ConfigureAwait(true);
+                await File.WriteAllTextAsync(fileWrite.TargetPath, fileWrite.Content, cancellationToken).ConfigureAwait(true);
                 break;
 
             case CliArgumentAction:

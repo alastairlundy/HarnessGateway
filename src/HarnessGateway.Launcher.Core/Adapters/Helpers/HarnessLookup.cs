@@ -1,7 +1,6 @@
-using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Text;
 
-namespace HarnessGateway.Launcher.Core.Adapters;
+namespace HarnessGateway.Launcher.Core.Adapters.Helpers;
 
 /// <summary>
 /// Resolves a user-typed agent token to its adapter.

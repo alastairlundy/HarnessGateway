@@ -51,7 +51,7 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
             StoreOperation,
             SpawnFailure,
             writer,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         if (result.ExitCode != 0)
         {
@@ -71,7 +71,7 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
             LoadOperation,
             SpawnFailure,
             standardInput: null,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
 
         // A miss and an unreachable keyring both exit non-zero and are
         // indistinguishable here; the keyring case surfaces with its own
@@ -98,6 +98,6 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
             DeleteOperation,
             SpawnFailure,
             standardInput: null,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 }
