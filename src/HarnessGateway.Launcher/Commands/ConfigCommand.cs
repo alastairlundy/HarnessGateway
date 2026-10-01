@@ -1,13 +1,8 @@
-using System.CommandLine;
-using HarnessGateway.Launcher.Core.Settings;
-using HarnessGateway.Launcher.Core.Settings.Security;
-
 namespace HarnessGateway.Launcher.Commands;
 
 public sealed class ConfigCommand : Command
 {
     private readonly SettingsStore _settingsStore;
-    private readonly ISecureKeyStore _keyStore;
 
     public ConfigCommand()
         : this(new SettingsStore())
@@ -30,19 +25,14 @@ public sealed class ConfigCommand : Command
         : base("config", "Show and manage saved default configuration")
     {
         _settingsStore = settingsStore;
-        _keyStore = keyStore;
 
         Command showVerb = new("show", "Display the current default backend configuration");
-        Command setEndpointVerb = CreateSetDefaultEndpointCommand();
-        Command setKeyVerb = CreateSetSavedKeyCommand();
-        Command clearKeyVerb = new("clear-saved-key", "Remove the saved API key from the default backend");
-        Command setModelVerb = CreateSetDefaultModelCommand();
+        Command getVerb = CreateGetCommand();
+        Command setVerb = CreateSetCommand();
 
         Add(showVerb);
-        Add(setEndpointVerb);
-        Add(setKeyVerb);
-        Add(clearKeyVerb);
-        Add(setModelVerb);
+        Add(getVerb);
+        Add(setVerb);
         Add(new BackendCommands(settingsStore, keyStore, keyPrompt));
 
         showVerb.SetAction((result) =>
@@ -57,7 +47,18 @@ public sealed class ConfigCommand : Command
             if (backend is null)
             {
                 Console.WriteLine("No default backend configured.");
-                Console.WriteLine("Run 'harnessgateway config set-default-endpoint' to configure one.");
+                if (settings.Backends.Count > 0)
+                {
+                    Console.WriteLine(
+                        "Run 'harnessgateway config set defaultBackend <name>' to select one of the saved entries.");
+                }
+                else
+                {
+                    Console.WriteLine(
+                        "Run 'harnessgateway config backend add <name> --endpoint <url> --protocol <protocol>' " +
+                        "to create one.");
+                }
+
                 return 0;
             }
 
@@ -67,46 +68,97 @@ public sealed class ConfigCommand : Command
             Console.WriteLine($"Default model: {backend.DefaultModel ?? "(not set)"}");
             return 0;
         });
+    }
 
-        clearKeyVerb.SetAction(async (result, cancellationToken) =>
+    private Command CreateGetCommand()
+    {
+        Argument<string> keyArg = new("key")
         {
+            Description =
+                "The typed settings key: defaultBackend, schemaVersion, backends, " +
+                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel"
+        };
+
+        Command cmd = new("get", "Read a non-secret setting by its typed key") { keyArg };
+
+        cmd.SetAction((result) =>
+        {
+            string key = result.GetRequiredValue(keyArg);
+
             if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
             {
                 return loadExitCode;
             }
 
-            Backend? backend = ResolveDefaultBackend(settings);
-
-            if (backend is null)
+            ConfigKeyResult read = ConfigKeyResolver.Get(settings, key);
+            if (!read.IsSuccess)
             {
-                Console.Error.WriteLine("No default backend configured.");
-                return (int)LaunchExitCode.UsageError;
+                Console.Error.WriteLine(read.Message);
+                return ExitCodeFor(read.Failure);
             }
 
-            // A legacy plaintext key predates the store and has no entry there,
-            // so only a reference is worth deleting from the credential store.
-            if (KeyReference.IsReference(backend.ApiKey))
-            {
-                try
-                {
-                    await _keyStore.DeleteAsync(
-                        KeyReference.ForBackend(backend.Name),
-                        cancellationToken).ConfigureAwait(true);
-                }
-                catch (SecureKeyStoreException ex)
-                {
-                    Console.Error.WriteLine(ex.Message);
-                    return (int)LaunchExitCode.ConfigRestoreFailure;
-                }
-            }
-
-            Backend updated = backend with { ApiKey = null };
-            UpdateBackend(settings, updated);
-            _settingsStore.Save(settings);
-            Console.WriteLine("Saved key cleared.");
+            Console.WriteLine(read.Value);
             return 0;
         });
+
+        return cmd;
     }
+
+    private Command CreateSetCommand()
+    {
+        Argument<string> keyArg = new("key")
+        {
+            Description =
+                "The typed settings key: defaultBackend, " +
+                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel"
+        };
+        Argument<string> valueArg = new("value")
+        {
+            Description = "The new value for the key"
+        };
+
+        Command cmd = new("set", "Write a non-secret setting by its typed key") { keyArg, valueArg };
+
+        cmd.SetAction((result) =>
+        {
+            string key = result.GetRequiredValue(keyArg);
+            string value = result.GetRequiredValue(valueArg);
+
+            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
+
+            ConfigKeyResult write = ConfigKeyResolver.Set(settings, key, value);
+            if (!write.IsSuccess)
+            {
+                Console.Error.WriteLine(write.Message);
+                return ExitCodeFor(write.Failure);
+            }
+
+            // The default-pointer write is idempotent: when the pointer already
+            // names this entry the file is left untouched.
+            if (!write.AlreadySatisfied)
+            {
+                _settingsStore.Save(write.Settings!);
+            }
+
+            Console.WriteLine(write.Message);
+            return 0;
+        });
+
+        return cmd;
+    }
+
+    /// <summary>
+    /// Maps typed key failures to the documented exit-code contract: only the
+    /// default-pointer write has its own class (unknown backend name = 8);
+    /// every other addressing failure is a usage error (2).
+    /// </summary>
+    internal static int ExitCodeFor(ConfigKeyFailure failure) =>
+        failure == ConfigKeyFailure.UnknownBackendName
+            ? (int)LaunchExitCode.UnknownBackendName
+            : (int)LaunchExitCode.UsageError;
 
     internal static bool TryLoadSettings(SettingsStore settingsStore, out LauncherSettings settings, out int exitCode)
     {
@@ -130,149 +182,6 @@ public sealed class ConfigCommand : Command
             exitCode = (int)LaunchExitCode.ConfigRestoreFailure;
             return false;
         }
-    }
-
-    private Command CreateSetDefaultEndpointCommand()
-    {
-        Argument<string> endpointArg = new("endpoint")
-        {
-            Description = "The backend endpoint URL"
-        };
-        Argument<string> protocolArg = new("protocol")
-        {
-            Description = "The protocol (openai-chat, openai-responses, anthropic)"
-        };
-
-        Command cmd = new("set-default-endpoint", "Set the default backend endpoint and protocol")
-        {
-            endpointArg,
-            protocolArg
-        };
-
-        cmd.SetAction((result) =>
-        {
-            string endpoint = result.GetRequiredValue(endpointArg);
-            string protocol = result.GetRequiredValue(protocolArg);
-
-            if (!LaunchCommand.IsValidProtocol(protocol))
-            {
-                Console.Error.WriteLine($"Invalid protocol '{protocol}'. Must be one of: openai-chat, openai-responses, anthropic");
-                return (int)LaunchExitCode.UsageError;
-            }
-
-            Uri parsedEndpoint = LaunchCommand.ParseEndpoint(endpoint);
-            ProtocolKind parsedProtocol = LaunchCommand.ParseProtocol(protocol);
-
-            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
-            {
-                return loadExitCode;
-            }
-
-            Backend? existingBackend = ResolveDefaultBackend(settings);
-            string name = existingBackend?.Name ?? "default";
-
-            Backend updated = new()
-            {
-                Name = name,
-                BaseUri = parsedEndpoint,
-                Protocol = parsedProtocol,
-                ApiKey = existingBackend?.ApiKey,
-                DefaultModel = existingBackend?.DefaultModel
-            };
-
-            UpdateBackend(settings, updated);
-            if (string.IsNullOrEmpty(settings.DefaultBackend))
-            {
-                settings = settings with { DefaultBackend = name };
-            }
-
-            _settingsStore.Save(settings);
-            Console.WriteLine($"Default endpoint set to {endpoint} ({protocol}).");
-            return 0;
-        });
-
-        return cmd;
-    }
-
-    private Command CreateSetSavedKeyCommand()
-    {
-        Argument<string> keyArg = new("key")
-        {
-            Description = "The API key to save"
-        };
-
-        Command cmd = new("set-saved-key", "Save an API key for the default backend") { keyArg };
-
-        cmd.SetAction(async (result, cancellationToken) =>
-        {
-            string key = result.GetRequiredValue(keyArg);
-            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
-            {
-                return loadExitCode;
-            }
-
-            Backend? backend = ResolveDefaultBackend(settings);
-
-            if (backend is null)
-            {
-                await Console.Error.WriteLineAsync("No default backend configured. Run 'harnessgateway config set-default-endpoint' first.").ConfigureAwait(true);
-                return (int)LaunchExitCode.UsageError;
-            }
-
-            string reference = KeyReference.ForBackend(backend.Name);
-            try
-            {
-                await _keyStore.StoreAsync(reference, key, cancellationToken).ConfigureAwait(true);
-            }
-            catch (SecureKeyStoreException ex)
-            {
-                await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
-                return (int)LaunchExitCode.ConfigRestoreFailure;
-            }
-
-            Backend updated = backend with { ApiKey = reference };
-            UpdateBackend(settings, updated);
-            _settingsStore.Save(settings);
-            Console.WriteLine("Saved key updated.");
-            return 0;
-        });
-
-        return cmd;
-    }
-
-    private Command CreateSetDefaultModelCommand()
-    {
-        Argument<string> modelArg = new("model")
-        {
-            Description = "The default model name"
-        };
-
-        Command cmd = new("set-default-model", "Set the default model for the default backend") { modelArg };
-
-        cmd.SetAction((result) =>
-        {
-            string model = result.GetRequiredValue(modelArg);
-            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
-            {
-                return loadExitCode;
-            }
-
-            Backend? backend = ResolveDefaultBackend(settings);
-
-            if (backend is null)
-            {
-                Console.Error.WriteLine("No default backend configured. Run 'harnessgateway config set-default-endpoint' first.");
-                return (int)LaunchExitCode.UsageError;
-            }
-
-            Backend updated = backend with { DefaultModel = model };
-            UpdateBackend(settings, updated);
-            _settingsStore.Save(settings);
-            Console.WriteLine($"Default model set to {model}.");
-            return 0;
-        });
-
-        return cmd;
     }
 
     internal static Backend? ResolveDefaultBackend(LauncherSettings settings)

@@ -1,11 +1,7 @@
-using HarnessGateway.Launcher.Core.Adapters;
-using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
-using HarnessGateway.Launcher.Core.Settings;
-using HarnessGateway.Launcher.Core.Settings.Security;
 
 namespace HarnessGateway.Launcher.Commands;
 
@@ -96,7 +92,7 @@ public sealed class LaunchOrchestrator
             {
                 await Console.Error.WriteLineAsync(
                     "No backend is configured. Run 'harnessgateway " +
-                    "config set-default-endpoint <url> <protocol>' to save one, or pass " +
+                    "config backend add <name> --endpoint <url> --protocol <protocol>' to save one, or pass " +
                     "--endpoint <url> --protocol <protocol> for a one-off launch.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
@@ -113,8 +109,8 @@ public sealed class LaunchOrchestrator
                     $"({LaunchCommand.ProtocolName(backend.Protocol)}) is not supported by " +
                     $"{adapter.Metadata.Name}, which supports: {supported}. " +
                     "Override the launch with --endpoint <backend-url> --protocol <supported-protocol>, " +
-                    "or re-point the default backend with " +
-                    "'harnessgateway config set-default-endpoint <url> <protocol>'.").ConfigureAwait(true);
+                    "or re-point the default backend with 'harnessgateway config backend add " +
+                    $"{backend.Name} --endpoint <url> --protocol <supported-protocol>'.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UnknownAgent;
             }
 

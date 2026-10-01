@@ -118,11 +118,11 @@ public class BackendResolutionTests
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.AbsentDefaultBackend);
-        await Assert.That(result.Message!).Contains("config backend switch");
+        await Assert.That(result.Message!).Contains("config set defaultBackend");
     }
 
     [Test]
-    public async Task Resolve_dangling_default_pointer_fails_with_switch_directive()
+    public async Task Resolve_dangling_default_pointer_fails_with_pointer_directive()
     {
         LauncherSettings settings = SettingsWith("ghost", Entry("primary"), Entry("secondary"));
 
@@ -131,7 +131,7 @@ public class BackendResolutionTests
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
         await Assert.That(result.Message!).Contains("unknown backend name 'ghost'");
-        await Assert.That(result.Message!).Contains("config backend switch");
+        await Assert.That(result.Message!).Contains("config set defaultBackend");
     }
 
     [Test]
@@ -274,6 +274,6 @@ public class BackendResolutionTests
             null);
 
         await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
-        await Assert.That(result.Message!).Contains("config backend switch");
+        await Assert.That(result.Message!).Contains("config set defaultBackend");
     }
 }

@@ -89,7 +89,7 @@ public static class BackendResolution
                 return Fail(
                     BackendResolutionFailure.DanglingDefaultBackend,
                     $"unknown backend name '{settings.DefaultBackend}' in the default backend pointer. " +
-                    "Run 'harnessgateway config backend switch <name>' to choose a default backend.");
+                    "Run 'harnessgateway config set defaultBackend <name>' to choose a default backend.");
             }
         }
         else if (settings.Backends.Count > 0)
@@ -97,7 +97,7 @@ public static class BackendResolution
             return Fail(
                 BackendResolutionFailure.AbsentDefaultBackend,
                 "no default backend is set while saved backend entries exist. " +
-                "Run 'harnessgateway config backend switch <name>' to choose a default backend.");
+                "Run 'harnessgateway config set defaultBackend <name>' to choose a default backend.");
         }
         else
         {

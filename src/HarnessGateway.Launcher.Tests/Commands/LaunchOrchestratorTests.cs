@@ -936,7 +936,7 @@ public class LaunchOrchestratorTests
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
             await Assert.That(errorOutput).Contains("'default'");
-            await Assert.That(errorOutput).Contains("config set-saved-key");
+            await Assert.That(errorOutput).Contains("config backend set-key");
             // Failed before planning, so no harness ever saw a request.
             await Assert.That(adapter.LastRequest).IsNull();
         }
@@ -1142,7 +1142,7 @@ public class LaunchOrchestratorTests
     }
 
     [Test]
-    public async Task RunAsync_dangling_default_backend_returns_exit_8_pointing_to_switch()
+    public async Task RunAsync_dangling_default_backend_returns_exit_8_pointing_at_pointer_write()
     {
         LauncherSettings settings = new LauncherSettings
         {
@@ -1166,7 +1166,7 @@ public class LaunchOrchestratorTests
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
-            await Assert.That(errorOutput).Contains("config backend switch");
+            await Assert.That(errorOutput).Contains("config set defaultBackend");
         }
         finally
         {

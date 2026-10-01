@@ -1,8 +1,5 @@
-using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Backends.Models;
-using HarnessGateway.Launcher.Core.Settings;
-using HarnessGateway.Launcher.Core.Settings.Security;
 
 namespace HarnessGateway.Launcher.Wizard;
 
@@ -34,7 +31,7 @@ public sealed class WizardPipeline
 
         // Strict default-pointer read: no first-entry fallback.
         // A dangling or absent pointer is user-rectifiable - surface the
-        // resolver's message (it names 'config backend switch') and abort;
+        // resolver's message (it names 'config set defaultBackend') and abort;
         // a first run resolves to null and prompts with no prefill.
         BackendResolutionResult resolution = BackendResolution.Resolve(
             settings,

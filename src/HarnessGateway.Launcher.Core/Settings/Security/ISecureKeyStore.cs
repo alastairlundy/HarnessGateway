@@ -44,7 +44,7 @@ public sealed class SecureKeyStoreException : Exception
     public static SecureKeyStoreException DanglingReference(string backendName) =>
         new(
             $"No stored API key found for backend '{backendName}'. " +
-            "Re-save it with 'harnessgateway config set-saved-key <key>'.");
+            $"Re-save it with 'harnessgateway config backend set-key {backendName}'.");
 
     /// <summary>
     /// The platform credential store refused or failed an operation. The detail is
@@ -58,7 +58,7 @@ public sealed class SecureKeyStoreException : Exception
         Exception? innerException = null) =>
         new(
             $"Could not {operation} for backend '{backendName}': {detail} " +
-            "Re-save the key with 'harnessgateway config set-saved-key <key>'.",
+            $"Re-save the key with 'harnessgateway config backend set-key {backendName}'.",
             innerException);
 
     /// <summary>No platform credential store exists for this machine at all.</summary>

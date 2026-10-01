@@ -57,7 +57,7 @@ public class BackendKeyResolverTests
 
         await Assert.That(caught).IsNotNull();
         await Assert.That(caught!.Message).Contains("'default'");
-        await Assert.That(caught.Message).Contains("config set-saved-key");
+        await Assert.That(caught.Message).Contains("config backend set-key");
     }
 
     [Test]

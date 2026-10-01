@@ -1,7 +1,3 @@
-using System.CommandLine;
-using HarnessGateway.Launcher.Core.Settings;
-using HarnessGateway.Launcher.Core.Settings.Security;
-
 namespace HarnessGateway.Launcher.Commands;
 
 internal sealed class BackendCommands : Command
@@ -19,9 +15,10 @@ internal sealed class BackendCommands : Command
         _keyPrompt = keyPrompt;
 
         Add(CreateAddCommand());
-        Add(CreateSwitchCommand());
         Add(CreateListCommand());
         Add(CreateRemoveCommand());
+        Add(CreateSetKeyCommand());
+        Add(CreateClearKeyCommand());
     }
 
     private Command CreateAddCommand()
@@ -114,49 +111,10 @@ internal sealed class BackendCommands : Command
             Console.WriteLine($"Backend '{entry.Name}' {(isCreate ? "created" : "updated")}.");
             if (isCreate)
             {
-                Console.WriteLine($"Run 'harnessgateway config backend switch {entry.Name}' to make it the default.");
+                Console.WriteLine(
+                    $"Run 'harnessgateway config set defaultBackend {entry.Name}' to make it the default.");
             }
 
-            return 0;
-        });
-
-        return cmd;
-    }
-
-    private Command CreateSwitchCommand()
-    {
-        Argument<string> nameArg = new("name")
-        {
-            Description = "The saved backend entry to make the default"
-        };
-
-        Command cmd = new("switch", "Make a saved backend entry the default") { nameArg };
-
-        cmd.SetAction((result) =>
-        {
-            string name = result.GetRequiredValue(nameArg);
-
-            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
-            {
-                return loadExitCode;
-            }
-
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, null, null, null);
-            if (!resolution.IsSuccess)
-            {
-                Console.Error.WriteLine(resolution.Message);
-                return ExitCodeFor(resolution.Failure);
-            }
-
-            Backend entry = resolution.Backend!;
-
-            if (!string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                settings = settings with { DefaultBackend = entry.Name };
-                _settingsStore.Save(settings);
-            }
-
-            Console.WriteLine($"backend '{entry.Name}' is now the default");
             return 0;
         });
 
@@ -196,7 +154,7 @@ internal sealed class BackendCommands : Command
             {
                 Console.WriteLine(
                     "(no default backend is set; " +
-                    "run 'harnessgateway config backend switch <name>' to choose one)");
+                    "run 'harnessgateway config set defaultBackend <name>' to choose one)");
             }
             else
             {
@@ -248,7 +206,8 @@ internal sealed class BackendCommands : Command
             {
                 await Console.Error.WriteLineAsync(
                     $"Cannot remove '{entry.Name}': it is the current default backend. " +
-                    "Run 'harnessgateway config backend switch <name>' to choose a new default first.").ConfigureAwait(true);
+                    "Run 'harnessgateway config set defaultBackend <name>' to choose a new default first.")
+                    .ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
@@ -270,6 +229,137 @@ internal sealed class BackendCommands : Command
                 string.Equals(b.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
             _settingsStore.Save(settings);
             Console.WriteLine($"Backend '{entry.Name}' removed.");
+            return 0;
+        });
+
+        return cmd;
+    }
+
+    private Command CreateSetKeyCommand()
+    {
+        Argument<string> nameArg = new("name")
+        {
+            Description = "The saved backend entry whose key to set or replace"
+        };
+        Option<string?> keyOption = new("--key")
+        {
+            Description =
+                "API key to save in the platform credential store; skips the interactive prompt. " +
+                "Warning: the value is visible in your shell history - prefer the interactive prompt"
+        };
+
+        Command cmd = new("set-key", "Set or replace the saved API key for a backend entry")
+        {
+            nameArg,
+            keyOption
+        };
+
+        cmd.SetAction(async (result, cancellationToken) =>
+        {
+            string name = result.GetRequiredValue(nameArg);
+            string? key = result.GetValue(keyOption);
+
+            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
+
+            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, null, null, null);
+            if (!resolution.IsSuccess)
+            {
+                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
+                return ExitCodeFor(resolution.Failure);
+            }
+
+            Backend entry = resolution.Backend!;
+            string? secret = key ??
+                             _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
+
+            if (secret is null)
+            {
+                Console.WriteLine($"No API key entered; backend '{entry.Name}' was left unchanged.");
+                return 0;
+            }
+
+            string reference = KeyReference.ForBackend(entry.Name);
+            try
+            {
+                await _keyStore.StoreAsync(reference, secret, cancellationToken).ConfigureAwait(true);
+            }
+            catch (SecureKeyStoreException ex)
+            {
+                await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
+                return (int)LaunchExitCode.ConfigRestoreFailure;
+            }
+
+            // Only the credential record changes here: endpoint, protocol, and
+            // default model are never touched by set-key.
+            Backend updated = entry with { ApiKey = reference };
+            ConfigCommand.UpdateBackend(settings, updated);
+            _settingsStore.Save(settings);
+
+            Console.WriteLine($"API key for backend '{entry.Name}' saved.");
+            return 0;
+        });
+
+        return cmd;
+    }
+
+    private Command CreateClearKeyCommand()
+    {
+        Argument<string> nameArg = new("name")
+        {
+            Description = "The saved backend entry whose key to clear"
+        };
+
+        Command cmd = new("clear-key", "Remove the saved API key from a backend entry") { nameArg };
+
+        cmd.SetAction(async (result, cancellationToken) =>
+        {
+            string name = result.GetRequiredValue(nameArg);
+
+            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            {
+                return loadExitCode;
+            }
+
+            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, null, null, null);
+            if (!resolution.IsSuccess)
+            {
+                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
+                return ExitCodeFor(resolution.Failure);
+            }
+
+            Backend entry = resolution.Backend!;
+
+            if (entry.ApiKey is null)
+            {
+                // Idempotent on a keyless backend: no store entry, no settings write.
+                Console.WriteLine($"Backend '{entry.Name}' has no saved key; nothing to clear.");
+                return 0;
+            }
+
+            // A legacy plaintext key predates the store and has no entry there,
+            // so only a reference is worth deleting from the credential store.
+            if (KeyReference.IsReference(entry.ApiKey))
+            {
+                try
+                {
+                    await _keyStore.DeleteAsync(KeyReference.ForBackend(entry.Name), cancellationToken)
+                        .ConfigureAwait(true);
+                }
+                catch (SecureKeyStoreException ex)
+                {
+                    await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
+                    return (int)LaunchExitCode.ConfigRestoreFailure;
+                }
+            }
+
+            Backend updated = entry with { ApiKey = null };
+            ConfigCommand.UpdateBackend(settings, updated);
+            _settingsStore.Save(settings);
+
+            Console.WriteLine($"API key for backend '{entry.Name}' cleared.");
             return 0;
         });
 

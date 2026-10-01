@@ -294,7 +294,7 @@ public class WizardPipelineTests
             await Assert.That(result).IsNull();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("'default'");
-            await Assert.That(console.ErrorMessages[0]).Contains("config set-saved-key");
+            await Assert.That(console.ErrorMessages[0]).Contains("config backend set-key");
         }
         finally
         {
@@ -428,7 +428,7 @@ public class WizardPipelineTests
             await Assert.That(result).IsNull();
             await Assert.That(console.Prompts).IsEmpty();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
-            await Assert.That(console.ErrorMessages[0]).Contains("config backend switch");
+            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultBackend");
         }
         finally
         {
@@ -453,7 +453,7 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts).IsEmpty();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("'ghost'");
-            await Assert.That(console.ErrorMessages[0]).Contains("config backend switch");
+            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultBackend");
         }
         finally
         {
