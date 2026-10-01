@@ -55,11 +55,13 @@ public sealed class TestConsole : HarnessGateway.Launcher.Wizard.IConsoleAbstrac
 
     public Task WriteErrorAsync(string message, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => WriteError(message), cancellationToken);
+        WriteError(message);
+        return Task.CompletedTask;
     }
 
     public Task WriteMarkupAsync(string message, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => WriteMarkup(message), cancellationToken);
+        WriteMarkup(message);
+        return Task.CompletedTask;
     }
 }
