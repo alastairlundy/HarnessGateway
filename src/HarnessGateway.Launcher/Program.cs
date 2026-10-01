@@ -1,12 +1,8 @@
-using System.CommandLine;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
-using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Backends.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
-using HarnessGateway.Launcher.Core.Settings;
-using HarnessGateway.Launcher.Core.Settings.Security;
 using HarnessGateway.Launcher.Wizard;
 
 List<IHarnessAdapter> adapters =

@@ -17,7 +17,7 @@ public sealed class CodexAdapter : IHarnessAdapter
     private readonly Func<string, string?> _getEnvironmentVariable;
 
     public CodexAdapter()
-        : this(DetectOnPath, null)
+        : this(DetectOnPath, getEnvironmentVariable: null)
     {
     }
 

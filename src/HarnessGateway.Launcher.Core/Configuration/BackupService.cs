@@ -6,7 +6,7 @@ public sealed class BackupService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        WriteIndented = false
+        WriteIndented = false,
     };
 
     private readonly string _backupsDirectory;
@@ -22,7 +22,7 @@ public sealed class BackupService
 
     public async Task BackupAsync(string targetPath, CancellationToken cancellationToken = default)
     {
-        if (_currentLaunchBackups.Any(b => b.TargetPath == targetPath))
+        if (_currentLaunchBackups.Exists(b => string.Equals(b.TargetPath, targetPath, StringComparison.Ordinal)))
         {
             return;
         }

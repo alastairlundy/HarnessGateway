@@ -57,11 +57,11 @@ public sealed class ModelStep
         string? savedDefaultModel,
         CancellationToken cancellationToken)
     {
-        List<ConsoleChoice> choices = new();
+        List<ConsoleChoice> choices = [];
 
         if (!requiresModel)
         {
-            choices.Add(new("[skip]", "do not set a model"));
+            choices.Add(new ConsoleChoice("[skip]", "do not set a model"));
         }
 
         foreach (ModelCatalogEntry model in catalog.Models)

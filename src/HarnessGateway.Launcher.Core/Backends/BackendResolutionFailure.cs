@@ -27,5 +27,5 @@ public enum BackendResolutionFailure
     InvalidEndpoint,
 
     /// <summary>--protocol is not one of the known protocol words.</summary>
-    InvalidProtocol
+    InvalidProtocol,
 }

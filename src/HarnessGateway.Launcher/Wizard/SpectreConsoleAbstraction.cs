@@ -4,7 +4,8 @@ namespace HarnessGateway.Launcher.Wizard;
 
 public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
 {
-    public async Task<string> PromptChoiceAsync(string title, IReadOnlyList<ConsoleChoice> choices, CancellationToken cancellationToken = default)
+    public async Task<string> PromptChoiceAsync(string title,
+        IReadOnlyList<ConsoleChoice> choices, CancellationToken cancellationToken = default)
     {
         SelectionPrompt<string> selection = new SelectionPrompt<string>()
             .Title(title)
@@ -36,7 +37,8 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
         return await Task.FromResult(result).ConfigureAwait(true);
     }
 
-    public Task<string> PromptTextAsync(string prompt, string? defaultValue = null, bool secret = false, CancellationToken cancellationToken = default)
+    public Task<string> PromptTextAsync(string prompt, string? defaultValue = null,
+        bool secret = false, CancellationToken cancellationToken = default)
     {
         TextPrompt<string> textPrompt = new TextPrompt<string>(prompt)
             .AllowEmpty();

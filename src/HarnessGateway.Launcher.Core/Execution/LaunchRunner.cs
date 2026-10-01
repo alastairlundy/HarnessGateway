@@ -19,7 +19,8 @@ public sealed class LaunchRunner : ILaunchRunner
             RedirectStandardInput = plan.Process.RedirectStandardInput,
         };
 
-        ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
+        ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         return result.ExitCode;
     }
 }

@@ -85,7 +85,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
             string fileName = OperatingSystem.IsWindows() ? "where" : "which";
             ProcessConfiguration config = new (fileName, command)
             {
-                OutputRedirection = true
+                OutputRedirection = true,
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
