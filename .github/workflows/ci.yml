@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+# Deny everything by default; each job re-grants only what it needs (T003).
+permissions: {}
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        shell: bash
+        run: dotnet restore src/HarnessGateway.slnx
+
+      - name: Build (Release)
+        shell: bash
+        run: dotnet build src/HarnessGateway.slnx --configuration Release --no-restore --nologo | tee build.log
+
+      # Meziantou analyzer warnings are errors for NEW warnings only: the build
+      # fails on any MA* signature that is not in the checked-in baseline below.
+      # This is the incremental bar (T002) - existing warnings are recorded, not
+      # retroactively fixed, and every warning added from here on must be fixed.
+      - name: New Meziantou warnings fail the build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > meziantou-baseline.txt <<'EOF'
+          MA0002|src/HarnessGateway.Launcher.Core/Adapters/ClaudeCodeAdapter.cs
+          MA0002|src/HarnessGateway.Launcher.Core/Adapters/CodexAdapter.cs
+          MA0002|src/HarnessGateway.Launcher.Core/Adapters/CopilotCliAdapter.cs
+          MA0002|src/HarnessGateway.Launcher.Core/Adapters/KiloAdapter.cs
+          MA0002|src/HarnessGateway.Launcher.Core/Adapters/OpenCodeAdapter.cs
+          MA0002|src/HarnessGateway.Launcher.Core/Adapters/PiAdapter.cs
+          MA0011|src/HarnessGateway.Launcher.Core/Settings/SettingsStore.cs
+          MA0015|src/HarnessGateway.Launcher/Commands/LaunchCommand.cs
+          MA0016|src/HarnessGateway.Launcher.Core/Settings/LauncherSettings.cs
+          MA0048|src/HarnessGateway.Launcher.Core/Backends/Models/ModelCatalog.cs
+          MA0048|src/HarnessGateway.Launcher.Core/Configuration/ConfigurationAction.cs
+          MA0048|src/HarnessGateway.Launcher.Core/Settings/ConfigKeyResolver.cs
+          MA0048|src/HarnessGateway.Launcher.Core/Settings/Security/ISecureKeyStore.cs
+          MA0048|src/HarnessGateway.Launcher.Core/Settings/SettingsStore.cs
+          MA0051|src/HarnessGateway.Launcher.Core/Backends/BackendResolution.cs
+          MA0051|src/HarnessGateway.Launcher/Commands/BackendCommands.cs
+          MA0051|src/HarnessGateway.Launcher/Commands/LaunchCommand.cs
+          MA0051|src/HarnessGateway.Launcher/Commands/LaunchOrchestrator.cs
+          MA0051|src/HarnessGateway.Launcher/Wizard/WizardPipeline.cs
+          EOF
+          LC_ALL=C sort -o meziantou-baseline.txt meziantou-baseline.txt
+
+          tr '\\' '/' < build.log \
+            | grep -E '\): warning MA[0-9]+:' \
+            | sed -E 's#^.*(src/)([^()]*)\([0-9]+,[0-9]+\): warning (MA[0-9]+):.*#\3|\1\2#' \
+            | LC_ALL=C sort -u > meziantou-current.txt || true
+
+          new_warnings=$(LC_ALL=C comm -13 meziantou-baseline.txt meziantou-current.txt || true)
+          if [ -n "$new_warnings" ]; then
+            echo "::error::New Meziantou analyzer warning(s) detected - the incremental warnings-as-errors bar (T002) requires fixing them:"
+            printf '%s\n' "$new_warnings"
+            exit 1
+          fi
+          echo "No new Meziantou warnings ($(grep -c . meziantou-current.txt || true) known warning signature(s) on record)."
+
+      - name: Test (Release, full TUnit suite)
+        shell: bash
+        run: dotnet test --solution src/HarnessGateway.slnx --configuration Release --no-build --no-restore

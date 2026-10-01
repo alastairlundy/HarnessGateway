@@ -1,0 +1,244 @@
+name: Draft release
+
+# Push to main builds every artifact, smoke-tests the four established RIDs,
+# and then creates/updates a DRAFT GitHub Release carrying the
+# dotnet-releaser-generated changelog. This workflow can never publish:
+# publication is reachable only through publish-release.yml (workflow_dispatch).
+
+on:
+  push:
+    branches:
+      - main
+
+# Deny everything by default; each job re-grants only what it needs (T003).
+permissions: {}
+
+jobs:
+  build:
+    name: Build all six RIDs
+    runs-on: ubuntu-latest
+    permissions:
+      # Changelog generation reads this repository only; dotnet-releaser runs
+      # in build mode here (the `run` sub-command on a branch push never takes
+      # its tag-publish path) and [github] publish = false keeps it read-only.
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Read the pinned csproj version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^[[:space:]]*<Version>\(.*\)<\/Version>.*/\1/p' src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj)
+          if [ -z "$version" ]; then
+            echo "::error::No <Version> found in HarnessGateway.Launcher.csproj"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building artifacts for version $version"
+
+      - name: Install dotnet-releaser
+        shell: bash
+        run: dotnet tool install --global dotnet-releaser --version 0.24.0
+
+      # The `run` sub-command on a branch push selects build-only mode: all six
+      # RIDs plus .deb/.rpm are produced, tests run, the changelog is generated
+      # from PRs/commits - and no release is created or published (T008).
+      - name: Build and package with dotnet-releaser
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet-releaser run --github-token "$GITHUB_TOKEN" --force dotnet-releaser.toml 2>&1 | tee releaser.log
+
+      # Fail unless the full matrix exists with the version-less
+      # harnessgateway-<rid>.<ext> names (archive prefix == binary name).
+      - name: Verify the artifact matrix and naming contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="
+          harnessgateway-linux-x64.tar.gz
+          harnessgateway-linux-arm64.tar.gz
+          harnessgateway-linux-x64.deb
+          harnessgateway-linux-arm64.deb
+          harnessgateway-linux-x64.rpm
+          harnessgateway-linux-arm64.rpm
+          harnessgateway-win-x64.zip
+          harnessgateway-win-arm64.zip
+          harnessgateway-osx-x64.tar.gz
+          harnessgateway-osx-arm64.tar.gz
+          "
+          missing=0
+          for f in $expected; do
+            if [ ! -f "artifacts-dotnet-releaser/$f" ]; then
+              echo "::error::Expected artifact missing: artifacts-dotnet-releaser/$f"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Produced artifacts:"
+            ls -la artifacts-dotnet-releaser || true
+            exit 1
+          fi
+          echo "All ten artifacts present with the harnessgateway-<rid>.<ext> naming."
+
+      # Extract the changelog dotnet-releaser generated during the run
+      # ("Preparing Changelog" group, "Changelog:" line) into the draft notes.
+      - name: Extract the generated changelog as draft notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk '
+            /^::group::Preparing Changelog/ { in_group = 1; next }
+            in_group && /^::endgroup::/ { exit }
+            in_group && !grabbed && /Changelog:$/ { grabbed = 1; next }
+            grabbed { sub(/\r$/, ""); print }
+          ' releaser.log > draft-notes.md
+          # First line after the marker is the changelog title; the release
+          # carries its own title, so drop it and keep the generated body.
+          if [ -s draft-notes.md ]; then
+            tail -n +2 draft-notes.md > draft-notes.tmp && mv draft-notes.tmp draft-notes.md
+          fi
+          if ! grep -q . draft-notes.md; then
+            echo "::error::dotnet-releaser emitted no changelog into releaser.log - refusing to draft empty release notes."
+            exit 1
+          fi
+          echo "Draft notes extracted ($(grep -c . draft-notes.md) non-empty lines)."
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts-dotnet-releaser/*
+          if-no-files-found: error
+
+      - name: Upload draft notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: draft-notes
+          path: draft-notes.md
+          if-no-files-found: error
+
+  smoke:
+    name: Smoke test ${{ matrix.rid }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: harnessgateway-linux-x64.tar.gz
+            binary: harnessgateway
+          - os: windows-latest
+            rid: win-x64
+            archive: harnessgateway-win-x64.zip
+            binary: harnessgateway.exe
+          - os: macos-26-intel
+            rid: osx-x64
+            archive: harnessgateway-osx-x64.tar.gz
+            binary: harnessgateway
+          - os: macos-26
+            rid: osx-arm64
+            archive: harnessgateway-osx-arm64.tar.gz
+            binary: harnessgateway
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: artifacts
+
+      # Binary load, version stamping (T013), and argument parsing only -
+      # no harness launching, credential-store, or Codex TOML behavior here
+      # (T023). linux-arm64 and win-arm64 are published without execution.
+      - name: Run ${{ matrix.binary }} --version and --help
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir smoke
+          case "${{ matrix.archive }}" in
+            *.zip) unzip -q "artifacts/${{ matrix.archive }}" -d smoke ;;
+            *) tar -xzf "artifacts/${{ matrix.archive }}" -C smoke ;;
+          esac
+          cd smoke
+          chmod +x "${{ matrix.binary }}" 2>/dev/null || true
+
+          version_output=$(./"${{ matrix.binary }}" --version)
+          if [ -z "$version_output" ]; then
+            echo "::error::${{ matrix.rid }}: --version produced no output"
+            exit 1
+          fi
+          case "$version_output" in
+            "$EXPECTED_VERSION"*) ;;
+            *)
+              echo "::error::${{ matrix.rid }}: --version reported '$version_output', expected '$EXPECTED_VERSION...'"
+              exit 1
+              ;;
+          esac
+
+          help_output=$(./"${{ matrix.binary }}" --help)
+          if [ -z "$help_output" ]; then
+            echo "::error::${{ matrix.rid }}: --help produced no output"
+            exit 1
+          fi
+
+          echo "${{ matrix.rid }} smoke OK: $version_output"
+
+  draft:
+    name: Create or update the draft release
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download draft notes
+        uses: actions/download-artifact@v4
+        with:
+          name: draft-notes
+
+      # Creates or updates a DRAFT only. The final assertion re-checks the
+      # release is still a draft - this workflow must never publish (T008).
+      - name: Create or update draft release with generated changelog
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          existing_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq "[.[] | select(.draft == true and .tag_name == \"${tag}\")][0].id // empty")
+
+          if [ -n "$existing_id" ]; then
+            jq -n --arg name "$tag" --rawfile body draft-notes.md '{name: $name, body: $body, draft: true}' > patch.json
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${existing_id}" --input patch.json > /dev/null
+            echo "Updated draft release ${tag} (id ${existing_id}) with the generated changelog."
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft \
+              --title "$tag" --notes-file draft-notes.md --target "$TARGET_SHA"
+            echo "Created draft release ${tag} with the generated changelog."
+          fi
+
+          is_draft=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq "[.[] | select(.tag_name == \"${tag}\")][0].draft // empty")
+          if [ "$is_draft" != "true" ]; then
+            echo "::error::Release ${tag} is not a draft - this workflow must never publish."
+            exit 1
+          fi
+          echo "Confirmed: ${tag} is still a draft. Publication happens only via publish-release.yml."

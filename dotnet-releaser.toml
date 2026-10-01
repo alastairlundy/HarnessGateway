@@ -1,0 +1,138 @@
+# dotnet-releaser configuration for HarnessGateway.
+#
+# Every value that affects produced artifacts or publish behavior is set
+# explicitly here - nothing is left at a tool default (T004/T007/T020/T021/T022).
+# GitHub release state (draft creation, asset upload, publication) is owned by
+# .github/workflows/draft-release.yml and .github/workflows/publish-release.yml
+# via the gh CLI and GITHUB_TOKEN only. This tool itself never creates, edits,
+# or publishes a release, and never writes to any GitHub repository other than
+# this one.
+
+# Use only the [[pack]] blocks below as the artifact matrix; the tool's default
+# profiles (and their extra RIDs/kinds) must not add anything implicitly.
+profile = "custom"
+
+# Where built packages land (also the folder the workflows upload/verify).
+artifacts_folder = "artifacts-dotnet-releaser"
+
+# Draft releases may carry generated notes during builds, but the binaries are
+# never uploaded to a draft by this tool: publish-release.yml attaches the
+# built binaries to the draft only when the maintainer dispatches it.
+enable_publish_packages_in_draft = false
+
+[msbuild]
+# The solution includes the TUnit test project so `dotnet-releaser build/run`
+# compiles and tests everything it packages.
+project = "src/HarnessGateway.slnx"
+configuration = "Release"
+configuration_debug = "Debug"
+build_debug = false
+# Load and build the projects above (explicit; not a tool default).
+publish = true
+
+[msbuild.properties]
+# Publish shape for every RID: self-contained, multi-file - the same layout the
+# previous hand-written release workflow produced. Trimming, single-file
+# bundling and ReadyToRun are deliberately off (they were never part of the
+# shipped archives and trimming is unsafe for this CLI's reflection/CLI
+# parsing surface).
+SelfContained = true
+PublishSingleFile = false
+PublishTrimmed = false
+PublishReadyToRun = false
+CopyOutputSymbolsToPublishDirectory = false
+SkipCopyingSymbolsToOutputDirectory = true
+
+[test]
+# Tests run as part of every build, including the build that produces release
+# binaries from the tagged commit.
+enable = true
+run_tests = true
+run_tests_for_debug = false
+
+[coverage]
+# No code-coverage tooling in the CI gate or the release pipeline, and no
+# Coveralls upload anywhere (never adopted; the service integration was removed
+# upstream in dotnet-releaser 0.14.0). Nothing coverage-related leaves this repo.
+enable = false
+
+[github]
+user = "alastairlundy"
+repo = "HarnessGateway"
+base = "https://github.com"
+api = "https://api.github.com"
+# Release tags are v-prefixed (v0.1.0); the publish workflow asserts that the
+# pushed tag matches the csproj <Version> (T013).
+version_prefix = "v"
+branches = ["main"]
+# dotnet-releaser itself is never allowed to publish to GitHub. The release
+# workflows own the draft/publish lifecycle, and no release step in this repo
+# can create or write to any GitHub repository other than this one (T020).
+publish = false
+
+[changelog]
+# Release notes for the draft are generated from PRs and commits by
+# `dotnet-releaser run` on push to main; never read from a tracked file.
+publish = true
+path = ""
+include_commits = true
+# Build-time draft handling stays enabled (notes-only, per
+# enable_publish_packages_in_draft = false); the draft workflow's gh step
+# guarantees the draft exists even when the tool does not create one.
+disable_draft_for_build = false
+
+[nuget]
+# NuGet is a standing refusal: no .nupkg is produced and nothing is pushed to
+# any NuGet feed - publish = false disables pack output as well as upload
+# (docs/agents/out-of-scope.md, T007).
+publish = false
+publish_draft = false
+trusted_publishing = false
+source = "https://api.nuget.org/v3/index.json"
+
+[brew]
+# Homebrew publishing is disabled, including the Brew.Home auto-tap-repository
+# creation (NewRepository with AutoInit) - no second repository is ever created
+# (T020). macOS users install from the tar.gz archives.
+publish = false
+
+[scoop]
+# Scoop bucket publishing is disabled for the same reason: no repository
+# creation, no manifest upload (T020). Windows users install from the zip
+# archives.
+publish = false
+
+[service]
+# No systemd unit is packaged into the .deb/.rpm artifacts (T021 defers native
+# service/installer packaging; these are plain binary packages).
+publish = false
+
+# ---------------------------------------------------------------------------
+# Artifact matrix - the complete set of produced files (T007).
+#
+# Archives: zip on Windows, tar.gz everywhere else, version-less and named
+# `harnessgateway-<rid>.<ext>` so the archive prefix equals the binary name
+# (AssemblyName `harnessgateway`). The renamer strips the default
+# `harnessgateway.<version>.` segment from every archive and Linux package
+# file name.
+# ---------------------------------------------------------------------------
+
+[[pack]]
+publish = true
+rid = ["win-x64", "win-arm64"]
+kinds = ["zip"]
+renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
+
+[[pack]]
+# .deb (Debian/Ubuntu) and .rpm (Fedora/RHEL) ship UNSIGNED - signing is
+# refused outright, no GPG key material exists in this pipeline (T022).
+publish = true
+rid = ["linux-x64", "linux-arm64"]
+kinds = ["tar", "deb", "rpm"]
+renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
+
+[[pack]]
+publish = true
+rid = ["osx-x64", "osx-arm64"]
+kinds = ["tar"]
+renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]

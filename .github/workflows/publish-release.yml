@@ -1,0 +1,115 @@
+name: Publish release
+
+# workflow_dispatch ONLY: the sole way a release becomes visible to users.
+# It asserts the dispatched tag matches the csproj <Version>, builds the
+# binaries from the tagged commit, attaches them to the existing draft, and
+# then - as the last act - flips that draft to published. A bare tag push
+# publishes nothing (T005, T013).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish; must match the csproj <Version> (e.g. v0.1.0)'
+        required: true
+        type: string
+
+# Deny everything by default; the job re-grants only what it needs (T003).
+permissions: {}
+
+jobs:
+  publish:
+    name: Assert, attach, publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      # Fails before any build or publish work when the tag disagrees with the
+      # pinned <Version> of the checked-out (tagged) commit (T013).
+      - name: Assert the tag matches the csproj version
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          csproj_version=$(sed -n 's/^[[:space:]]*<Version>\(.*\)<\/Version>.*/\1/p' src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj)
+          if [ -z "$csproj_version" ]; then
+            echo "::error::No <Version> found in HarnessGateway.Launcher.csproj at ${TAG}; nothing was published."
+            exit 1
+          fi
+          expected="v${csproj_version}"
+          if [ "$TAG" != "$expected" ]; then
+            echo "::error::Tag '${TAG}' does not match the csproj <Version> ${csproj_version} (expected '${expected}'); nothing was published."
+            exit 1
+          fi
+          echo "Tag ${TAG} matches the csproj version ${csproj_version}."
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install dotnet-releaser
+        shell: bash
+        run: dotnet tool install --global dotnet-releaser --version 0.24.0
+
+      # The `build` sub-command here (vs `run` in draft-release.yml): a pure
+      # local build - all six RIDs, tests, packages - with no GitHub token, so
+      # dotnet-releaser cannot create, edit, or publish anything (T008).
+      - name: Build binaries and packages from the tagged commit
+        shell: bash
+        run: dotnet-releaser build --force dotnet-releaser.toml
+
+      # Attach every built artifact to the existing draft, then publish it as
+      # the final act. GitHub release state is written only by these gh calls
+      # with GITHUB_TOKEN, scoped to this repository (T003, T020).
+      - name: Attach built binaries to the draft and publish it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          draft_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq "[.[] | select(.draft == true and .tag_name == \"${TAG}\")][0].id // empty")
+          if [ -z "$draft_id" ]; then
+            echo "::error::No draft release found for tag ${TAG} - the draft workflow must create it first; nothing was published."
+            exit 1
+          fi
+
+          shopt -s nullglob
+          uploaded=0
+          for asset in artifacts-dotnet-releaser/*; do
+            # Skip dotnet-releaser's msbuild_logs folder; upload files only.
+            [ -f "$asset" ] || continue
+            name=$(basename "$asset")
+            # Replace any asset left behind by an earlier partial run.
+            existing_asset_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${draft_id}/assets?per_page=100" --jq "[.[] | select(.name == \"${name}\")][0].id // empty")
+            if [ -n "$existing_asset_id" ]; then
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${existing_asset_id}"
+            fi
+            echo "Uploading ${name} to draft release ${TAG}"
+            curl -sS -f -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"${asset}" \
+              "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${draft_id}/assets?name=${name}" > /dev/null
+            uploaded=$((uploaded + 1))
+          done
+          if [ "$uploaded" -eq 0 ]; then
+            echo "::error::No built artifact files found in artifacts-dotnet-releaser/; nothing was published."
+            exit 1
+          fi
+
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" -F draft=false > /dev/null
+
+          is_draft=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" --jq .draft)
+          if [ "$is_draft" != "false" ]; then
+            echo "::error::Release ${TAG} is still a draft after the publish step."
+            exit 1
+          fi
+          echo "Published ${TAG} with ${uploaded} attached artifact(s)."
