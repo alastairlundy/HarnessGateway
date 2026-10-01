@@ -165,10 +165,15 @@ public sealed class LaunchCommand : Command
 
             if (orchestrator is null)
             {
-                
+                // Check the constructor parameter, then invoke it: flow analysis
+                // clears the nullable dereference, and the guard delivers the
+                // loud failure the seam contract promises instead of a bare NRE.
+                throw new InvalidOperationException(
+                    "LaunchCommand was constructed without an orchestrator; " +
+                    "wire one via the internal constructor before invoking 'launch <agent>'.");
             }
-            
-            return await _orchestrator.RunAsync(
+
+            return await orchestrator.RunAsync(
                 agent,
                 backendName,
                 endpoint,
