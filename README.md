@@ -10,12 +10,30 @@ Grab the archive for your platform from [GitHub Releases](https://github.com/ala
 | Platform | Archive |
 |----------|---------|
 | Linux x64 | `harnessgateway-linux-x64.tar.gz` |
+| Linux ARM64 | `harnessgateway-linux-arm64.tar.gz` |
 | Windows x64 | `harnessgateway-win-x64.zip` |
+| Windows ARM64 | `harnessgateway-win-arm64.zip` |
 | macOS x64 | `harnessgateway-osx-x64.tar.gz` |
 | macOS ARM64 | `harnessgateway-osx-arm64.tar.gz` |
 
 Unpack it anywhere and put the directory on your `PATH`. The binaries are
 self-contained, so there's no .NET runtime to install.
+
+Linux also ships native packages, one per Linux RID:
+
+| Distro | Package |
+|--------|---------|
+| Debian / Ubuntu | `harnessgateway-linux-x64.deb`, `harnessgateway-linux-arm64.deb` |
+| Fedora / RHEL | `harnessgateway-linux-x64.rpm`, `harnessgateway-linux-arm64.rpm` |
+
+The `.deb` and `.rpm` packages are shipped **unsigned** — no GPG key material
+exists in this pipeline, so there is no signature to import and no signed
+repository to add. Install them straight from the downloaded file with
+`dpkg -i harnessgateway-linux-x64.deb` or
+`rpm -i harnessgateway-linux-x64.rpm` (or `dnf install ./<package>`) and
+expect your package manager to warn about the missing signature; download only
+from the GitHub Releases page above. The archives are also plain binaries —
+unpacking one and adding it to `PATH` works the same way on every platform.
 
 ## Harnesses
 
@@ -83,6 +101,15 @@ harnessgateway launch [AGENT] [options]
 parse error. `--persist` takes both values at once (`--persist config model`) or
 comma-separated (`--persist config,model`).
 
+```bash
+harnessgateway --version
+```
+
+`--version` prints the assembly informational version (the release pin, e.g.
+`0.1.0`) and exits 0. It is how you identify your build when reporting a bug —
+the version deliberately stays out of archive file names, and it is unrelated
+to the settings `schemaVersion` reported by `config get schemaVersion`.
+
 Running `harnessgateway` with no arguments, or `harnessgateway launch` with no
 agent and no options, starts a wizard that asks for harness, endpoint, key, and
 model in that order. It fetches the endpoint's model list to populate the last
@@ -98,9 +125,9 @@ saved key, comes from the entry. Keys are never per-launch.
 
 Without `--backend`, launch resolves the `defaultBackend` pointer and nothing
 else. There's no first-entry fallback and no auto-promotion, so a settings file
-with entries but no default exits 8 until you run `config backend switch`. A
-name that matches no entry exits 8 with `unknown backend name '<name>'`, plus a
-suggestion when one is close.
+with entries but no default exits 8 until you run
+`config set defaultBackend <name>`. A name that matches no entry exits 8 with
+`unknown backend name '<name>'`, plus a suggestion when one is close.
 
 ### What `--persist config` actually does
 
@@ -125,37 +152,61 @@ wrote yourself, the launch is refused with exit 10. The launcher won't adopt or
 overwrite it. Rename the block or point `CODEX_HOME` elsewhere.
 
 `--persist model` writes the resolved model into the resolved entry so later
-launches reuse it. A `--backend` launch never changes which entry is the default;
-that's `config backend switch`'s job.
+launches reuse it. A `--backend` launch never changes which entry is the
+default; only `config set defaultBackend` does.
 
 ## Configuration
 
 ```bash
 harnessgateway config show
-harnessgateway config set-default-endpoint <url> <protocol>
-harnessgateway config set-saved-key <key>
-harnessgateway config clear-saved-key
-harnessgateway config set-default-model <model>
+harnessgateway config get <key>
+harnessgateway config set <key> <value>
 ```
 
-These operate on the default backend, creating one named `default` if the file
-is empty. `set-default-endpoint` and `set-saved-key` are the two you need on a
-first run; `show` prints the resolved default and reports whether a key is set
-without printing it.
+`show` prints the resolved default backend — endpoint, protocol, default model,
+and whether a key is set (never the key itself). With no default it says so and
+prints the command that fixes it.
+
+### Typed keys
+
+`get` and `set` address a closed set of typed keys over the settings file — no
+raw JSON paths:
+
+| Key | Access | Value |
+|-----|--------|-------|
+| `defaultBackend` | read/write | Name of the default backend entry — what `launch` resolves when no `--backend` is given |
+| `schemaVersion` | read-only | Settings-file schema version, stamped by the loader |
+| `backends` | read-only | Saved backend names, one per line — never endpoints, protocols, or keys |
+| `backends.<name>.endpoint` | read/write | Absolute URL of a saved entry |
+| `backends.<name>.protocol` | read/write | `openai-chat`, `openai-responses`, or `anthropic` |
+| `backends.<name>.defaultModel` | read/write | Per-entry default model |
+
+Anything outside that set is a usage error: an unknown key, a key naming no
+saved entry, or a write to `schemaVersion` or `backends` all exit 2. Backend
+creation and deletion are not key-addressable — `backend add` and
+`backend remove` own those, and no `set` key can write secret material.
+
+`config set defaultBackend <name>` is the sole write path for the default
+pointer: it validates the name against the saved entries, prints
+`Default backend set to '<name>'`, succeeds idempotently when the pointer
+already names that entry, and exits 8 with `unknown backend name '<name>'` (plus
+a suggestion when one is close) when nothing matches.
 
 ### Backends
 
 ```bash
 harnessgateway config backend add <name> --endpoint URL --protocol PROTOCOL [--key SECRET]
-harnessgateway config backend switch <name>
 harnessgateway config backend list
 harnessgateway config backend remove <name>
+harnessgateway config backend set-key <name> [--key SECRET]
+harnessgateway config backend clear-key <name>
 ```
 
 `add` creates the entry or replaces an existing one of the same name. Both
 `--endpoint` and `--protocol` are required, and a bad URL or unknown protocol
-word exits 2. It does not move the default pointer, so run `switch` after your
-first `add`; the success message reminds you.
+word exits 2. It does not move the default pointer, so run
+`config set defaultBackend <name>` after your first `add`; the success message
+reminds you.
 
 Without `--key`, an interactive terminal gets `Set an API key for '<name>'? [y/N]`
 (worded `Replace` if the entry already has one) followed by a hidden prompt.
@@ -164,17 +215,25 @@ keyless entry, which is valid. `--key` skips the prompt for scripts, at the cost
 of the secret landing in your shell history. A credential-store failure exits 7
 and writes nothing.
 
-`switch` validates the name, writes the pointer, and prints
-`backend '<name>' is now the default`. Pointing it at the current default
-succeeds without rewriting the file.
-
 `list` marks the default with `*` and prints an add-an-entry hint when the file
-is empty.
+is empty, or a `set defaultBackend` hint when entries exist but no default is
+set.
 
 `remove` deletes the entry and its stored key. It refuses with exit 2 to remove
-the current default (switch first) or the last remaining entry.
+the current default (set a new default first) or the last remaining entry.
 
-An unknown name on `switch` or `remove` exits 8.
+`set-key` sets or replaces the saved API key for one backend. It touches only
+the credential store — the entry's endpoint, protocol, and default model are
+never changed. It follows the same prompt rules as `add` (`--key` skips the
+hidden prompt), reports success without writing when the prompt is declined, and
+exits 7 writing nothing on a credential-store failure.
+
+`clear-key` removes the saved key and leaves everything else about the entry
+alone. It is idempotent: clearing a keyless backend succeeds and says there was
+nothing to clear. A credential-store failure exits 7 and writes nothing.
+
+An unknown name on `remove`, `set-key`, or `clear-key` exits 8 — as does a
+`config set defaultBackend` write that names no entry.
 
 ## Where things are stored
 
