@@ -156,30 +156,48 @@ public sealed class WizardPipeline
             return null;
         }
 
-        // Dead-end guard: selection is restricted to installed
-        // harnesses, so a step that no available adapter can satisfy (no
-        // harness installed at all, or none installed that supports the
-        // required protocol) has no valid pick - abort with install hints
-        // instead of re-prompting forever.
-        if (!await AnyAdapterAvailableSupportsAsync(protocolToCheck, cancellationToken).ConfigureAwait(true))
-        {
-            if (protocolToCheck is null)
-            {
-                WriteNoHarnessInstalled();
-            }
-            else
-            {
-                WriteNoInstalledSupports(protocolToCheck.Value);
-            }
-            return null;
-        }
-
         bool showIncompatible = annotateIncompatible;
 
         while (true)
         {
-            List<ConsoleChoice> choices = await BuildHarnessChoicesAsync(
-                protocolToCheck, showIncompatible, cancellationToken).ConfigureAwait(true);
+            // Probe availability once per loop iteration: the dead-end guard,
+            // the choice annotations, and the post-pick refusal all consume
+            // the same results instead of each re-spawning the detection
+            // process. Re-probing per iteration (not cached across them) lets
+            // a freshly installed harness show up without restarting the
+            // wizard.
+            List<(IHarnessAdapter Adapter, bool IsAvailable)> probed = [];
+            foreach (IHarnessAdapter adapter in _adapters)
+            {
+                probed.Add((adapter,
+                    await adapter.IsAvailableAsync(cancellationToken).ConfigureAwait(true)));
+            }
+
+            // Dead-end guard: selection is restricted to installed
+            // harnesses, so a step that no available adapter can satisfy (no
+            // harness installed at all, or none installed that supports the
+            // required protocol) has no valid pick - abort with install hints
+            // instead of re-prompting forever.
+            if (!probed.Any(pair =>
+                    pair.IsAvailable
+                    && (protocolToCheck is null
+                        || pair.Adapter.Metadata.SupportedProtocols
+                            .Contains(protocolToCheck.Value))))
+            {
+                if (protocolToCheck is null)
+                {
+                    WriteNoHarnessInstalled();
+                }
+                else
+                {
+                    WriteNoInstalledSupports(protocolToCheck.Value);
+                }
+
+                return null;
+            }
+
+            List<ConsoleChoice> choices = BuildHarnessChoices(
+                probed, protocolToCheck, showIncompatible);
 
             string pick = await _console.PromptChoiceAsync(
                 "Select a harness:", choices, cancellationToken).ConfigureAwait(true);
@@ -195,7 +213,8 @@ public sealed class WizardPipeline
             // cannot work (direct mode's orchestrator check would refuse it
             // later anyway), so fail here with the install hint rather
             // than after the endpoint, key, and model steps.
-            if (selected is not null && !await selected.IsAvailableAsync(cancellationToken).ConfigureAwait(true))
+            if (selected is not null
+                && !probed.First(pair => ReferenceEquals(pair.Adapter, selected)).IsAvailable)
             {
                 await _console.WriteErrorAsync(BuildNotInstalledMessage(selected), cancellationToken).ConfigureAwait(true);
                 continue;
@@ -218,17 +237,15 @@ public sealed class WizardPipeline
         }
     }
 
-    private async Task<List<ConsoleChoice>> BuildHarnessChoicesAsync(
+    private List<ConsoleChoice> BuildHarnessChoices(
+        IReadOnlyList<(IHarnessAdapter Adapter, bool IsAvailable)> probed,
         ProtocolKind? protocolToCheck,
-        bool showIncompatible,
-        CancellationToken cancellationToken)
+        bool showIncompatible)
     {
         List<ConsoleChoice> choices = [];
 
-        foreach (IHarnessAdapter adapter in _adapters)
+        foreach ((IHarnessAdapter adapter, bool isAvailable) in probed)
         {
-            bool isAvailable = await adapter.IsAvailableAsync(cancellationToken).ConfigureAwait(true);
-
             string? incompatible = null;
             if (showIncompatible
                 && protocolToCheck is not null
@@ -253,30 +270,6 @@ public sealed class WizardPipeline
 
     private bool AnyAdapterSupports(ProtocolKind protocol) =>
         _adapters.Any(adapter => adapter.Metadata.SupportedProtocols.Contains(protocol));
-
-    /// <summary>
-    /// Selection guard: is there at least one harness that is both
-    /// installed and (when a protocol is pinned) able to speak it?
-    /// </summary>
-    private async Task<bool> AnyAdapterAvailableSupportsAsync(
-        ProtocolKind? protocol,
-        CancellationToken cancellationToken)
-    {
-        foreach (IHarnessAdapter adapter in _adapters)
-        {
-            if (protocol is not null && !adapter.Metadata.SupportedProtocols.Contains(protocol.Value))
-            {
-                continue;
-            }
-
-            if (await adapter.IsAvailableAsync(cancellationToken).ConfigureAwait(true))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private void WriteNoHarnessInstalled()
     {
