@@ -10,7 +10,7 @@ Proposed, considered, and deliberately rejected behaviors for the `harnessgatewa
 ## Settings
 
 - **Settings-tracked persistence** (remembering which writes to keep in the settings file instead of marking the backups). Persistence uses backup markers that self-heal skips for `--persist config` writes; settings-tracked state was rejected for atomicity, locality, and settings-independence.
-- **Hand-edited settings files as a supported workflow.** Backend entries are managed by `config backend add/switch/list/remove`, which also route keys into the platform credential store instead of plaintext JSON; a hand edit that dangles the `defaultBackend` pointer is an error pointing at `config backend switch`.
+- **Hand-edited settings files as a supported workflow.** Backend entries are managed by `config backend add|list|remove` and the credential verbs `config backend set-key|clear-key`, which route keys into the platform credential store instead of plaintext JSON; a hand edit that dangles the `defaultBackend` pointer is an error pointing at `config set defaultBackend`.
 - **Auto-promotion or first-entry fallback when the default pointer dangles.** Launches read the default pointer strictly — no inference, no silent fallback.
 
 ## Launch
@@ -26,7 +26,8 @@ Proposed, considered, and deliberately rejected behaviors for the `harnessgatewa
 
 - **More short flags beyond `-m`.** `-m` is the sole alias because model input is the highest-frequency repeat input on the launch hot path; the full core alias set (`-e`, `-b`, `-p`, …) was speculative weight.
 - **Additional `--persist` value types** beyond `config` and `model`. The family is deliberately closed rather than left open; any future expansion is a new decision, not a silent enum extension.
-- **Backend-selection persistence.** A `--backend` launch persists nothing about its selection; changing the default backend is `config backend switch`'s job, keeping one verb per settings mutation.
+- **Backend-selection persistence.** A `--backend` launch persists nothing about its selection; changing the default backend is `config set defaultBackend`'s job, keeping one verb per settings mutation.
+- **A `backend switch` verb.** The default pointer has exactly one write path, `config set defaultBackend <name>` (name validation, confirmation output, exit 8 on an unresolvable name). `backend switch` duplicated that mutation and was removed before the first release. Re-adding a second pointer-write path is a new decision.
 
 ## Wizard
 
@@ -39,5 +40,8 @@ Proposed, considered, and deliberately rejected behaviors for the `harnessgatewa
 
 ## Packaging
 
-- **NuGet/dotnet-tool distribution.** Releases ship per-OS `harnessgateway-<rid>` archives only; the tool-package channel was dropped.
+- **NuGet/dotnet-tool distribution.** A standing refusal. `.nupkg` output and NuGet publishing are explicitly disabled in `dotnet-releaser.toml`. Releases ship per-OS `harnessgateway-<rid>` archives (zip on Windows, tar.gz elsewhere) plus `.deb` and `.rpm` packages for the Linux RIDs.
+- **Package signing.** `.deb`/`.rpm` ship unsigned. Signing is refused, not deferred, so no GPG or other signing key material exists in the pipeline and installers warn about the missing signature. Reintroducing signing is a new decision that must also state its key-management and secrets posture.
+- **Homebrew and Scoop channels.** Explicitly disabled in `dotnet-releaser.toml`, including Homebrew's auto-tap-repository creation. No release step may create or write to any GitHub repository other than this one. macOS users install from tar.gz and Windows users from zip. Adding any package-manager channel later is a new decision that must state its repository-ownership and permission model.
+- **Coveralls / code-coverage upload.** Not configured. The pipeline includes no coverage reporting service, and the CI gate runs no coverage tooling.
 - **A separately published adapters package.** Adapters stay inside the Core project until community-authored harnesses arrive; the descriptor-based adapter option remains open for that future.

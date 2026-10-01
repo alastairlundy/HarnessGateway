@@ -20,4 +20,5 @@ Deferred out of the v1 scope; the pattern to follow is any shipped adapter (`Cor
 
 ## Packaging and CLI identity
 
+- [ ] Windows `.msi`/`.exe` installer for a future version. This is a deferral, not a refusal; v0.1.0 ships Windows as zip only. dotnet-releaser's package formats are Linux-oriented (`.deb`/`.rpm`), so the future-version decision includes re-evaluating the packaging tool.
 - [ ] Unified-CLI rename when proxy-server verbs are added (rename trigger)
