@@ -30,7 +30,12 @@ jobs:
 
       - name: Build (Release)
         shell: bash
-        run: dotnet build src/HarnessGateway.slnx --configuration Release --no-restore --nologo | tee build.log
+        # pipefail needed: bash -e alone takes tee's exit status, so a failed
+        # dotnet build would not fail this step. The log is still written for
+        # the warning gate below.
+        run: |
+          set -o pipefail
+          dotnet build src/HarnessGateway.slnx --configuration Release --no-restore --nologo | tee build.log
 
       # Meziantou analyzer warnings are errors for NEW warnings only: the build
       # fails on any MA* signature that is not in the checked-in baseline below.

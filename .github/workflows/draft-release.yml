@@ -55,11 +55,15 @@ jobs:
       # The `run` sub-command on a branch push selects build-only mode: all six
       # RIDs plus .deb/.rpm are produced, tests run, the changelog is generated
       # from PRs/commits - and no release is created or published (T008).
+      # pipefail needed: bash -e alone takes tee's exit status, so a
+      # dotnet-releaser failure would not fail this step.
       - name: Build and package with dotnet-releaser
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: dotnet-releaser run --github-token "$GITHUB_TOKEN" --force dotnet-releaser.toml 2>&1 | tee releaser.log
+        run: |
+          set -euo pipefail
+          dotnet-releaser run --github-token "$GITHUB_TOKEN" --force dotnet-releaser.toml 2>&1 | tee releaser.log
 
       # Fail unless the full matrix exists with the version-less
       # harnessgateway-<rid>.<ext> names (archive prefix == binary name).
@@ -224,7 +228,12 @@ jobs:
         run: |
           set -euo pipefail
           tag="v${VERSION}"
-          existing_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq "[.[] | select(.draft == true and .tag_name == \"${tag}\")][0].id // empty")
+          # --paginate: the tag's draft may sit behind the first 100 releases.
+          # Capture first, THEN strip to the first line - 'head -n1' in a
+          # pipefail pipeline makes gh die of SIGPIPE once head exits.
+          matching_ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.draft == true and .tag_name == "'"$tag"'") | .id')
+          existing_id="${matching_ids%%$'\n'*}"
 
           if [ -n "$existing_id" ]; then
             jq -n --arg name "$tag" --rawfile body draft-notes.md '{name: $name, body: $body, draft: true}' > patch.json
@@ -236,7 +245,9 @@ jobs:
             echo "Created draft release ${tag} with the generated changelog."
           fi
 
-          is_draft=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq "[.[] | select(.tag_name == \"${tag}\")][0].draft // empty")
+          is_draft_matches=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == "'"$tag"'") | .draft')
+          is_draft="${is_draft_matches%%$'\n'*}"
           if [ "$is_draft" != "true" ]; then
             echo "::error::Release ${tag} is not a draft - this workflow must never publish."
             exit 1

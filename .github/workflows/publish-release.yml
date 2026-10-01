@@ -60,11 +60,18 @@ jobs:
         run: dotnet tool install --global dotnet-releaser --version 0.24.0
 
       # The `build` sub-command here (vs `run` in draft-release.yml): a pure
-      # local build - all six RIDs, tests, packages - with no GitHub token, so
-      # dotnet-releaser cannot create, edit, or publish anything (T008).
+      # local build - all six RIDs, tests, packages - no release writes.
+      # dotnet-releaser itself cannot create, edit, or publish anything
+      # ([github] publish = false, T008); the token only authenticates the
+      # changelog generation's read-only PR queries, which would otherwise
+      # hit the unauthenticated 60 req/hr rate limit.
       - name: Build binaries and packages from the tagged commit
         shell: bash
-        run: dotnet-releaser build --force dotnet-releaser.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          dotnet-releaser build --force --github-token "$GITHUB_TOKEN" dotnet-releaser.toml
 
       # Attach every built artifact to the existing draft, then publish it as
       # the final act. GitHub release state is written only by these gh calls
@@ -76,7 +83,12 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          draft_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq "[.[] | select(.draft == true and .tag_name == \"${TAG}\")][0].id // empty")
+          # --paginate: the tag's draft may sit behind the first 100 releases.
+          # Capture first, THEN strip to the first line - 'head -n1' in a
+          # pipefail pipeline makes gh die of SIGPIPE once head exits.
+          matching_ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[] | select(.draft == true and .tag_name == "'"$TAG"'") | .id')
+          draft_id="${matching_ids%%$'\n'*}"
           if [ -z "$draft_id" ]; then
             echo "::error::No draft release found for tag ${TAG} - the draft workflow must create it first; nothing was published."
             exit 1
