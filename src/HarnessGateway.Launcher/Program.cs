@@ -72,14 +72,14 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         cancellationToken).ConfigureAwait(true);
 }
 
-LaunchCommand launchCommand = new(orchestrator, RunWizardAsync, adapters);
-
-RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
-{
-    launchCommand,
-    new ConfigCommand(settingsStore, keyStore)
-};
-
-rootCommand.SetAction(async (result, cancellationToken) => await RunWizardAsync(cancellationToken).ConfigureAwait(true));
+// Root wiring (the --version action, launch/config registration, and the
+// wizard root action) lives in RootCommandFactory so the tests can drive the
+// same parse-and-invoke path this entry point uses.
+RootCommand rootCommand = RootCommandFactory.Create(
+    orchestrator,
+    RunWizardAsync,
+    adapters,
+    settingsStore,
+    keyStore);
 
 return rootCommand.Parse(args).Invoke();

@@ -7,6 +7,9 @@
         <AssemblyName>harnessgateway</AssemblyName>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <!-- Pinned build identity: surfaced by the version flag and asserted
+             against the release tag. Distinct from settings `schemaVersion`. -->
+        <Version>0.1.0</Version>
 
         <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/alastairlundy/HarnessGateway</RepositoryUrl>
