@@ -65,7 +65,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         wizardResult.AgentCommandName,
         null,
         wizardResult.Endpoint,
-        wizardResult.Protocol.ToString().ToLowerInvariant(),
+        LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,
         wizardResult.ApiKey is not null ? ["config"] : [],
         Directory.GetCurrentDirectory(),
