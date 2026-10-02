@@ -10,7 +10,7 @@ on:
     branches:
       - main
 
-# Deny everything by default; each job re-grants only what it needs (T003).
+# Deny everything by default; each job re-grants only what it needs.
 permissions: {}
 
 jobs:
@@ -205,9 +205,9 @@ jobs:
           name: release-artifacts
           path: artifacts
 
-      # Binary load, version stamping (T013), and argument parsing only -
-      # no harness launching, credential-store, or Codex TOML behavior here
-      # (T023). linux-arm64 and win-arm64 are published without execution.
+      # Binary load, version stamping, and argument parsing only -
+      # no harness launching, credential-store, or Codex TOML behavior here.
+      # linux-arm64 and win-arm64 are published without execution.
       - name: Run ${{ matrix.binary }} --version and --help
         shell: bash
         env:
@@ -256,7 +256,7 @@ jobs:
           name: draft-notes
 
       # Creates or updates a DRAFT only. The final assertion re-checks the
-      # release is still a draft - this workflow must never publish (T008).
+      # release is still a draft - this workflow must never publish.
       - name: Create or update draft release with generated changelog
         shell: bash
         env:

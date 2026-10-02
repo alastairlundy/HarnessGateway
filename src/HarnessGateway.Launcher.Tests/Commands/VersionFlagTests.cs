@@ -12,7 +12,7 @@ namespace HarnessGateway.Launcher.Tests.Commands;
 /// <summary>
 /// `--version` is the field-identification seam: a bug report names its build
 /// with it and the release smoke test executes it, so it must report the
-/// pinned assembly informational version (T013), exit 0, and never the
+/// pinned assembly informational version, exit 0, and never the
 /// settings schemaVersion - different concepts, different surfaces. The flag
 /// is driven through the real root command so the wiring itself is under
 /// test, not a lookalike constructed by this suite.
@@ -90,7 +90,7 @@ public class VersionFlagTests
     [Test]
     public async Task Version_flag_reports_not_the_settings_schema_version()
     {
-        // T013's non-conflation guard: schemaVersion describes the settings
+        // Non-conflation guard: schemaVersion describes the settings
         // file's shape and belongs to `config get`; the assembly version is
         // the build's identity. They must never converge.
         string schemaVersion = LauncherSettings.CurrentSchemaVersion.ToString();

@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
 
-# Deny everything by default; each job re-grants only what it needs (T003).
+# Deny everything by default; each job re-grants only what it needs.
 permissions: {}
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
 
       # Meziantou analyzer warnings are errors for NEW warnings only: the build
       # fails on any MA* signature that is not in the checked-in baseline below.
-      # This is the incremental bar (T002) - existing warnings are recorded, not
+      # This is the incremental bar - existing warnings are recorded, not
       # retroactively fixed, and every warning added from here on must be fixed.
       - name: New Meziantou warnings fail the build
         shell: bash
@@ -75,7 +75,7 @@ jobs:
 
           new_warnings=$(LC_ALL=C comm -13 meziantou-baseline.txt meziantou-current.txt || true)
           if [ -n "$new_warnings" ]; then
-            echo "::error::New Meziantou analyzer warning(s) detected - the incremental warnings-as-errors bar (T002) requires fixing them:"
+            echo "::error::New Meziantou analyzer warning(s) detected - the incremental warnings-as-errors bar requires fixing them:"
             printf '%s\n' "$new_warnings"
             exit 1
           fi

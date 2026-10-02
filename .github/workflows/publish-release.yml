@@ -4,7 +4,7 @@ name: Publish release
 # It asserts the dispatched tag matches the csproj <Version>, builds the
 # binaries from the tagged commit, attaches them to the existing draft, and
 # then - as the last act - flips that draft to published. A bare tag push
-# publishes nothing (T005, T013).
+# publishes nothing.
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
         required: true
         type: string
 
-# Deny everything by default; the job re-grants only what it needs (T003).
+# Deny everything by default; the job re-grants only what it needs.
 permissions: {}
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
           fetch-depth: 0
 
       # Fails before any build or publish work when the tag disagrees with the
-      # pinned <Version> of the checked-out (tagged) commit (T013).
+      # pinned <Version> of the checked-out (tagged) commit.
       - name: Assert the tag matches the csproj version
         shell: bash
         env:
@@ -66,7 +66,7 @@ jobs:
       # The `build` sub-command here (vs `run` in draft-release.yml): a pure
       # local build - all six RIDs, tests, packages - no release writes.
       # dotnet-releaser itself cannot create, edit, or publish anything
-      # ([github] publish = false, T008); the token only authenticates the
+      # ([github] publish = false); the token only authenticates the
       # changelog generation's read-only PR queries, which would otherwise
       # hit the unauthenticated 60 req/hr rate limit.
       - name: Build binaries and packages from the tagged commit
@@ -79,7 +79,7 @@ jobs:
 
       # Attach every built artifact to the existing draft, then publish it as
       # the final act. GitHub release state is written only by these gh calls
-      # with GITHUB_TOKEN, scoped to this repository (T003, T020).
+      # with GITHUB_TOKEN, scoped to this repository.
       - name: Attach built binaries to the draft and publish it
         shell: bash
         env:

@@ -1,7 +1,7 @@
 # dotnet-releaser configuration for HarnessGateway.
 #
 # Every value that affects produced artifacts or publish behavior is set
-# explicitly here - nothing is left at a tool default (T004/T007/T020/T021/T022).
+# explicitly here - nothing is left at a tool default.
 # GitHub release state (draft creation, asset upload, publication) is owned by
 # .github/workflows/draft-release.yml and .github/workflows/publish-release.yml
 # via the gh CLI and GITHUB_TOKEN only. This tool itself never creates, edits,
@@ -62,12 +62,12 @@ repo = "HarnessGateway"
 base = "https://github.com"
 api = "https://api.github.com"
 # Release tags are v-prefixed (v0.1.0); the publish workflow asserts that the
-# pushed tag matches the csproj <Version> (T013).
+# pushed tag matches the csproj <Version>.
 version_prefix = "v"
 branches = ["main"]
 # dotnet-releaser itself is never allowed to publish to GitHub. The release
 # workflows own the draft/publish lifecycle, and no release step in this repo
-# can create or write to any GitHub repository other than this one (T020).
+# can create or write to any GitHub repository other than this one.
 publish = false
 
 [changelog]
@@ -84,7 +84,7 @@ disable_draft_for_build = false
 [nuget]
 # NuGet is a standing refusal: no .nupkg is produced and nothing is pushed to
 # any NuGet feed - publish = false disables pack output as well as upload
-# (docs/agents/out-of-scope.md, T007).
+# (docs/agents/out-of-scope.md).
 publish = false
 publish_draft = false
 trusted_publishing = false
@@ -93,22 +93,22 @@ source = "https://api.nuget.org/v3/index.json"
 [brew]
 # Homebrew publishing is disabled, including the Brew.Home auto-tap-repository
 # creation (NewRepository with AutoInit) - no second repository is ever created
-# (T020). macOS users install from the tar.gz archives.
+# macOS users install from the tar.gz archives.
 publish = false
 
 [scoop]
 # Scoop bucket publishing is disabled for the same reason: no repository
-# creation, no manifest upload (T020). Windows users install from the zip
+# creation, no manifest upload. Windows users install from the zip
 # archives.
 publish = false
 
 [service]
-# No systemd unit is packaged into the .deb/.rpm artifacts (T021 defers native
-# service/installer packaging; these are plain binary packages).
+# No systemd unit is packaged into the .deb/.rpm artifacts (native
+# service/installer packaging is deferred; these are plain binary packages).
 publish = false
 
 # ---------------------------------------------------------------------------
-# Artifact matrix - the complete set of produced files (T007).
+# Artifact matrix - the complete set of produced files.
 #
 # Archives: zip on Windows, tar.gz everywhere else, version-less and named
 # `harnessgateway-<rid>.<ext>` so the archive prefix equals the binary name
@@ -125,7 +125,7 @@ renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'h
 
 [[pack]]
 # .deb (Debian/Ubuntu) and .rpm (Fedora/RHEL) ship UNSIGNED - signing is
-# refused outright, no GPG key material exists in this pipeline (T022).
+# refused outright, no GPG key material exists in this pipeline.
 publish = true
 rid = ["linux-x64", "linux-arm64"]
 kinds = ["tar", "deb", "rpm"]
