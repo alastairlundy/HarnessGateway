@@ -102,8 +102,14 @@ jobs:
 
       # Extract the changelog dotnet-releaser generated during the run
       # ("Preparing Changelog" group, "Changelog:" line) into the draft notes.
+      # Two post-passes keep the notes readable: a long Misc bucket (every
+      # chore/infra commit on a first release) collapses to a count, and
+      # dotnet-releaser's 9999.0.0 placeholder in the compare link is pinned
+      # to this run's commit (branch builds have no tag ref to resolve).
       - name: Extract the generated changelog as draft notes
         shell: bash
+        env:
+          TARGET_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           awk '
@@ -117,6 +123,35 @@ jobs:
           if [ -s draft-notes.md ]; then
             tail -n +2 draft-notes.md > draft-notes.tmp && mv draft-notes.tmp draft-notes.md
           fi
+          # Collapse the Misc section to a one-line count when it runs long;
+          # small Misc sections and every categorized section stay verbatim.
+          awk -v max_keep=10 '
+            function flush_misc(   i) {
+              if (!in_misc) return
+              if (misc_count > max_keep) {
+                print misc_header
+                print ""
+                printf "- ...and %d smaller changes (chore, cleanup, and repo upkeep) - see the full changelog below.\n", misc_count
+                print ""
+              } else {
+                print misc_header
+                for (i = 0; i < misc_len; i++) print misc_buf[i]
+              }
+              in_misc = 0; misc_count = 0; misc_len = 0
+            }
+            /^## / {
+              flush_misc()
+              if ($0 ~ /Misc$/) { in_misc = 1; misc_header = $0; next }
+              print
+              next
+            }
+            in_misc && /^- / { misc_buf[misc_len++] = $0; misc_count++; next }
+            in_misc && NF == 0 { misc_buf[misc_len++] = $0; next }
+            in_misc { flush_misc(); print; next }
+            { print }
+            END { flush_misc() }
+          ' draft-notes.md > draft-notes.tmp && mv draft-notes.tmp draft-notes.md
+          sed -i "s/v9999\.0\.0/${TARGET_SHA}/g" draft-notes.md
           if ! grep -q . draft-notes.md; then
             echo "::error::dotnet-releaser emitted no changelog into releaser.log - refusing to draft empty release notes."
             exit 1
@@ -248,9 +283,20 @@ jobs:
             echo "Created draft release ${tag} with the generated changelog."
           fi
 
-          is_draft_matches=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq '.[] | select(.tag_name == "'"$tag"'") | .draft')
-          is_draft="${is_draft_matches%%$'\n'*}"
+          # The releases LIST endpoint can lag the create/update above: an
+          # immediate read may not see the fresh release yet and would
+          # misreport it as "not a draft" (observed: empty read 0.4s after
+          # create). Retry briefly; a genuinely non-draft release still fails.
+          is_draft=""
+          for attempt in 1 2 3 4 5; do
+            is_draft_matches=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.tag_name == "'"$tag"'") | .draft' || true)
+            is_draft="${is_draft_matches%%$'\n'*}"
+            if [ "$is_draft" = "true" ]; then
+              break
+            fi
+            sleep 3
+          done
           if [ "$is_draft" != "true" ]; then
             echo "::error::Release ${tag} is not a draft - this workflow must never publish."
             exit 1
