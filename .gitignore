@@ -431,3 +431,5 @@ FodyWeavers.xsd
 *.msp
 
 src\.idea
+
+artifacts-dotnet-releaser
