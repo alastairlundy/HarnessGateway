@@ -10,6 +10,13 @@
         <!-- Pinned build identity: surfaced by the version flag and asserted
              against the release tag. Distinct from settings `schemaVersion`. -->
         <Version>0.1.0</Version>
+        <!-- The SDK's built-in SourceLink stamps SourceRevisionId (the git
+             commit SHA) onto the informational version as "+<sha>" whenever a
+             build runs in a checkout. Off: the version flag prints the pin
+             exactly, so its output is bare Major.Minor.Patch and nothing else.
+             Source linking itself is unaffected - the SHA still lands in the
+             PDB. -->
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
         <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/alastairlundy/HarnessGateway</RepositoryUrl>

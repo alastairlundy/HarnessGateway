@@ -16,8 +16,11 @@ public static class RootCommandFactory
 {
     /// <summary>
     /// The Launcher assembly's informational version: the csproj pin
-    /// (<c>0.1.0</c>) plus SourceLink's commit suffix when one is stamped.
-    /// This is the build's identity in the field. It is deliberately not the
+    /// (<c>0.1.0</c>) and nothing more. The csproj sets
+    /// <c>IncludeSourceRevisionInInformationalVersion=false</c> so SourceLink's
+    /// "+&lt;sha&gt;" commit suffix is never stamped on - the flag's output is
+    /// exactly the pin, bare Major.Minor.Patch. This is the build's identity
+    /// in the field. It is deliberately not the
     /// settings <c>schemaVersion</c>, which describes the settings file's
     /// shape and is reported only by <c>config get schemaVersion</c> - the
     /// two never share a surface.

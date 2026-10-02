@@ -79,9 +79,12 @@ public class VersionFlagTests
     [Test]
     public async Task Informational_version_carries_the_pinned_version()
     {
-        // The csproj pin is 0.1.0. SourceLink may append "+<sha>" to the
-        // informational version, so the pin is a prefix, not the whole string.
-        await Assert.That(RootCommandFactory.InformationalVersion).StartsWith("0.1.0");
+        // The csproj pin is 0.1.0 and it is the whole string: SourceLink's
+        // "+<sha>" suffix is switched off by
+        // IncludeSourceRevisionInInformationalVersion=false, so exact equality
+        // (not StartsWith) is the contract - any build metadata creeping back
+        // onto the flag's output fails here.
+        await Assert.That(RootCommandFactory.InformationalVersion).IsEqualTo("0.1.0");
     }
 
     [Test]
