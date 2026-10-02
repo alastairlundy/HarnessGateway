@@ -61,7 +61,7 @@ jobs:
 
       - name: Install dotnet-releaser
         shell: bash
-        run: dotnet tool install --global dotnet-releaser --version 0.24.0
+        run: dotnet tool install --global dotnet-releaser
 
       # The `build` sub-command here (vs `run` in draft-release.yml): a pure
       # local build - all six RIDs, tests, packages - no release writes.
