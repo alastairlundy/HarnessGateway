@@ -90,8 +90,10 @@ jobs:
           # --paginate: the tag's draft may sit behind the first 100 releases.
           # Capture first, THEN strip to the first line - 'head -n1' in a
           # pipefail pipeline makes gh die of SIGPIPE once head exits.
+          # name as well as tag_name: a draft's tag_name can read back as the
+          # untagged-* placeholder, while name is always set to the tag.
           matching_ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq '.[] | select(.draft == true and .tag_name == "'"$TAG"'") | .id')
+            --jq '.[] | select(.draft == true and (.tag_name == "'"$TAG"'" or .name == "'"$TAG"'")) | .id')
           draft_id="${matching_ids%%$'\n'*}"
           if [ -z "$draft_id" ]; then
             echo "::error::No draft release found for tag ${TAG} - the draft workflow must create it first; nothing was published."
@@ -121,7 +123,9 @@ jobs:
             exit 1
           fi
 
-          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" -F draft=false > /dev/null
+          # Re-send tag_name so publication creates the intended tag even if
+          # the draft's tag_name was reading back as the untagged-* placeholder.
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" -F draft=false -F tag_name="$TAG" > /dev/null
 
           is_draft=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" --jq .draft)
           if [ "$is_draft" != "false" ]; then

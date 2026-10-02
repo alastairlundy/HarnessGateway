@@ -269,12 +269,17 @@ jobs:
           # --paginate: the tag's draft may sit behind the first 100 releases.
           # Capture first, THEN strip to the first line - 'head -n1' in a
           # pipefail pipeline makes gh die of SIGPIPE once head exits.
+          # Matching on name as well as tag_name: a draft's tag_name can read
+          # back as the untagged-* placeholder, while name is always ours.
           matching_ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq '.[] | select(.draft == true and .tag_name == "'"$tag"'") | .id')
+            --jq '.[] | select(.draft == true and (.tag_name == "'"$tag"'" or .name == "'"$tag"'")) | .id')
           existing_id="${matching_ids%%$'\n'*}"
 
           if [ -n "$existing_id" ]; then
-            jq -n --arg name "$tag" --rawfile body draft-notes.md '{name: $name, body: $body, draft: true}' > patch.json
+            # tag_name must be re-sent: patching a draft without it has GitHub
+            # rewrite tag_name to the untagged-* placeholder, which breaks this
+            # workflow's lookups and publish-release's tag match afterwards.
+            jq -n --arg tag "$tag" --rawfile body draft-notes.md '{tag_name: $tag, name: $tag, body: $body, draft: true}' > patch.json
             gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${existing_id}" --input patch.json > /dev/null
             echo "Updated draft release ${tag} (id ${existing_id}) with the generated changelog."
           else
@@ -287,10 +292,12 @@ jobs:
           # immediate read may not see the fresh release yet and would
           # misreport it as "not a draft" (observed: empty read 0.4s after
           # create). Retry briefly; a genuinely non-draft release still fails.
+          # Matching on name as well as tag_name covers the placeholder state a
+          # fresh draft can read back with.
           is_draft=""
           for attempt in 1 2 3 4 5; do
             is_draft_matches=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[] | select(.tag_name == "'"$tag"'") | .draft' || true)
+              --jq '.[] | select(.tag_name == "'"$tag"'" or .name == "'"$tag"'") | .draft' || true)
             is_draft="${is_draft_matches%%$'\n'*}"
             if [ "$is_draft" = "true" ]; then
               break
