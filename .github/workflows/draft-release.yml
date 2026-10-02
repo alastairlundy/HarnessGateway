@@ -22,6 +22,12 @@ jobs:
       # in build mode here (the `run` sub-command on a branch push never takes
       # its tag-publish path) and [github] publish = false keeps it read-only.
       contents: read
+      # Required: the changelog queries GET /repos/.../commits/{sha}/pulls to
+      # map commits to PRs, which needs the Pull requests permission (read).
+      # Without it GitHub answers 403 "Resource not accessible by integration",
+      # dotnet-releaser skips the changelog, and the draft-notes extraction
+      # step fails on the empty-notes guard.
+      pull-requests: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:

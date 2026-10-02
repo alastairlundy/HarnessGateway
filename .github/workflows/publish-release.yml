@@ -23,6 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # The changelog generation's read-only PR queries
+      # (GET /repos/.../commits/{sha}/pulls) need this; without it they 403
+      # with "Resource not accessible by integration".
+      pull-requests: read
     steps:
       - name: Checkout the tagged commit
         uses: actions/checkout@v4
