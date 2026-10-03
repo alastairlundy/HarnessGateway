@@ -1,5 +1,13 @@
 # HarnessGateway
 
+<div align="center">
+
+[![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
+[![Latest release](https://img.shields.io/github/v/release/alastairlundy/HarnessGateway)](https://github.com/alastairlundy/HarnessGateway/releases)
+[![Downloads (latest release)](https://img.shields.io/github/downloads/alastairlundy/HarnessGateway/total)](https://github.com/alastairlundy/HarnessGateway/releases)
+
+</div>
+
 HarnessGateway is a command-line launcher for agent harnesses. It points the
 harness you choose at an OpenAI- or Anthropic-compatible endpoint and starts
 it. Credentials live in your OS keychain, never in the settings file.
