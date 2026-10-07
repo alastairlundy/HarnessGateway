@@ -164,6 +164,10 @@ jobs:
           name: release-artifacts
           path: artifacts-dotnet-releaser/*
           if-no-files-found: error
+          # Ephemeral: only needed long enough for the smoke matrix and the
+          # draft job (same run). Prevents ~333 MB/run accruing in Actions
+          # artifact storage on this private repo (500 MB free-plan quota).
+          retention-days: 1
 
       - name: Upload draft notes
         uses: actions/upload-artifact@v7
@@ -171,6 +175,7 @@ jobs:
           name: draft-notes
           path: draft-notes.md
           if-no-files-found: error
+          retention-days: 1
 
   smoke:
     name: Smoke test ${{ matrix.rid }}
