@@ -59,8 +59,8 @@ will find them on your `PATH`.
 | `kilo` | Kilo | `kilo` | chat, responses, anthropic | required | `npm i -g @kilocode/cli` |
 | `copilot` | GitHub Copilot CLI | `copilot` | chat, responses, anthropic | required | `npm i -g @github/copilot` |
 | `pi` | Pi | `pi` | chat, responses, anthropic | optional | `npm i -g @earendil-works/pi-coding-agent` |
-| `codex` | codex | `codex` | responses | required | `npm i -g @openai/codex` |
-| `claude-code` | claude-code | `claude` | anthropic | optional | `npm i -g @anthropic-ai/claude-code` |
+| `codex` | Codex | `codex` | responses | required | `npm i -g @openai/codex` |
+| `claude-code` | Claude Code | `claude` | anthropic | optional | `npm i -g @anthropic-ai/claude-code` |
 
 "chat" is shorthand for `openai-chat` and "responses" for `openai-responses`.
 If you request a protocol that the harness doesn't support, the launcher
