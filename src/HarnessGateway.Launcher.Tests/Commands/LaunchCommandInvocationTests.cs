@@ -12,7 +12,7 @@ using HarnessGateway.Launcher.Tests.Fakes;
 namespace HarnessGateway.Launcher.Tests.Commands;
 
 /// <summary>
-/// Regression tests for the launch wiring: `harnessgateway launch <agent>`
+/// Regression tests for the launch wiring: `harnessgateway launch <harness>`
 /// must reach the orchestrator through the real parse-and-invoke pipeline.
 /// The launch subcommand previously had no action of its own, and
 /// System.CommandLine's no-action fallback silently succeeded with exit 0 -
@@ -91,7 +91,7 @@ public class LaunchCommandInvocationTests
                 root.Parse("launch").InvokeAsync());
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
-            await Assert.That(errorOutput).Contains("An agent is required");
+            await Assert.That(errorOutput).Contains("A harness identifier is required");
             await Assert.That(adapter.LastRequest).IsNull();
         }
         finally
@@ -140,7 +140,7 @@ public class LaunchCommandInvocationTests
                 root.Parse("launch NoSuchAgent").InvokeAsync());
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownAgent);
-            await Assert.That(errorOutput).Contains("Unknown agent: NoSuchAgent");
+            await Assert.That(errorOutput).Contains("Unknown harness: NoSuchAgent");
             await Assert.That(adapter.LastRequest).IsNull();
         }
         finally

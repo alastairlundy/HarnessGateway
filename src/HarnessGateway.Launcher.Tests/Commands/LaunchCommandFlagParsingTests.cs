@@ -13,7 +13,7 @@ public class LaunchCommandFlagParsingTests
         ParseResult result = command.Parse("launch opencode");
 
         await Assert.That(result.Errors).IsEmpty();
-        await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsEqualTo("opencode");
+        await Assert.That(result.GetValue(LaunchCommand.HarnessArgument)).IsEqualTo("opencode");
     }
 
     [Test]
@@ -24,7 +24,7 @@ public class LaunchCommandFlagParsingTests
         ParseResult result = command.Parse("launch");
 
         await Assert.That(result.Errors).IsEmpty();
-        await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsNull();
+        await Assert.That(result.GetValue(LaunchCommand.HarnessArgument)).IsNull();
     }
 
     [Test]
@@ -35,7 +35,7 @@ public class LaunchCommandFlagParsingTests
         ParseResult result = command.Parse("launch --model gpt-4");
 
         await Assert.That(result.Errors).IsNotEmpty();
-        await Assert.That(result.Errors[0].Message).Contains("An agent is required");
+        await Assert.That(result.Errors[0].Message).Contains("A harness identifier is required");
     }
 
     [Test]
@@ -224,7 +224,7 @@ public class LaunchCommandFlagParsingTests
         ParseResult result = command.Parse("launch kilo --endpoint https://api.example.com/v1 --protocol anthropic --model claude-sonnet-5 --persist config model");
 
         await Assert.That(result.Errors).IsEmpty();
-        await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsEqualTo("kilo");
+        await Assert.That(result.GetValue(LaunchCommand.HarnessArgument)).IsEqualTo("kilo");
         await Assert.That(result.GetValue(LaunchCommand.EndpointOption)).IsEqualTo("https://api.example.com/v1");
         await Assert.That(result.GetValue(LaunchCommand.ProtocolOption)).IsEqualTo("anthropic");
         await Assert.That(result.GetValue(LaunchCommand.ModelOption)).IsEqualTo("claude-sonnet-5");
@@ -260,7 +260,7 @@ public class LaunchCommandFlagParsingTests
         ParseResult result = command.Parse("launch opencode");
 
         await Assert.That(result.Errors).IsEmpty();
-        await Assert.That(result.GetValue(LaunchCommand.AgentArgument)).IsEqualTo("opencode");
+        await Assert.That(result.GetValue(LaunchCommand.HarnessArgument)).IsEqualTo("opencode");
         await Assert.That(result.GetValue(LaunchCommand.EndpointOption)).IsNull();
         await Assert.That(result.GetValue(LaunchCommand.ProtocolOption)).IsNull();
         await Assert.That(result.GetValue(LaunchCommand.ModelOption)).IsNull();

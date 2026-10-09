@@ -6,7 +6,7 @@ namespace HarnessGateway.Launcher.Wizard;
 /// </summary>
 /// <param name="AgentCommandName">
 /// The harness's <c>CommandName</c> token ("copilot"), not its display label.
-/// This value is passed straight to the orchestrator as the agent argument, so
+/// This value is passed straight to the orchestrator as the harness identifier, so
 /// it must be a token the lookup accepts.
 /// </param>
 public sealed record WizardResult(

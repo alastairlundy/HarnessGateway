@@ -33,14 +33,15 @@ public static class HarnessLookup
     }
 
     /// <summary>
-    /// The user-facing message for an unresolvable agent token, carrying a
-    /// best-effort suggestion when a command name or alias is close.
+    /// The user-facing message for an unresolvable harness identifier,
+    /// carrying a best-effort suggestion when a command name or alias is
+    /// close.
     /// </summary>
     public static string UnknownAgentMessage(
         IEnumerable<IHarnessAdapter> adapters,
         string token)
     {
-        string message = $"Unknown agent: {token}. Run 'harnessgateway launch' with no " +
+        string message = $"Unknown harness: {token}. Run 'harnessgateway launch' with no " +
                          "options for the interactive harness picker.";
 
         string? hint = Suggest(adapters, token);

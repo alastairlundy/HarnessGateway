@@ -5,11 +5,11 @@ public sealed class LaunchCommand : Command
     private readonly LaunchOrchestrator? _orchestrator;
     private readonly Func<CancellationToken, Task<int>>? _wizardAction;
 
-    public static readonly Argument<string?> AgentArgument = new("agent")
+    public static readonly Argument<string?> HarnessArgument = new("harness")
     {
         // Optional: bare `launch` falls back to the interactive wizard, the
-        // same pipeline the no-args root action runs. Options without an
-        // agent are still rejected (see the validator below).
+        // same pipeline the no-args root action runs. Options without a
+        // harness are still rejected (see the validator below).
         //
         // The Description is set in the constructor from the adapter list, not
         // here: a handwritten name list drifts from Program.cs's registry, and
@@ -62,11 +62,11 @@ public sealed class LaunchCommand : Command
         _orchestrator = orchestrator;
         _wizardAction = wizardAction;
 
-        // Built from the registry so the help text cannot advertise a token the
-        // lookup rejects, or omit one it accepts.
-        AgentArgument.Description = BuildAgentDescription(adapters);
+        // Built from the registry so the help text cannot advertise an
+        // identifier the lookup rejects, or omit one it accepts.
+        HarnessArgument.Description = BuildHarnessDescription(adapters);
 
-        Add(AgentArgument);
+        Add(HarnessArgument);
         Add(BackendOption);
         Add(EndpointOption);
         Add(ProtocolOption);
@@ -109,9 +109,9 @@ public sealed class LaunchCommand : Command
                 }
             }
 
-            // Options without an agent stay a parse error, so the bare-`launch`
+            // Options without a harness stay a parse error, so the bare-`launch`
             // wizard fallback can never silently drop a flag the user typed.
-            if (result.GetValue(AgentArgument) is null &&
+            if (result.GetValue(HarnessArgument) is null &&
                 (result.GetValue(BackendOption) is not null
                  || result.GetValue(EndpointOption) is not null
                  || result.GetValue(ProtocolOption) is not null
@@ -119,8 +119,8 @@ public sealed class LaunchCommand : Command
                  || result.GetValue(PersistOption) is { Length: > 0 }))
             {
                 result.AddError(
-                    "An agent is required when launch options are specified: " +
-                    "harnessgateway launch <agent> [options]. Run 'harnessgateway launch' " +
+                    "A harness identifier is required when launch options are specified: " +
+                    "harnessgateway launch <harness> [options]. Run 'harnessgateway launch' " +
                     "with no options to use the interactive wizard.");
             }
         });
@@ -134,14 +134,15 @@ public sealed class LaunchCommand : Command
         // can never see a child command's tokens.
         SetAction(async (result, cancellationToken) =>
         {
-            string? agent = result.GetValue(AgentArgument);
+            string? harness = result.GetValue(HarnessArgument);
 
-            // Bare `launch` is the second wizard entry point: no agent and no
-            // options (options without an agent fail validation above), so
-            // nothing the user typed can be dropped here. When no wizard is
-            // wired - parse-only constructions - fail loudly instead of
-            // falling through to the orchestrator with a null agent.
-            if (agent is null)
+            // Bare `launch` is the second wizard entry point: no harness
+            // identifier and no options (options without a harness fail
+            // validation above), so nothing the user typed can be dropped
+            // here. When no wizard is wired - parse-only constructions - fail
+            // loudly instead of falling through to the orchestrator with a
+            // null identifier.
+            if (harness is null)
             {
                 if (_wizardAction is not null)
                 {
@@ -149,7 +150,7 @@ public sealed class LaunchCommand : Command
                 }
 
                 await Console.Error.WriteLineAsync(
-                    "An agent is required: harnessgateway launch <agent>. " +
+                    "A harness identifier is required: harnessgateway launch <harness>. " +
                     "Run 'harnessgateway launch' with no options to use the interactive wizard.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
@@ -170,11 +171,11 @@ public sealed class LaunchCommand : Command
                 // loud failure the seam contract promises instead of a bare NRE.
                 throw new InvalidOperationException(
                     "LaunchCommand was constructed without an orchestrator; " +
-                    "wire one via the internal constructor before invoking 'launch <agent>'.");
+                    "wire one via the internal constructor before invoking 'launch <harness>'.");
             }
 
             return await orchestrator.RunAsync(
-                agent,
+                harness,
                 backendName,
                 endpoint,
                 protocol,
@@ -186,20 +187,20 @@ public sealed class LaunchCommand : Command
     }
 
     /// <summary>
-    /// The agent argument's help text, listing the command-name token of every
-    /// registered harness. Display names and aliases are omitted on purpose:
-    /// the tokens are the only spelling the lookup accepts, so they are the
-    /// only ones worth printing.
+    /// The harness argument's help text, listing the command-name identifier
+    /// of every registered harness. Display names and aliases are omitted on
+    /// purpose: the identifiers are the only spelling the lookup accepts, so
+    /// they are the only ones worth printing.
     /// </summary>
-    internal static string BuildAgentDescription(IEnumerable<IHarnessAdapter>? adapters)
+    internal static string BuildHarnessDescription(IEnumerable<IHarnessAdapter>? adapters)
     {
-        string tokens = adapters is null
+        string identifiers = adapters is null
             ? string.Empty
             : string.Join(", ", adapters.Select(a => a.Metadata.CommandName));
 
-        return tokens.Length == 0
+        return identifiers.Length == 0
             ? "The agent harness to launch; omit to run the interactive wizard"
-            : $"The agent harness to launch ({tokens}); omit to run the interactive wizard";
+            : $"The agent harness to launch ({identifiers}); omit to run the interactive wizard";
     }
 
     public static bool IsValidProtocol(string? value) => BackendResolution.IsValidProtocol(value);

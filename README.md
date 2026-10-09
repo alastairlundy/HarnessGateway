@@ -53,7 +53,7 @@ HarnessGateway launches six agent harnesses, none of which come bundled with
 it. Install whichever ones you want from the table below and the launcher
 will find them on your `PATH`.
 
-| Token | Name | Binary | Protocols | Model | Install |
+| Harness Identifier | Harness Name | Binary | Protocols | Model | Install |
 |-------|------|--------|-----------|-------|---------|
 | `opencode` | OpenCode | `opencode` | chat, responses, anthropic | required | `npm i -g @opencode/cli` |
 | `kilo` | Kilo | `kilo` | chat, responses, anthropic | required | `npm i -g @kilocode/cli` |
@@ -66,15 +66,15 @@ will find them on your `PATH`.
 If you request a protocol that the harness doesn't support, the launcher
 exits with exit code 3 and prints the protocols that harness supports.
 
-Two columns in that table matter for day-to-day use. The **Token** column
-holds what you actually type: `harnessgateway launch copilot`. The **Name**
-column is only a display label, used by the wizard and quoted in error
-messages; the launcher does not accept it as input. This distinction is easy
-to miss because the token and the name are identical for five of the six
-harnesses. It only bites with Copilot, whose name is "GitHub Copilot CLI" but
-whose token is `copilot`. Matching is case-insensitive, so `launch COPILOT`
-works too. Aliases are also accepted: `claude` for `claude-code` and
-`github-copilot-cli` for `copilot`. The `--help` output lists tokens only.
+The **Harness Identifier** column holds what you actually type:
+`harnessgateway launch copilot`. The **Harness Name** column is only a display
+label, used by the wizard and quoted in error messages; the launcher does not
+accept it as input. This distinction is easy to miss because the identifier
+and the name are identical for five of the six harnesses. It only bites with
+Copilot, whose name is "GitHub Copilot CLI" but whose identifier is `copilot`.
+Matching is case-insensitive, so `launch COPILOT` works too. Aliases are also
+accepted: `claude` for `claude-code` and `github-copilot-cli` for `copilot`.
+The `--help` output lists harness identifiers only.
 
 Detection is a simple `PATH` lookup, which means a harness that's installed
 but not on your `PATH` looks missing. Check with the binary's own name:
@@ -92,7 +92,7 @@ pick one anyway.
 HarnessGateway never edits your shell profile or its own environment. Every
 setting in the table below is passed only to the process it starts:
 
-| Token | How it's configured |
+| Harness Identifier | How it's configured |
 |-------|---------------------|
 | `opencode`, `kilo`, `pi` | `OPENAI_*` or `ANTHROPIC_*` env vars |
 | `copilot` | `COPILOT_PROVIDER_BASE_URL`, `COPILOT_PROVIDER_API_KEY`, `COPILOT_PROVIDER_TYPE` |
@@ -102,7 +102,7 @@ setting in the table below is passed only to the process it starts:
 ## Usage
 
 ```bash
-harnessgateway launch [AGENT] [options]
+harnessgateway launch [HARNESS] [options]
 ```
 
 | Option | Effect |
@@ -127,11 +127,12 @@ version never appears in the archive file names, and it has no connection to
 the settings `schemaVersion` that `config get schemaVersion` reports.
 
 Run `harnessgateway` with no arguments, or `harnessgateway launch` with no
-agent and no options, and you get the interactive wizard instead. The wizard
+harness identifier and no options, and you get the interactive wizard
+instead. The wizard
 prompts for the harness, endpoint, key, and model, in that order. For the model step it
 fetches the endpoint's model list to fill in your choices, and falls back to
 free text if that request fails. Nothing it collects gets saved. Options
-without an agent are a parse error, not a silently ignored flag.
+without a harness are a parse error, not a silently ignored flag.
 
 ### Choosing a backend
 
@@ -284,7 +285,7 @@ leaves it untouched.
 |------|------|---------|
 | 0 | Ok | Command succeeded |
 | 2 | UsageError | Invalid arguments, a launch with no backend configured, or a `remove` that would break the default pointer or empty the entry list |
-| 3 | UnknownAgent | Unrecognized agent token, or a protocol the chosen harness doesn't support. A near miss prompts a suggestion of the correct token |
+| 3 | UnknownAgent | Unrecognized harness identifier, or a protocol the chosen harness doesn't support. A near miss prompts a suggestion of the correct identifier |
 | 4 | HarnessUnavailable | The harness binary isn't on `PATH` |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
 | 6 | RequiredModelMissing | **Reserved.** Declared but never returned; the launcher prints a warning when a harness requires a model but has none, then launches it anyway |
