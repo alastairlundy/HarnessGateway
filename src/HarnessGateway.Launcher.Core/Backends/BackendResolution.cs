@@ -110,16 +110,16 @@ public static class BackendResolution
             // as an ad-hoc override entry; otherwise there is no backend at all.
             if (parsedEndpoint is not null && parsedProtocol is not null)
             {
-                return Success(new()
+                return Success(new Backend
                 {
                     Name = "override",
                     BaseUri = parsedEndpoint,
                     Protocol = parsedProtocol.Value,
-                    DefaultModel = model
+                    DefaultModel = model,
                 });
             }
 
-            return Success(null);
+            return Success(backend: null);
         }
 
         Backend resolved = entry;
@@ -149,7 +149,7 @@ public static class BackendResolution
         "openai-chat" => ProtocolKind.OpenAiChat,
         "openai-responses" => ProtocolKind.OpenAiResponses,
         "anthropic" => ProtocolKind.Anthropic,
-        _ => null
+        _ => null,
     };
 
     public static string ProtocolName(ProtocolKind protocol) => protocol switch
@@ -157,7 +157,7 @@ public static class BackendResolution
         ProtocolKind.OpenAiChat => "openai-chat",
         ProtocolKind.OpenAiResponses => "openai-responses",
         ProtocolKind.Anthropic => "anthropic",
-        _ => protocol.ToString()
+        _ => protocol.ToString(),
     };
 
     private static Backend? FindByName(LauncherSettings settings, string name) =>

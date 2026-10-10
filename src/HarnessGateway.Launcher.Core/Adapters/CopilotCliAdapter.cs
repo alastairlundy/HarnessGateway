@@ -44,7 +44,7 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
     {
-        Dictionary<string, string> envVars = new()
+        Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
             ["COPILOT_PROVIDER_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/')
         };

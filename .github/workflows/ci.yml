@@ -46,12 +46,6 @@ jobs:
         run: |
           set -euo pipefail
           cat > meziantou-baseline.txt <<'EOF'
-          MA0002|src/HarnessGateway.Launcher.Core/Adapters/ClaudeCodeAdapter.cs
-          MA0002|src/HarnessGateway.Launcher.Core/Adapters/CodexAdapter.cs
-          MA0002|src/HarnessGateway.Launcher.Core/Adapters/CopilotCliAdapter.cs
-          MA0002|src/HarnessGateway.Launcher.Core/Adapters/KiloAdapter.cs
-          MA0002|src/HarnessGateway.Launcher.Core/Adapters/OpenCodeAdapter.cs
-          MA0002|src/HarnessGateway.Launcher.Core/Adapters/PiAdapter.cs
           MA0011|src/HarnessGateway.Launcher.Core/Settings/SettingsStore.cs
           MA0015|src/HarnessGateway.Launcher/Commands/LaunchCommand.cs
           MA0016|src/HarnessGateway.Launcher.Core/Settings/LauncherSettings.cs

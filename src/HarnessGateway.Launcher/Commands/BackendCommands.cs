@@ -69,7 +69,8 @@ internal sealed class BackendCommands : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint, protocol, null);
+            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint, protocol, 
+                model: null);
             if (!resolution.IsSuccess && resolution.Failure != BackendResolutionFailure.UnknownBackendName)
             {
                 await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
@@ -185,7 +186,7 @@ internal sealed class BackendCommands : Command
                 return loadExitCode;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, null, null, null);
+            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
             if (!resolution.IsSuccess)
             {
                 await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
@@ -239,19 +240,19 @@ internal sealed class BackendCommands : Command
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The saved backend entry whose key to set or replace"
+            Description = "The saved backend entry whose key to set or replace",
         };
         Option<string?> keyOption = new("--key")
         {
             Description =
                 "API key to save in the platform credential store; skips the interactive prompt. " +
-                "Warning: the value is visible in your shell history - prefer the interactive prompt"
+                "Warning: the value is visible in your shell history - prefer the interactive prompt",
         };
 
         Command cmd = new("set-key", "Set or replace the saved API key for a backend entry")
         {
             nameArg,
-            keyOption
+            keyOption,
         };
 
         cmd.SetAction(async (result, cancellationToken) =>
@@ -264,7 +265,8 @@ internal sealed class BackendCommands : Command
                 return loadExitCode;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, null, null, null);
+            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
+            
             if (!resolution.IsSuccess)
             {
                 await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
@@ -323,19 +325,19 @@ internal sealed class BackendCommands : Command
                 return loadExitCode;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, null, null, null);
+            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
             if (!resolution.IsSuccess)
             {
                 await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
                 return ExitCodeFor(resolution.Failure);
             }
 
-            Backend entry = resolution.Backend!;
+            Backend entry = resolution.Backend;
 
-            if (entry.ApiKey is null)
+            if (entry?.ApiKey is null)
             {
                 // Idempotent on a keyless backend: no store entry, no settings write.
-                Console.WriteLine($"Backend '{entry.Name}' has no saved key; nothing to clear.");
+                Console.WriteLine($"Backend '{entry?.Name}' has no saved key; nothing to clear.");
                 return 0;
             }
 

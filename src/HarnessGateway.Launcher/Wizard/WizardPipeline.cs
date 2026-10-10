@@ -42,7 +42,7 @@ public sealed class WizardPipeline
 
         if (!resolution.IsSuccess)
         {
-            await _console.WriteErrorAsync(resolution.Message ?? string.Empty, cancellationToken).ConfigureAwait(true);
+            await Task.Run(() => _console.WriteError(resolution.Message ?? string.Empty), cancellationToken).ConfigureAwait(false);
             return null;
         }
 
@@ -87,11 +87,11 @@ public sealed class WizardPipeline
                 return null;
             }
 
-            await _console.WriteErrorAsync(BuildIncompatibleMessage(
+            await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(
                 adapter.Metadata.Name,
                 endpointResult.protocol,
-                adapter.Metadata.SupportedProtocols), cancellationToken).ConfigureAwait(true);
-
+                adapter.Metadata.SupportedProtocols)), cancellationToken).ConfigureAwait(false);
+            
             protocolToCheck = endpointResult.protocol;
             annotateIncompatible = true;
         }
@@ -108,7 +108,7 @@ public sealed class WizardPipeline
             }
             catch (SecureKeyStoreException ex)
             {
-                await _console.WriteErrorAsync(ex.Message, cancellationToken).ConfigureAwait(true);
+                await Task.Run(() => _console.WriteError(ex.Message), cancellationToken).ConfigureAwait(false);
                 return null;
             }
         }
@@ -118,7 +118,7 @@ public sealed class WizardPipeline
             Name = "wizard",
             BaseUri = new Uri(endpointResult.endpoint),
             Protocol = endpointResult.protocol,
-            ApiKey = resolvedBackend?.ApiKey
+            ApiKey = resolvedBackend?.ApiKey,
         };
 
         string? apiKey = await RunKeyStepAsync(effectiveBackend, cancellationToken).ConfigureAwait(true);
@@ -143,8 +143,8 @@ public sealed class WizardPipeline
     {
         if (_adapters.Count == 0)
         {
-            await _console.WriteErrorAsync("No agent harnesses found.",
-                cancellationToken).ConfigureAwait(true);
+            await Task.Run(() => _console.WriteError("No agent harnesses found."), cancellationToken).ConfigureAwait(false);
+ 
             return null;
         }
 
@@ -216,7 +216,7 @@ public sealed class WizardPipeline
             if (selected is not null
                 && !probed.First(pair => ReferenceEquals(pair.Adapter, selected)).IsAvailable)
             {
-                await _console.WriteErrorAsync(BuildNotInstalledMessage(selected), cancellationToken).ConfigureAwait(true);
+                await Task.Run(() => _console.WriteError(BuildNotInstalledMessage(selected)), cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
@@ -231,8 +231,8 @@ public sealed class WizardPipeline
                 return selected is null ? pick : selected.Metadata.CommandName;
             }
 
-            await _console.WriteErrorAsync(BuildIncompatibleMessage(
-                pick, protocolToCheck.Value, selected.Metadata.SupportedProtocols), cancellationToken).ConfigureAwait(true);
+            await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(
+                pick, protocolToCheck.Value, selected.Metadata.SupportedProtocols)), cancellationToken).ConfigureAwait(false);
             showIncompatible = true;
         }
     }
@@ -351,11 +351,11 @@ public sealed class WizardPipeline
                 defaultValue: defaultValue,
                 cancellationToken: cancellationToken).ConfigureAwait(true);
 
-            if (!string.IsNullOrWhiteSpace(input)) break;
+            if (!string.IsNullOrWhiteSpace(input)) 
+                break;
 
-            await _console.WriteErrorAsync(
-                "Endpoint URL is required, e.g. https://api.example.com/v1. " +
-                "Press Ctrl+C to cancel.", cancellationToken).ConfigureAwait(true);
+            await Task.Run(() => _console.WriteError("Endpoint URL is required, e.g. https://api.example.com/v1. " +
+                                                     "Press Ctrl+C to cancel."), cancellationToken).ConfigureAwait(false);
         }
 
         input = input.Trim();
@@ -403,7 +403,7 @@ public sealed class WizardPipeline
                 Environment.GetEnvironmentVariable("OPENAI_API_KEY") is null,
             ProtocolKind.Anthropic =>
                 Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") is null,
-            _ => true
+            _ => true,
         };
 
         if (!needsKey)

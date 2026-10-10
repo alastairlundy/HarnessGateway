@@ -42,7 +42,7 @@ public static class RootCommandFactory
         RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
         {
             new LaunchCommand(orchestrator, wizardAction, adapters),
-            new ConfigCommand(settingsStore, keyStore)
+            new ConfigCommand(settingsStore, keyStore),
         };
 
         // RootCommand ships a standard --version option: its help entry, its
@@ -90,7 +90,7 @@ public static class RootCommandFactory
         // assembly is the test host when the suite parses this command.
         Assembly assembly = typeof(RootCommandFactory).Assembly;
         return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? assembly.GetName().Version?.ToString()
-            ?? "unknown";
+               ?? assembly.GetName().Version?.ToString()
+               ?? "unknown";
     }
 }

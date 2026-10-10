@@ -36,7 +36,7 @@ public sealed class ModelStep
             }
             catch
             {
-                await _console.WriteErrorAsync("Could not fetch model catalogue. Endpoint may be unreachable.", cancellationToken).ConfigureAwait(true);
+                await Task.Run(() => _console.WriteError("Could not fetch model catalogue. Endpoint may be unreachable."), cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -94,7 +94,7 @@ public sealed class ModelStep
     {
         if (savedDefaultModel is not null)
         {
-            await _console.WriteMarkupAsync($"Using saved default model: [green]{savedDefaultModel}[/]", cancellationToken).ConfigureAwait(true);
+            await Task.Run(() => _console.WriteMarkup($"Using saved default model: [green]{savedDefaultModel}[/]"), cancellationToken).ConfigureAwait(false);
             return savedDefaultModel;
         }
 

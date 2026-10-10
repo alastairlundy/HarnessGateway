@@ -28,18 +28,18 @@ public sealed class CodexAdapter : IHarnessAdapter
         _detectCommand = detectCommand;
         _getEnvironmentVariable = getEnvironmentVariable ?? Environment.GetEnvironmentVariable;
 
-        Metadata = new(
+        Metadata = new HarnessMetadata(
             Name: "codex",
             CommandName: "codex",
-            Aliases: ["codex-cli"],
+            ["codex-cli"],
             Kind: HarnessKind.Cli,
             RequiresModel: true,
             InstallHint: "Install via: npm i -g @openai/codex or brew install codex",
             DetectionCommand: "codex --version",
-            ConfigFileCandidates: [ResolveConfigPath(_getEnvironmentVariable)],
-            SupportedProtocols: new HashSet<ProtocolKind>
+            [ResolveConfigPath(_getEnvironmentVariable)],
+            new HashSet<ProtocolKind>
             {
-                ProtocolKind.OpenAiResponses
+                ProtocolKind.OpenAiResponses,
             });
     }
 
@@ -67,7 +67,7 @@ public sealed class CodexAdapter : IHarnessAdapter
                 "(or point CODEX_HOME at a different config) and launch again.");
         }
 
-        editor.UpsertBlock(ProviderBlockName, new Dictionary<string, object?>
+        editor.UpsertBlock(ProviderBlockName, new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["name"] = "HarnessGateway",
             ["base_url"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
@@ -83,7 +83,7 @@ public sealed class CodexAdapter : IHarnessAdapter
         // Inject the saved key only when one exists; never a dummy value. The
         // key is scoped to the spawned codex process - codex reads it from
         // the environment variable named by the config block's env_key.
-        Dictionary<string, string> envVars = new();
+        Dictionary<string, string> envVars = new(StringComparer.Ordinal);
         if (request.Backend.ApiKey is { Length: > 0 })
         {
             envVars[EnvKeyName] = request.Backend.ApiKey;
@@ -102,7 +102,7 @@ public sealed class CodexAdapter : IHarnessAdapter
             EnvironmentVariables = envVars
         };
 
-        return new(config, actions);
+        return new LaunchPlan(config, actions);
     }
 
     /// <summary>

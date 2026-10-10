@@ -11,5 +11,5 @@ public enum LaunchExitCode
     ConfigRestoreFailure = 7,
     UnknownBackendName = 8,
     UnsupportedSettingsSchema = 9,
-    ConfigConflict = 10
+    ConfigConflict = 10,
 }

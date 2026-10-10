@@ -50,7 +50,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
         // so the user's durable Claude Code settings are untouched and the
         // launcher's own process environment is never mutated.
         List<ConfigurationAction> actions = [];
-        Dictionary<string, string> envVars = new()
+        Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
             ["ANTHROPIC_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/')
         };

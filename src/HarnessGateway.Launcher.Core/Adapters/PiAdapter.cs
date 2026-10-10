@@ -41,7 +41,7 @@ public sealed class PiAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
     {
-        Dictionary<string, string> envVars = new();
+        Dictionary<string, string> envVars = new(StringComparer.Ordinal);
 
         string baseUrl = request.Backend.BaseUri.ToString().TrimEnd('/');
 

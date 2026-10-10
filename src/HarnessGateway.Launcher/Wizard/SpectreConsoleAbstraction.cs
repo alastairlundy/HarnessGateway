@@ -66,21 +66,4 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
     {
         AnsiConsole.MarkupLine($"[red]{message}[/]");
     }
-
-    public Task WriteErrorAsync(string message, CancellationToken cancellationToken = default)
-    {
-        // The write is synchronous and cannot honor cancellation mid-flight, so
-        // the token is accepted for interface compatibility only. Wrapping the
-        // write in Task.Run would turn a pre-run cancellation into a canceled
-        // task, and callers await it bare - a TaskCanceledException crash
-        // during Ctrl+C teardown instead of the intended error message.
-        WriteError(message);
-        return Task.CompletedTask;
-    }
-
-    public Task WriteMarkupAsync(string message, CancellationToken cancellationToken = default)
-    {
-        WriteMarkup(message);
-        return Task.CompletedTask;
-    }
 }
