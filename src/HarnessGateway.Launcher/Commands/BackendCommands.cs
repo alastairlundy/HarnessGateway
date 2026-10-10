@@ -85,7 +85,7 @@ internal sealed class BackendCommands : Command
                     BaseUri = LaunchCommand.ParseEndpoint(endpoint!),
                     Protocol = LaunchCommand.ParseProtocol(protocol!),
                 }
-                : resolution.Backend!;
+                : resolution.Backend;
 
             string? secret = key ??
                              _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
