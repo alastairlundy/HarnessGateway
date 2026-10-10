@@ -115,26 +115,49 @@ public class OpenCodeAdapterTests
     }
 
     [Test]
-    public async Task PlanLaunch_with_model_sets_cli_args()
+    public async Task PlanLaunch_with_model_sets_inline_config_env_var()
     {
+        // opencode v2 rejects a top-level --model flag, so the model rides on
+        // OPENCODE_CONFIG_CONTENT and the plan stays flag-free.
         OpenCodeAdapter adapter = new OpenCodeAdapter();
         LaunchRequest request = CreateRequest(model: "claude-sonnet-5");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
-        await Assert.That(plan.Process.Arguments).Contains("--model");
-        await Assert.That(plan.Process.Arguments).Contains("claude-sonnet-5");
+        await Assert.That(plan.Process.Arguments).IsEqualTo("");
+        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        await Assert.That(config).Contains("\"model\":\"openai/claude-sonnet-5\"");
+        // The endpoint override and the model registration land in the
+        // provider entry; the key is referenced through the env, never inlined.
+        await Assert.That(config).Contains("\"baseURL\":\"https://api.example.com/v1\"");
+        await Assert.That(config).Contains("\"claude-sonnet-5\":{\"name\":\"claude-sonnet-5\"}");
+        await Assert.That(config).Contains("\"apiKey\":\"{env:OPENAI_API_KEY}\"");
+        await Assert.That(config).DoesNotContain("sk-test");
     }
 
     [Test]
-    public async Task PlanLaunch_without_model_omits_model_arg()
+    public async Task PlanLaunch_anthropic_model_uses_anthropic_provider()
+    {
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        LaunchRequest request = CreateRequest(ProtocolKind.Anthropic, model: "claude-sonnet-5");
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        await Assert.That(config).Contains("\"model\":\"anthropic/claude-sonnet-5\"");
+        await Assert.That(config).Contains("\"apiKey\":\"{env:ANTHROPIC_API_KEY}\"");
+        await Assert.That(config).DoesNotContain("openai/claude-sonnet-5");
+    }
+
+    [Test]
+    public async Task PlanLaunch_without_model_omits_config_env_var()
     {
         OpenCodeAdapter adapter = new OpenCodeAdapter();
         LaunchRequest request = CreateRequest(model: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
-        await Assert.That(plan.Process.Arguments).DoesNotContain("--model");
+        await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("OPENCODE_CONFIG_CONTENT");
     }
 
     [Test]

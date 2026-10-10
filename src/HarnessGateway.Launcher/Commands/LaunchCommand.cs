@@ -2,7 +2,6 @@ namespace HarnessGateway.Launcher.Commands;
 
 public sealed class LaunchCommand : Command
 {
-    private readonly LaunchOrchestrator? _orchestrator;
     private readonly Func<CancellationToken, Task<int>>? _wizardAction;
 
     public static readonly Argument<string?> HarnessArgument = new("harness")
@@ -15,7 +14,7 @@ public sealed class LaunchCommand : Command
         // here: a handwritten name list drifts from Program.cs's registry, and
         // it already had to lie once (it advertised "copilot" while lookup
         // matched "GitHub Copilot CLI").
-        Arity = ArgumentArity.ZeroOrOne
+        Arity = ArgumentArity.ZeroOrOne,
     };
 
     public static readonly Option<string?> BackendOption = new("--backend")
@@ -44,12 +43,12 @@ public sealed class LaunchCommand : Command
         AllowMultipleArgumentsPerToken = true
     };
 
-    public LaunchCommand() : this(null, null)
+    public LaunchCommand() : this(orchestrator: null)
     {
     }
 
     public LaunchCommand(IEnumerable<IHarnessAdapter> adapters)
-        : this(null, null, adapters)
+        : this(orchestrator: null, wizardAction: null, adapters)
     {
     }
 
@@ -59,7 +58,6 @@ public sealed class LaunchCommand : Command
         IEnumerable<IHarnessAdapter>? adapters = null)
         : base("launch", "Launch an agent harness with the specified backend configuration")
     {
-        _orchestrator = orchestrator;
         _wizardAction = wizardAction;
 
         // Built from the registry so the help text cannot advertise an
@@ -174,6 +172,9 @@ public sealed class LaunchCommand : Command
                     "wire one via the internal constructor before invoking 'launch <harness>'.");
             }
 
+            // The direct CLI path never carries a launch-time key: keys are a
+            // stored-entry concern here (set via 'config backend set-key'),
+            // which the resolution below already handles.
             return await orchestrator.RunAsync(
                 harness,
                 backendName,
@@ -182,7 +183,8 @@ public sealed class LaunchCommand : Command
                 model,
                 persist,
                 Directory.GetCurrentDirectory(),
-                cancellationToken).ConfigureAwait(true);
+                apiKey: null,
+                cancellationToken: cancellationToken).ConfigureAwait(true);
         });
     }
 

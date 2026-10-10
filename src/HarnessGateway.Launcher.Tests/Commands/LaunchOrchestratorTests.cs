@@ -996,6 +996,90 @@ public class LaunchOrchestratorTests
     }
 
     [Test]
+    public async Task RunAsync_wizard_api_key_reaches_the_launch_plan()
+    {
+        // First-run wizard flow: no saved backend at all, so resolution builds
+        // the ad-hoc "override" entry with ApiKey = null. The key the wizard
+        // collected must ride the invocation - this is the regression the
+        // silent-fail bug shipped: the launch went out with no credential and
+        // the harness failed auth downstream.
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter);
+        try
+        {
+            int exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null,
+                "https://api.example.com/v1", "openai-chat", "gpt-4",
+                [],
+                tempDir,
+                apiKey: "sk-wizard-only");
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-wizard-only");
+
+            // And launch-copy-only: an ad-hoc override against an empty
+            // settings dir never persists anything, secret or otherwise.
+            await Assert.That(File.Exists(
+                Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json"))).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_explicit_api_key_overrides_the_stored_entry_key()
+    {
+        LauncherSettings settings = new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "test-backend",
+                    BaseUri = new Uri("https://api.example.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:test-backend"
+                }
+            ],
+            DefaultBackend = "test-backend"
+        };
+
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:test-backend", "sk-stored");
+
+        TestHarnessAdapter adapter = CreateTestAdapter();
+        (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(
+            adapter: adapter, settings: settings, keyStore: keyStore);
+        try
+        {
+            int exitCode = await orchestrator.RunAsync(
+                "TestAgent",
+                null,
+                null, null, null,
+                [],
+                tempDir,
+                apiKey: "sk-explicit");
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-explicit");
+
+            // The override is launch-copy-only: the stored entry keeps its
+            // reference and the store keeps sk-stored under it.
+            string fileBytes = await File.ReadAllTextAsync(
+                Path.Combine(tempDir, "settings", "HarnessGateway-launcher.json"));
+            await Assert.That(fileBytes.Contains("hgkey:test-backend")).IsTrue();
+            await Assert.That(fileBytes.Contains("sk-explicit")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task RunAsync_with_backend_name_launches_that_entry()
     {
         LauncherSettings settings = new LauncherSettings

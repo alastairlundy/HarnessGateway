@@ -35,6 +35,7 @@ public sealed class LaunchOrchestrator
         string? model,
         IReadOnlyList<string> persistValues,
         string workingDirectory,
+        string? apiKey = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -120,6 +121,19 @@ public sealed class LaunchOrchestrator
             // copy only: `settings` keeps carrying the reference, so a later
             // Save (PersistDefaultModel) can never write a secret back out.
             backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, cancellationToken).ConfigureAwait(true);
+
+            // The wizard's collected key (and only that carry-over - the CLI
+            // surface passes no apiKey at all) overrides on this local copy,
+            // never on the stored entry: `settings` keeps carrying its
+            // reference, so a later Save (PersistDefaultModel) can never write
+            // the launch-time secret back out. The wizard supplies a key only
+            // when the resolved entry had none or the user typed one, so this
+            // layering can only fill a gap; it never masks a stored key with a
+            // stale copy.
+            if (!string.IsNullOrEmpty(apiKey) && backend is not null)
+            {
+                backend = backend with { ApiKey = apiKey };
+            }
 
             LaunchRequest request = new(backend, resolvedModel, workingDirectory);
             LaunchPlan plan = await adapter.PlanLaunchAsync(request, cancellationToken).ConfigureAwait(true);

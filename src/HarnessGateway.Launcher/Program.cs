@@ -60,15 +60,19 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     }
 
     // Direct launches run through the orchestrator too; the wizard result is
-    // launch-only input (the pipeline never persists settings).
+    // launch-only input (the pipeline never persists settings). The collected
+    // ApiKey must be handed over explicitly - without it the launch proceeds
+    // with no credential at all on a first run, and the harness fails auth
+    // downstream with no clue that the key the user typed was dropped.
     return await orchestrator.RunAsync(
         wizardResult.AgentCommandName,
-        null,
+        backendName: null,
         wizardResult.Endpoint,
         LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,
         wizardResult.ApiKey is not null ? ["config"] : [],
         Directory.GetCurrentDirectory(),
+        wizardResult.ApiKey,
         cancellationToken).ConfigureAwait(true);
 }
 
@@ -82,4 +86,4 @@ RootCommand rootCommand = RootCommandFactory.Create(
     settingsStore,
     keyStore);
 
-return rootCommand.Parse(args).Invoke();
+return await rootCommand.Parse(args).InvokeAsync().ConfigureAwait(true);
