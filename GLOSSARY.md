@@ -20,6 +20,22 @@ The per-harness component that knows how to detect, configure, and start one har
 
 An agent tool the launcher can configure and start, which may be a CLI or a GUI app, such as OpenCode, Kilo, GitHub Copilot CLI, or Pi.
 
+## Launch flow
+
+The ordered pipeline the launcher runs to resolve a backend and keys, write or restore harness configuration, and start the harness, behind one deep module's interface.
+
+## Launch outcome
+
+The closed set of terminal results a launch flow can produce: a refusal (user-rectifiable, no harness run) or a completed run carrying the harness's exit status.
+
+## Restore guarantee
+
+The invariant that every harness configuration change a launch makes is undone on every exit path, except where the user deliberately persisted it.
+
+## Launch request
+
+The declarative decisions a caller submits to a launch flow: which Harness, which Backend, which model, how to persist.
+
 ## Model catalog
 
 The set of models a Backend declares as available.
