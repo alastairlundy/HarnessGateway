@@ -102,7 +102,7 @@ public class LaunchOrchestratorTests
         });
 
         CodexAdapter adapter = new CodexAdapter(
-            (_, _) => Task.FromResult<string?>(codexAvailable ? "codex" : null),
+            (_, _) => Task.FromResult(codexAvailable),
             name => name == "CODEX_HOME" ? codexHome : null);
 
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
@@ -148,7 +148,7 @@ public class LaunchOrchestratorTests
 
         // Fake detection delegate: availability never touches the real PATH.
         ClaudeCodeAdapter adapter = new ClaudeCodeAdapter(
-            (_, _) => Task.FromResult<string?>(available ? "claude" : null));
+            (_, _) => Task.FromResult(available));
 
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             settingsStore,

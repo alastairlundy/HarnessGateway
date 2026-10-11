@@ -13,7 +13,7 @@ public sealed class CodexAdapter : IHarnessAdapter
 
     public HarnessMetadata Metadata { get; }
 
-    private readonly Func<string, CancellationToken, Task<string?>> _detectCommand;
+    private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
     private readonly Func<string, string?> _getEnvironmentVariable;
 
     public CodexAdapter()
@@ -22,7 +22,7 @@ public sealed class CodexAdapter : IHarnessAdapter
     }
 
     internal CodexAdapter(
-        Func<string, CancellationToken, Task<string?>> detectCommand,
+        Func<string, CancellationToken, Task<bool>> detectCommand,
         Func<string, string?>? getEnvironmentVariable = null)
     {
         _detectCommand = detectCommand;
@@ -43,11 +43,8 @@ public sealed class CodexAdapter : IHarnessAdapter
             });
     }
 
-    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
-    {
-        string? result = await _detectCommand("codex", cancellationToken).ConfigureAwait(false);
-        return result is not null;
-    }
+    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
+        _detectCommand("codex", cancellationToken);
 
     public async Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
     {
@@ -123,7 +120,7 @@ public sealed class CodexAdapter : IHarnessAdapter
             "config.toml");
     }
 
-    private static async Task<string?> DetectOnPath(string command, CancellationToken cancellationToken)
+    private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)
     {
         try
         {
@@ -134,11 +131,11 @@ public sealed class CodexAdapter : IHarnessAdapter
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return result.ExitCode == 0 ? command : null;
+            return result.ExitCode == 0;
         }
         catch
         {
-            return null;
+            return false;
         }
     }
 }

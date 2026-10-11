@@ -11,7 +11,7 @@ public class ClaudeCodeAdapterTests
     private static ClaudeCodeAdapter CreateAdapter(bool available = true)
     {
         return new ClaudeCodeAdapter(
-            (_, _) => Task.FromResult<string?>(available ? "claude" : null));
+            (_, _) => Task.FromResult(available));
     }
 
     private static LaunchRequest CreateRequest(

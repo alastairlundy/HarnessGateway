@@ -62,14 +62,14 @@ public class PiAdapterTests
     [Test]
     public async Task IsAvailable_returns_true_when_on_path()
     {
-        PiAdapter adapter = new PiAdapter((string _, CancellationToken _) => Task.FromResult<string?>("pi"));
+        PiAdapter adapter = new PiAdapter((string _, CancellationToken _) => Task.FromResult(true));
         await Assert.That(adapter.IsAvailableAsync()).IsTrue();
     }
 
     [Test]
     public async Task IsAvailable_returns_false_when_not_on_path()
     {
-        PiAdapter adapter = new PiAdapter((string _, CancellationToken _) => Task.FromResult<string?>(null));
+        PiAdapter adapter = new PiAdapter((string _, CancellationToken _) => Task.FromResult(false));
         await Assert.That(adapter.IsAvailableAsync()).IsFalse();
     }
 

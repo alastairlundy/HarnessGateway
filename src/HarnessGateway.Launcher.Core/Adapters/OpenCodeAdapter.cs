@@ -22,24 +22,20 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
             ProtocolKind.Anthropic
         });
 
-    private readonly Func<string, CancellationToken, Task<string?>> _detectCommand;
+    private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
 
     public OpenCodeAdapter()
         : this(DetectOnPath)
     {
     }
 
-    internal OpenCodeAdapter(Func<string, CancellationToken, Task<string?>> detectCommand)
+    internal OpenCodeAdapter(Func<string, CancellationToken, Task<bool>> detectCommand)
     {
         _detectCommand = detectCommand;
     }
 
-    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
-    {
-        string? result = await _detectCommand("opencode",
-            cancellationToken).ConfigureAwait(false);
-        return result is not null;
-    }
+    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
+        _detectCommand("opencode", cancellationToken);
 
     public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
     {
@@ -124,7 +120,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
             + ":{\"name\":" + modelJson + "}}}}}";
     }
 
-    private static async Task<string?> DetectOnPath(string command, CancellationToken cancellationToken)
+    private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)
     {
         try
         {
@@ -135,11 +131,11 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return result.ExitCode == 0 ? command : null;
+            return result.ExitCode == 0;
         }
         catch
         {
-            return null;
+            return false;
         }
     }
 }

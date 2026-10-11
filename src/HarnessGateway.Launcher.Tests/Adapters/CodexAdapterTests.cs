@@ -35,7 +35,7 @@ public class CodexAdapterTests
     private static CodexAdapter CreateAdapter(string? codexHome, bool available = true)
     {
         return new CodexAdapter(
-            (_, _) => Task.FromResult<string?>(available ? "codex" : null),
+            (_, _) => Task.FromResult(available),
             name => name == "CODEX_HOME" ? codexHome : null);
     }
 
