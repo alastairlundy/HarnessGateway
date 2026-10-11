@@ -38,7 +38,7 @@ public sealed record HarnessMetadata(
     HarnessKind Kind,
     bool RequiresModel,
     string InstallHint,
-    string? DetectionCommand,
+    string DetectionCommand,
     IReadOnlyList<string> ConfigFileCandidates,
     IReadOnlySet<ProtocolKind> SupportedProtocols)
 {

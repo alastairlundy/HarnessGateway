@@ -108,50 +108,6 @@ public class SettingsStoreTests
     }
 
     [Test]
-    public async Task Environment_variable_overrides_file_value()
-    {
-        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
-        try
-        {
-            LauncherSettings settings = new LauncherSettings
-            {
-                Backends =
-                [
-                    new Backend
-                    {
-                        Name = "file-backend",
-                        BaseUri = new Uri("https://api.file.com"),
-                        Protocol = ProtocolKind.OpenAiChat
-                    }
-                ],
-                DefaultBackend = "file-backend",
-                SchemaVersion = 1
-            };
-
-            SettingsStore store = new SettingsStore(tempDir);
-            store.Save(settings);
-
-            Environment.SetEnvironmentVariable("HarnessGateway_DEFAULT_BACKEND", "env-override", EnvironmentVariableTarget.Process);
-            try
-            {
-                string? overrideValue = store.GetEnvironmentOverride("HarnessGateway_DEFAULT_BACKEND");
-                await Assert.That(overrideValue).IsEqualTo("env-override");
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable("HarnessGateway_DEFAULT_BACKEND", null, EnvironmentVariableTarget.Process);
-            }
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-            {
-                Directory.Delete(tempDir, true);
-            }
-        }
-    }
-
-    [Test]
     public async Task Load_migrates_a_v1_plaintext_key_to_a_store_reference()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");

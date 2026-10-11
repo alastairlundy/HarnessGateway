@@ -1526,7 +1526,7 @@ public class LaunchOrchestratorTests
                 HarnessKind.Cli,
                 requiresModel,
                 installHint,
-                DetectionCommand: null,
+                DetectionCommand: $"{name} --version",
                 [],
                 supportedProtocols ?? AllProtocols);
         }
@@ -1560,7 +1560,7 @@ public class LaunchOrchestratorTests
             HarnessKind.Cli,
             RequiresModel: false,
             InstallHint: "N/A",
-            DetectionCommand: null,
+            DetectionCommand: "ConfigWriter --version",
             [],
             AllProtocols);
 

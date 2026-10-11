@@ -42,7 +42,7 @@ public class HarnessMetadataTests
     }
 
     [Test]
-    public async Task HarnessMetadata_allows_null_detection_command()
+    public async Task HarnessMetadata_stores_detection_command_with_no_aliases()
     {
         HarnessMetadata metadata = new HarnessMetadata(
             Name: "kilo",
@@ -51,12 +51,12 @@ public class HarnessMetadataTests
             Kind: HarnessKind.Cli,
             RequiresModel: false,
             InstallHint: "Install from kilo.dev",
-            DetectionCommand: null,
+            DetectionCommand: "kilo --version",
             [],
             new HashSet<Core.Backends.ProtocolKind>()
         );
 
-        await Assert.That(metadata.DetectionCommand).IsNull();
+        await Assert.That(metadata.DetectionCommand).IsEqualTo("kilo --version");
         await Assert.That(metadata.ConfigFileCandidates).IsEmpty();
         await Assert.That(metadata.SupportedProtocols).IsEmpty();
 
@@ -233,12 +233,12 @@ public class ConfigurationActionTests
     }
 
     [Test]
-    public async Task CliArgumentAction_allows_null_value()
+    public async Task CliArgumentAction_allows_empty_value()
     {
-        CliArgumentAction action = new CliArgumentAction("--verbose", null);
+        CliArgumentAction action = new CliArgumentAction("--verbose", string.Empty);
 
         await Assert.That(action.Argument).IsEqualTo("--verbose");
-        await Assert.That(action.Value).IsNull();
+        await Assert.That(action.Value).IsEqualTo(string.Empty);
     }
 
     [Test]
@@ -256,7 +256,7 @@ public class ConfigurationActionTests
     {
         // The closed family is exactly CliArgumentAction and ConfigFileWriteAction;
         // env vars ride on LaunchPlan.Process.EnvironmentVariables.
-        ConfigurationAction cli = new CliArgumentAction("--flag", null);
+        ConfigurationAction cli = new CliArgumentAction("--flag", string.Empty);
         ConfigurationAction file = new ConfigFileWriteAction("/tmp", "content");
 
         await Assert.That(cli).IsTypeOf<CliArgumentAction>();

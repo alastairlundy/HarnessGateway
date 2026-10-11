@@ -305,9 +305,7 @@ public sealed class WizardPipeline
         // Mirrors the direct-mode refusal's substance (name + install hint)
         // and names the detection command so a PATH false negative is
         // diagnosable without reading the source.
-        string detection = adapter.Metadata.DetectionCommand is { } command
-            ? $" (checked with '{command}')"
-            : string.Empty;
+        string detection = $" (checked with '{adapter.Metadata.DetectionCommand}')";
 
         return $"Refusing to launch {adapter.Metadata.Name}: it is not installed on this machine" +
                $"{detection}. {adapter.Metadata.InstallHint}";

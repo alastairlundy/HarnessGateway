@@ -99,7 +99,7 @@ public static class WizardTestHelper
                 HarnessKind.Cli,
                 requiresModel,
                 $"Install {name}",
-                DetectionCommand: null,
+                DetectionCommand: $"{name} --version",
                 [],
                 supportedProtocols ?? AllProtocols);
         }

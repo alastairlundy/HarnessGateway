@@ -67,9 +67,7 @@ public class ModelCatalogClientTests
 
         await Assert.That(catalog.Models).Count().IsEqualTo(2);
         await Assert.That(catalog.Models[0].Id).IsEqualTo("claude-sonnet-5");
-        await Assert.That(catalog.Models[0].DisplayName).IsEqualTo("Claude Sonnet 5");
         await Assert.That(catalog.Models[1].Id).IsEqualTo("claude-haiku-4");
-        await Assert.That(catalog.Models[1].DisplayName).IsEqualTo("Claude Haiku 4");
     }
 
     [Test]

@@ -30,8 +30,8 @@ public class ModelStepTests
         Backend backend = CreateBackend();
         ModelCatalog catalog = new ModelCatalog(
         [
-            new ModelCatalogEntry("gpt-4", "GPT-4"),
-            new ModelCatalogEntry("gpt-3.5-turbo", "GPT-3.5 Turbo")
+            new ModelCatalogEntry("gpt-4"),
+            new ModelCatalogEntry("gpt-3.5-turbo")
         ], DateTimeOffset.UtcNow);
 
         ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
@@ -49,8 +49,8 @@ public class ModelStepTests
         Backend backend = CreateBackend();
         ModelCatalog catalog = new ModelCatalog(
         [
-            new ModelCatalogEntry("gpt-4", "GPT-4"),
-            new ModelCatalogEntry("gpt-3.5-turbo", "GPT-3.5 Turbo")
+            new ModelCatalogEntry("gpt-4"),
+            new ModelCatalogEntry("gpt-3.5-turbo")
         ], DateTimeOffset.UtcNow);
 
         ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
@@ -68,8 +68,8 @@ public class ModelStepTests
         Backend backend = CreateBackend();
         ModelCatalog catalog = new ModelCatalog(
         [
-            new ModelCatalogEntry("gpt-4", "GPT-4"),
-            new ModelCatalogEntry("claude-sonnet-5", "Claude Sonnet")
+            new ModelCatalogEntry("gpt-4"),
+            new ModelCatalogEntry("claude-sonnet-5")
         ], DateTimeOffset.UtcNow);
 
         ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);

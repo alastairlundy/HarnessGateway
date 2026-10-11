@@ -43,7 +43,7 @@ public sealed class ModelCatalogClient
 
         OpenAiModelsResponse? openAiResponse = await response.Content.ReadFromJsonAsync<OpenAiModelsResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        List<ModelCatalogEntry> models = openAiResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.Id)).ToList() ?? [];
+        List<ModelCatalogEntry> models = openAiResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id)).ToList() ?? [];
 
         return new(models, DateTimeOffset.UtcNow);
     }
@@ -63,7 +63,7 @@ public sealed class ModelCatalogClient
 
         AnthropicModelsResponse? anthropicResponse = await response.Content.ReadFromJsonAsync<AnthropicModelsResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        List<ModelCatalogEntry> models = anthropicResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id, m.DisplayName)).ToList() ?? [];
+        List<ModelCatalogEntry> models = anthropicResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id)).ToList() ?? [];
 
         return new(models, DateTimeOffset.UtcNow);
     }
@@ -78,9 +78,6 @@ public sealed class ModelCatalogClient
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = "";
-
-        [JsonPropertyName("object")]
-        public string? Object { get; set; }
     }
 
     private sealed class AnthropicModelsResponse
@@ -93,8 +90,5 @@ public sealed class ModelCatalogClient
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = "";
-
-        [JsonPropertyName("display_name")]
-        public string? DisplayName { get; set; }
     }
 }

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using HarnessGateway.Launcher.Core.Settings.Security;
-using Microsoft.Extensions.Configuration;
 
 namespace HarnessGateway.Launcher.Core.Settings;
 
@@ -15,7 +14,6 @@ public sealed class SettingsStore
 
     private readonly string _settingsDirectory;
     private readonly string _settingsFilePath;
-    private readonly IConfiguration _configuration;
     private ISecureKeyStore? _keyStore;
 
     public SettingsStore(string? settingsDirectory = null, ISecureKeyStore? keyStore = null)
@@ -23,11 +21,12 @@ public sealed class SettingsStore
         string directory = settingsDirectory ?? GetPlatformConfigDirectory();
         _settingsDirectory = directory;
         _settingsFilePath = Path.Combine(directory, "HarnessGateway-launcher.json");
-        _configuration = BuildConfiguration(directory);
         _keyStore = keyStore;
     }
 
     public string SettingsFilePath => _settingsFilePath;
+
+    public string SettingsDirectory => _settingsDirectory;
 
     public LauncherSettings Load()
     {
@@ -86,11 +85,6 @@ public sealed class SettingsStore
         File.WriteAllText(_settingsFilePath, json);
     }
 
-    public string? GetEnvironmentOverride(string key)
-    {
-        return Environment.GetEnvironmentVariable(key);
-    }
-
     private int ReadDeclaredVersion(string json)
     {
         using JsonDocument document = JsonDocument.Parse(json);
@@ -137,21 +131,6 @@ public sealed class SettingsStore
     private static LauncherSettings DeserializeSettings(string json) =>
         JsonSerializer.Deserialize<LauncherSettings>(json, SerializerOptions)
         ?? new LauncherSettings();
-
-    private static IConfiguration BuildConfiguration(string settingsDirectory)
-    {
-        ConfigurationBuilder builder = new();
-
-        string settingsFile = Path.Combine(settingsDirectory, "HarnessGateway-launcher.json");
-        if (File.Exists(settingsFile))
-        {
-            builder.AddJsonFile(settingsFile, optional: true, reloadOnChange: false);
-        }
-
-        builder.AddEnvironmentVariables();
-
-        return builder.Build();
-    }
 
     public static string GetPlatformConfigDirectory()
     {

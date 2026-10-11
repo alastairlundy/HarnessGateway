@@ -195,7 +195,7 @@ public class LaunchCommandInvocationTests
                 HarnessKind.Cli,
                 RequiresModel: false,
                 InstallHint: "Install via: test-install",
-                DetectionCommand: null,
+                DetectionCommand: $"{name} --version",
                 [],
                 new HashSet<ProtocolKind>
                 {
