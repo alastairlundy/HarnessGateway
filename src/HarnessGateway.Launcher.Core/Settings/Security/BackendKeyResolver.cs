@@ -25,11 +25,7 @@ public static class BackendKeyResolver
             return backend;
         }
 
-        string? secret = await keyStore.RetrieveAsync(backend.ApiKey, cancellationToken).ConfigureAwait(false);
-        if (secret is null)
-        {
-            throw SecureKeyStoreException.DanglingReference(backend.Name);
-        }
+        string secret = await keyStore.RetrieveAsync(backend.ApiKey, cancellationToken).ConfigureAwait(false);
 
         return backend with { ApiKey = secret };
     }

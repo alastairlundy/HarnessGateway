@@ -907,7 +907,7 @@ public class LaunchOrchestratorTests
     }
 
     [Test]
-    public async Task RunAsync_dangling_reference_fails_with_exit_7_and_the_re_save_instruction()
+    public async Task RunAsync_dangling_reference_fails_with_exit_7()
     {
         LauncherSettings settings = new LauncherSettings
         {
@@ -935,8 +935,9 @@ public class LaunchOrchestratorTests
                 orchestrator.RunAsync("TestAgent", null, null, null, null, [], tempDir));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
-            await Assert.That(errorOutput).Contains("'default'");
-            await Assert.That(errorOutput).Contains("config backend set-key");
+            // The store throws AbsentKey at its source; the resolver no longer wraps it.
+            await Assert.That(errorOutput).Contains("No stored API key found");
+            await Assert.That(errorOutput).Contains("hgkey:default");
             // Failed before planning, so no harness ever saw a request.
             await Assert.That(adapter.LastRequest).IsNull();
         }

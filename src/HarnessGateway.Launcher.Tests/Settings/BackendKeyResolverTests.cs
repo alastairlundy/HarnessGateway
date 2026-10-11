@@ -41,7 +41,7 @@ public class BackendKeyResolverTests
     }
 
     [Test]
-    public async Task Dangling_reference_throws_with_the_backend_and_the_re_save_instruction()
+    public async Task Dangling_reference_throws_the_store_absent_key()
     {
         FakeSecureKeyStore keyStore = new();
 
@@ -55,9 +55,11 @@ public class BackendKeyResolverTests
             caught = ex;
         }
 
+        // The store classifies absence at its source; the resolver no longer
+        // wraps it, so the message the caller sees is the store's.
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message).Contains("'default'");
-        await Assert.That(caught.Message).Contains("config backend set-key");
+        await Assert.That(caught!.Message)
+            .IsEqualTo(SecureKeyStoreException.AbsentKey("hgkey:default").Message);
     }
 
     [Test]

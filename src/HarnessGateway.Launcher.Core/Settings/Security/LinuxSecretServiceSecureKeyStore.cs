@@ -60,7 +60,7 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
         }
     }
 
-    public async Task<string?> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
+    public async Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
         string backendName = KeyReference.RequireBackendName(reference);
 
@@ -75,14 +75,24 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
 
         // A miss and an unreachable keyring both exit non-zero and are
         // indistinguishable here; the keyring case surfaces with its own
-        // instructive message the first time a key is stored (above).
+        // instructive message the first time a key is stored (above). Either
+        // way the store reports "no entry" - now by throwing.
         if (result.ExitCode != 0)
         {
-            return null;
+            throw SecureKeyStoreException.AbsentKey(reference);
         }
 
         string password = result.StandardOutput.TrimEnd('\r', '\n');
-        return password.Length == 0 ? null : password;
+        if (password.Length == 0)
+        {
+            // The entry exists but yielded no secret: the tool did not produce a
+            // usable value, which is a store failure rather than an absence.
+            throw SecureKeyStoreException.SecureOperationFailed(
+                "Secret Service",
+                "'secret-tool' returned an empty secret.");
+        }
+
+        return password;
     }
 
     public async Task DeleteAsync(string reference, CancellationToken cancellationToken = default)

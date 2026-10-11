@@ -38,10 +38,15 @@ public sealed class FakeSecureKeyStore : ISecureKeyStore
         return Task.CompletedTask;
     }
 
-    public Task<string?> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
+    public Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
         RetrieveCallCount++;
-        _secrets.TryGetValue(reference, out string? secret);
+
+        if (!_secrets.TryGetValue(reference, out string? secret))
+        {
+            throw SecureKeyStoreException.AbsentKey(reference);
+        }
+
         return Task.FromResult(secret);
     }
 

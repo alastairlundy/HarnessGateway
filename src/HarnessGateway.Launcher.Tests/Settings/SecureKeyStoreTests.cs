@@ -117,7 +117,7 @@ public class SecureKeyStoreTests
         FakeSecureKeyStore keyStore = new();
 
         await keyStore.StoreAsync("hgkey:default", "sk-round-trip");
-        string? retrieved = await keyStore.RetrieveAsync("hgkey:default");
+        string retrieved = await keyStore.RetrieveAsync("hgkey:default");
 
         await Assert.That(retrieved).IsEqualTo("sk-round-trip");
         await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
@@ -125,13 +125,23 @@ public class SecureKeyStoreTests
     }
 
     [Test]
-    public async Task Retrieve_on_a_missing_reference_returns_null()
+    public async Task Retrieve_on_a_missing_reference_throws_absent_key()
     {
         FakeSecureKeyStore keyStore = new();
 
-        string? retrieved = await keyStore.RetrieveAsync("hgkey:absent");
+        Exception? caught = null;
+        try
+        {
+            await keyStore.RetrieveAsync("hgkey:absent");
+        }
+        catch (SecureKeyStoreException ex)
+        {
+            caught = ex;
+        }
 
-        await Assert.That(retrieved).IsNull();
+        await Assert.That(caught).IsNotNull();
+        await Assert.That(caught!.Message)
+            .IsEqualTo(SecureKeyStoreException.AbsentKey("hgkey:absent").Message);
     }
 
     [Test]
@@ -143,8 +153,19 @@ public class SecureKeyStoreTests
         await keyStore.DeleteAsync("hgkey:default");
         await keyStore.DeleteAsync("hgkey:default");
 
-        string? afterFirst = await keyStore.RetrieveAsync("hgkey:default");
-        await Assert.That(afterFirst).IsNull();
+        Exception? caught = null;
+        try
+        {
+            await keyStore.RetrieveAsync("hgkey:default");
+        }
+        catch (SecureKeyStoreException ex)
+        {
+            caught = ex;
+        }
+
+        await Assert.That(caught).IsNotNull();
+        await Assert.That(caught!.Message)
+            .IsEqualTo(SecureKeyStoreException.AbsentKey("hgkey:default").Message);
         await Assert.That(keyStore.DeleteCallCount).IsEqualTo(2);
     }
 }

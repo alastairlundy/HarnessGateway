@@ -293,8 +293,9 @@ public class WizardPipelineTests
 
             await Assert.That(result).IsNull();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
-            await Assert.That(console.ErrorMessages[0]).Contains("'default'");
-            await Assert.That(console.ErrorMessages[0]).Contains("config backend set-key");
+            // The store throws AbsentKey at its source; the resolver no longer wraps it.
+            await Assert.That(console.ErrorMessages[0]).Contains("No stored API key found");
+            await Assert.That(console.ErrorMessages[0]).Contains("hgkey:default");
         }
         finally
         {

@@ -12,8 +12,12 @@ public interface ISecureKeyStore
     /// <summary>Stores (or overwrites) the secret for <paramref name="reference"/>.</summary>
     Task StoreAsync(string reference, string secret, CancellationToken cancellationToken = default);
 
-    /// <summary>Returns the secret for <paramref name="reference"/>, or null when the store holds no entry.</summary>
-    Task<string?> RetrieveAsync(string reference, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns the secret for <paramref name="reference"/>. Throws
+    /// <see cref="SecureKeyStoreException"/> when the store holds no entry or
+    /// the platform credential store fails - callers never receive null.
+    /// </summary>
+    Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default);
 
     /// <summary>Removes the entry for <paramref name="reference"/>. Idempotent: removing a missing entry succeeds.</summary>
     Task DeleteAsync(string reference, CancellationToken cancellationToken = default);

@@ -63,7 +63,7 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
         }
     }
 
-    public async Task<string?> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
+    public async Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
         string backendName = KeyReference.RequireBackendName(reference);
 
@@ -77,16 +77,25 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
         // A non-zero exit is the miss path: no item, or an item this user may not
-        // read. Either way the interface reports "no entry".
+        // read. Either way the store reports "no entry" - now by throwing.
         if (result.ExitCode != 0)
         {
-            return null;
+            throw SecureKeyStoreException.AbsentKey(reference);
         }
 
         // Trailing newline only - the stored value is ASCII, so the macOS 26
         // hex-encoding of *binary* password data never applies here.
         string password = result.StandardOutput.TrimEnd('\r', '\n');
-        return password.Length == 0 ? null : password;
+        if (password.Length == 0)
+        {
+            // The item exists but yielded no secret: the tool did not produce a
+            // usable value, which is a store failure rather than an absence.
+            throw SecureKeyStoreException.SecureOperationFailed(
+                "macOS Keychain",
+                "the 'security' tool returned an empty secret.");
+        }
+
+        return password;
     }
 
     public async Task DeleteAsync(string reference, CancellationToken cancellationToken = default)

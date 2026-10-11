@@ -166,7 +166,7 @@ public class SettingsStoreTests
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
             await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:default");
 
-            string? stored = await keyStore.RetrieveAsync("hgkey:default");
+            string stored = await keyStore.RetrieveAsync("hgkey:default");
             await Assert.That(stored).IsEqualTo("sk-legacy-plaintext");
 
             string fileBytes = File.ReadAllText(store.SettingsFilePath);

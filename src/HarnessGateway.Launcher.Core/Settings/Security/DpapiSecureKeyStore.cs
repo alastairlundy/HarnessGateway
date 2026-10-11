@@ -62,14 +62,14 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         await WriteEntries(backendName, entries, StoreOperation).ConfigureAwait(false);
     }
 
-    public async Task<string?> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
+    public async Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
         string backendName = KeyReference.RequireBackendName(reference);
         Dictionary<string, string> entries = await ReadEntries(backendName).ConfigureAwait(false);
 
         if (!entries.TryGetValue(reference, out string? cipherText))
         {
-            return null;
+            throw SecureKeyStoreException.AbsentKey(reference);
         }
 
         try
@@ -83,9 +83,12 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         catch (Exception ex) when (ex is CryptographicException or FormatException)
         {
             // Undecryptable ciphertext: the file came from another machine or was
-            // tampered with. Report it as "no entry" so the caller raises the
-            // instructive dangling-reference failure instead of leaking detail.
-            return null;
+            // tampered with. Curated detail only - never the raw exception, which
+            // could echo material derived from the secret.
+            throw SecureKeyStoreException.SecureOperationFailed(
+                "DPAPI",
+                $"the stored entry could not be decrypted on this machine; " +
+                $"re-save it with 'harnessgateway config backend set-key {backendName}'.");
         }
     }
 
