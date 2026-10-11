@@ -1,3 +1,4 @@
+using HarnessGateway.Launcher.Core;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
@@ -185,8 +186,9 @@ public class ShippedAdapterContractTests
         // lookup only matched "GitHub Copilot CLI".
         foreach (IHarnessAdapter adapter in shipped)
         {
-            await Assert.That(HarnessLookup.Resolve(shipped, adapter.Metadata.CommandName))
-                .IsSameReferenceAs(adapter);
+            Result<IHarnessAdapter> resolved = HarnessLookup.TryResolve(shipped, adapter.Metadata.CommandName);
+            await Assert.That(resolved.Success).IsTrue();
+            await Assert.That(resolved.Value).IsSameReferenceAs(adapter);
         }
     }
 
@@ -204,17 +206,17 @@ public class ShippedAdapterContractTests
         ];
 
         // Compare against the instance inside `shipped`, not a fresh
-        // construction: Resolve hands back the registered adapter, so
+        // construction: TryResolve hands back the registered adapter, so
         // reference identity is the thing under test.
         CopilotCliAdapter copilot = (CopilotCliAdapter)shipped[2];
 
         // Display name is a label, not a token. `launch "GitHub Copilot CLI"`
         // failing is the intended contract, not an oversight.
-        await Assert.That(HarnessLookup.Resolve(shipped, "copilot")).IsSameReferenceAs(copilot);
-        await Assert.That(HarnessLookup.Resolve(shipped, "COPILOT")).IsSameReferenceAs(copilot);
-        await Assert.That(HarnessLookup.Resolve(shipped, "github-copilot-cli"))
+        await Assert.That(HarnessLookup.TryResolve(shipped, "copilot").Value).IsSameReferenceAs(copilot);
+        await Assert.That(HarnessLookup.TryResolve(shipped, "COPILOT").Value).IsSameReferenceAs(copilot);
+        await Assert.That(HarnessLookup.TryResolve(shipped, "github-copilot-cli").Value)
             .IsSameReferenceAs(copilot);
-        await Assert.That(HarnessLookup.Resolve(shipped, "GitHub Copilot CLI")).IsNull();
+        await Assert.That(HarnessLookup.TryResolve(shipped, "GitHub Copilot CLI").Success).IsFalse();
     }
 }
 

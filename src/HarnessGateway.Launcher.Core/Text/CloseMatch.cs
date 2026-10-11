@@ -14,14 +14,16 @@ public static class CloseMatch
     private const int MaxDistance = 2;
 
     /// <summary>
-    /// The closest candidate to <paramref name="name"/>, or null when nothing is
-    /// close. Prefers a shared prefix, then falls back to edit distance.
+    /// The closest candidate to <paramref name="name"/> on success, or a failed
+    /// outcome when nothing is close. Prefers a shared prefix, then falls back
+    /// to edit distance. The failure carries the empty string: the hint is
+    /// non-contractual UX with no message of its own.
     /// </summary>
-    public static string? Best(IEnumerable<string> candidates, string? name)
+    public static Result<string> Best(IEnumerable<string> candidates, string? name)
     {
         if (string.IsNullOrEmpty(name))
         {
-            return null;
+            return Result.Fail<string>("");
         }
 
         List<string> ordered = [.. candidates];
@@ -31,7 +33,7 @@ public static class CloseMatch
             if (candidate.StartsWith(name, StringComparison.OrdinalIgnoreCase)
                 || name.StartsWith(candidate, StringComparison.OrdinalIgnoreCase))
             {
-                return candidate;
+                return Result.Ok(candidate);
             }
         }
 
@@ -39,11 +41,11 @@ public static class CloseMatch
         {
             if (WithinEditDistance(candidate, name, MaxDistance))
             {
-                return candidate;
+                return Result.Ok(candidate);
             }
         }
 
-        return null;
+        return Result.Fail<string>("");
     }
 
     /// <summary>

@@ -41,12 +41,13 @@ public static class ConfigKeyResolver
                 return Fail(ConfigKeyFailure.UnknownKey, UnknownKeyMessage(key));
             }
 
-            Backend? entry = FindBackend(settings, name);
-            if (entry is null)
+            Result<Backend> found = FindBackend(settings, name);
+            if (!found.Success)
             {
                 return Fail(ConfigKeyFailure.UnaddressableKey, UnaddressableMessage(key, name));
             }
 
+            Backend entry = found.Value;
             return field switch
             {
                 "endpoint" => Ok(entry.BaseUri.ToString()),
@@ -92,13 +93,13 @@ public static class ConfigKeyResolver
                 return Fail(ConfigKeyFailure.UnknownKey, UnknownKeyMessage(key));
             }
 
-            Backend? entry = FindBackend(settings, name);
-            if (entry is null)
+            Result<Backend> found = FindBackend(settings, name);
+            if (!found.Success)
             {
                 return Fail(ConfigKeyFailure.UnaddressableKey, UnaddressableMessage(key, name));
             }
 
-            return SetBackendField(settings, entry, key, field, value);
+            return SetBackendField(settings, found.Value, key, field, value);
         }
 
         return Fail(ConfigKeyFailure.UnknownKey, UnknownKeyMessage(key));
@@ -237,9 +238,11 @@ public static class ConfigKeyResolver
         return !field.Contains('.', StringComparison.OrdinalIgnoreCase);
     }
 
-    private static Backend? FindBackend(LauncherSettings settings, string name) =>
+    private static Result<Backend> FindBackend(LauncherSettings settings, string name) =>
         settings.Backends.FirstOrDefault(b =>
-            string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase));
+            string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase)) is { } match
+            ? Result.Ok(match)
+            : Result.Fail<Backend>("");
 
     private static ConfigKeyResult Ok(string value) =>
         new() { Value = value, Message = value };

@@ -18,24 +18,29 @@ public static class HarnessLookup
 {
     /// <summary>
     /// The adapter whose command name or an alias equals <paramref name="token"/>,
-    /// or null when nothing matches.
+    /// or a failed outcome when nothing matches. The failure carries the empty
+    /// string: the caller decides the user-facing message.
     /// </summary>
-    public static IHarnessAdapter? Resolve(
+    public static Result<IHarnessAdapter> TryResolve(
         IEnumerable<IHarnessAdapter> adapters,
         string? token)
     {
         if (string.IsNullOrWhiteSpace(token))
         {
-            return null;
+            return Result.Fail<IHarnessAdapter>("");
         }
 
-        return adapters.FirstOrDefault(adapter => Matches(adapter.Metadata, token));
+        return adapters.FirstOrDefault(adapter => Matches(adapter.Metadata, token)) is { } match
+            ? Result.Ok(match)
+            : Result.Fail<IHarnessAdapter>("");
     }
 
     /// <summary>
     /// The user-facing message for an unresolvable harness identifier,
     /// carrying a best-effort suggestion when a command name or alias is
-    /// close.
+    /// close. The hint is non-contractual UX: it offers command names only,
+    /// never aliases, so it teaches the documented spelling rather than a
+    /// hidden one.
     /// </summary>
     public static string UnknownAgentMessage(
         IEnumerable<IHarnessAdapter> adapters,
@@ -44,22 +49,14 @@ public static class HarnessLookup
         string message = $"Unknown harness: {token}. Run 'harnessgateway launch' with no " +
                          "options for the interactive harness picker.";
 
-        string? hint = Suggest(adapters, token);
-        if (hint is not null)
+        Result<string> hint = CloseMatch.Best(adapters.Select(a => a.Metadata.CommandName), token);
+        if (hint.Success)
         {
-            message += $" Did you mean '{hint}'?";
+            message += $" Did you mean '{hint.Value}'?";
         }
 
         return message;
     }
-
-    /// <summary>
-    /// The accepted token closest to <paramref name="token"/>. Offers command
-    /// names only, never aliases, so the hint teaches the documented spelling
-    /// rather than a hidden one.
-    /// </summary>
-    public static string? Suggest(IEnumerable<IHarnessAdapter> adapters, string token) =>
-        CloseMatch.Best(adapters.Select(a => a.Metadata.CommandName), token);
 
     private static bool Matches(HarnessMetadata metadata, string token) =>
         string.Equals(metadata.CommandName, token, StringComparison.OrdinalIgnoreCase)

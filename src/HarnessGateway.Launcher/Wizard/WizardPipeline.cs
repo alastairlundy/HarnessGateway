@@ -1,3 +1,4 @@
+using HarnessGateway.Launcher.Core;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Backends.Models;
 
@@ -68,7 +69,8 @@ public sealed class WizardPipeline
                 protocolToCheck, annotateIncompatible, cancellationToken).ConfigureAwait(true);
             if (harnessName is null) return null;
 
-            adapter = HarnessLookup.Resolve(_adapters, harnessName);
+            Result<IHarnessAdapter> adapterResult = HarnessLookup.TryResolve(_adapters, harnessName);
+            adapter = adapterResult.Success ? adapterResult.Value : null;
 
             if (endpointResult.endpoint is null)
             {

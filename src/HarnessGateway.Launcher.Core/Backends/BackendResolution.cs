@@ -176,10 +176,10 @@ public static class BackendResolution
 
         // Best-effort close-match hint; non-contractual UX that may be
         // improved or dropped without changing the resolution outcome.
-        string? hint = CloseMatch.Best(settings.Backends.Select(b => b.Name), name);
-        if (hint is not null)
+        Result<string> hint = CloseMatch.Best(settings.Backends.Select(b => b.Name), name);
+        if (hint.Success)
         {
-            message += $" Did you mean '{hint}'?";
+            message += $" Did you mean '{hint.Value}'?";
         }
 
         return message;

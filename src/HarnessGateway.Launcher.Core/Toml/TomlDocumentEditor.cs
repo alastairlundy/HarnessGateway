@@ -50,7 +50,7 @@ public sealed class TomlDocumentEditor
     /// </summary>
     public bool BlockExists(string blockName)
     {
-        return FindBlock(SplitName(blockName, nameof(blockName))) is not null;
+        return FindBlock(SplitName(blockName, nameof(blockName))).Success;
     }
 
     /// <summary>
@@ -117,20 +117,23 @@ public sealed class TomlDocumentEditor
         ArgumentNullException.ThrowIfNull(values);
         string[] path = SplitName(blockName, nameof(blockName));
 
-        TableSyntax? table = FindBlock(path);
-        if (table is null)
+        Result<TableSyntax> existing = FindBlock(path);
+        if (existing.Success)
         {
-            table = new(BuildKey(path));
-            table.EndOfLineToken = new(TokenKind.NewLine, _newLine);
-            List<SyntaxTrivia>? separator = BuildAppendSeparator();
-            if (separator is not null)
-            {
-                table.LeadingTrivia = separator;
-            }
-            _document.Tables.Add(table);
+            ApplyValues(existing.Value, values);
+            return;
         }
 
-        ApplyValues(table, values);
+        TableSyntax created = new(BuildKey(path));
+        created.EndOfLineToken = new(TokenKind.NewLine, _newLine);
+        List<SyntaxTrivia>? separator = BuildAppendSeparator();
+        if (separator is not null)
+        {
+            created.LeadingTrivia = separator;
+        }
+
+        _document.Tables.Add(created);
+        ApplyValues(created, values);
     }
 
     /// <summary>
@@ -260,17 +263,17 @@ public sealed class TomlDocumentEditor
         removed.TrailingTrivia = null;
     }
 
-    private TableSyntax? FindBlock(string[] path)
+    private Result<TableSyntax> FindBlock(string[] path)
     {
         foreach (TableSyntaxBase candidate in _document.Tables)
         {
             if (candidate is TableSyntax table && table.Name is not null && PathEquals(ResolveKey(table.Name), path))
             {
-                return table;
+                return Result.Ok(table);
             }
         }
 
-        return null;
+        return Result.Fail<TableSyntax>("");
     }
 
     /// <summary>

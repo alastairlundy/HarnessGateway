@@ -1,3 +1,4 @@
+using HarnessGateway.Launcher.Core;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
@@ -64,12 +65,14 @@ public sealed class LaunchOrchestrator
 
             await _backupService.SelfHealAsync(cancellationToken).ConfigureAwait(true);
 
-            IHarnessAdapter? adapter = FindAdapter(agentName);
-            if (adapter is null)
+            Result<IHarnessAdapter> adapterResult = FindAdapter(agentName);
+            if (!adapterResult.Success)
             {
                 await Console.Error.WriteLineAsync(HarnessLookup.UnknownAgentMessage(_adapters, agentName)).ConfigureAwait(true);
                 return (int)LaunchExitCode.UnknownAgent;
             }
+
+            IHarnessAdapter adapter = adapterResult.Value;
 
             bool isAvailable = await adapter.IsAvailableAsync(cancellationToken).ConfigureAwait(true);
             if (!isAvailable)
@@ -191,8 +194,8 @@ public sealed class LaunchOrchestrator
             ? (int)LaunchExitCode.UnknownBackendName
             : (int)LaunchExitCode.UsageError;
 
-    private IHarnessAdapter? FindAdapter(string agentName) =>
-        HarnessLookup.Resolve(_adapters, agentName);
+    private Result<IHarnessAdapter> FindAdapter(string agentName) =>
+        HarnessLookup.TryResolve(_adapters, agentName);
 
     /// <summary>
     /// Picks the model for this launch: the explicit <c>--model</c> value, else
