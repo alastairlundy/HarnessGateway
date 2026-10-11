@@ -45,13 +45,22 @@ public sealed class LaunchOrchestrator
                 protocol,
                 model);
 
-            if (!resolution.IsSuccess)
+            if (resolution is BackendResolutionResult.Failed failed)
             {
-                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
-                return ExitCodeFor(resolution.Failure);
+                await Console.Error.WriteLineAsync(failed.Message).ConfigureAwait(true);
+                return ExitCodeFor(failed.Failure);
             }
 
-            Backend? backend = resolution.Backend;
+            // Resolved carries its backend non-null; EmptySettings is the
+            // success-without-a-backend variant and falls through to the
+            // usage-error guard below.
+            Backend? backend = resolution switch
+            {
+                BackendResolutionResult.Resolved resolved => resolved.Backend,
+                BackendResolutionResult.EmptySettings => null,
+                _ => throw new InvalidOperationException(
+                    $"unexpected resolution variant '{resolution.GetType().Name}'"),
+            };
 
             await _backupService.SelfHealAsync(cancellationToken).ConfigureAwait(true);
 
@@ -127,8 +136,7 @@ public sealed class LaunchOrchestrator
             // when the resolved entry had none or the user typed one, so this
             // layering can only fill a gap; it never masks a stored key with a
             // stale copy.
-            
-            if (!string.IsNullOrEmpty(apiKey) && backend is not null)
+            if (!string.IsNullOrEmpty(apiKey))
             {
                 backend = backend with { ApiKey = apiKey };
             }

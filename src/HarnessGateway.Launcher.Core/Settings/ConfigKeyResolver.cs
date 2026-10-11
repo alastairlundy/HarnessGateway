@@ -144,15 +144,24 @@ public static class ConfigKeyResolver
     private static ConfigKeyResult SetDefaultBackend(LauncherSettings settings, string value)
     {
         BackendResolutionResult resolution = BackendResolution.Resolve(settings, value, endpoint: null, protocol: null, model: null);
-        if (!resolution.IsSuccess)
+
+        Backend entry;
+        switch (resolution)
         {
-            // With no overrides supplied this failure is always the unknown-name class.
-            return Fail(
-                ConfigKeyFailure.UnknownBackendName,
-                resolution.Message ?? $"unknown backend name '{value}'.");
+            case BackendResolutionResult.Resolved resolved:
+                entry = resolved.Backend;
+                break;
+
+            case BackendResolutionResult.Failed failed:
+                // With no overrides supplied this failure is always the unknown-name class.
+                return Fail(ConfigKeyFailure.UnknownBackendName, failed.Message);
+
+            default:
+                // EmptySettings is unreachable: the written value is a required
+                // name, so resolution either finds the entry or fails.
+                return Fail(ConfigKeyFailure.UnknownBackendName, $"unknown backend name '{value}'.");
         }
 
-        Backend entry = resolution.Backend!;
         if (string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase))
         {
             return new ConfigKeyResult

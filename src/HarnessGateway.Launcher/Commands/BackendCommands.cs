@@ -71,21 +71,26 @@ internal sealed class BackendCommands : Command
 
             BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint, protocol, 
                 model: null);
-            if (!resolution.IsSuccess && resolution.Failure != BackendResolutionFailure.UnknownBackendName)
+
+            if (resolution is BackendResolutionResult.Failed failed
+                && failed.Failure != BackendResolutionFailure.UnknownBackendName)
             {
-                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
-                return ExitCodeFor(resolution.Failure);
+                await Console.Error.WriteLineAsync(failed.Message).ConfigureAwait(true);
+                return ExitCodeFor(failed.Failure);
             }
 
-            bool isCreate = !resolution.IsSuccess;
-            Backend entry = isCreate
-                ? new Backend
+            // Resolved updates the saved entry in place; an unknown name (or
+            // the unreachable EmptySettings - both flags are required above,
+            // so a complete override always resolves) creates a new entry.
+            bool isCreate = resolution is not BackendResolutionResult.Resolved;
+            Backend entry = resolution is BackendResolutionResult.Resolved resolved
+                ? resolved.Backend
+                : new Backend
                 {
                     Name = name,
                     BaseUri = LaunchCommand.ParseEndpoint(endpoint!),
                     Protocol = LaunchCommand.ParseProtocol(protocol!),
-                }
-                : resolution.Backend;
+                };
 
             string? secret = key ??
                              _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
@@ -187,13 +192,13 @@ internal sealed class BackendCommands : Command
             }
 
             BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
-            if (!resolution.IsSuccess)
-            {
-                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
-                return ExitCodeFor(resolution.Failure);
-            }
 
-            Backend entry = resolution.Backend;
+            (Backend? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+                .ConfigureAwait(true);
+            if (entry is null)
+            {
+                return resolutionExitCode;
+            }
 
             if (settings.Backends.Count == 1)
             {
@@ -266,14 +271,14 @@ internal sealed class BackendCommands : Command
             }
 
             BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
-            
-            if (!resolution.IsSuccess)
+
+            (Backend? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+                .ConfigureAwait(true);
+            if (entry is null)
             {
-                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
-                return ExitCodeFor(resolution.Failure);
+                return resolutionExitCode;
             }
 
-            Backend entry = resolution.Backend!;
             string? secret = key ??
                              _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
 
@@ -326,18 +331,18 @@ internal sealed class BackendCommands : Command
             }
 
             BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
-            if (!resolution.IsSuccess)
+
+            (Backend? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+                .ConfigureAwait(true);
+            if (entry is null)
             {
-                await Console.Error.WriteLineAsync(resolution.Message).ConfigureAwait(true);
-                return ExitCodeFor(resolution.Failure);
+                return resolutionExitCode;
             }
 
-            Backend entry = resolution.Backend;
-
-            if (entry?.ApiKey is null)
+            if (entry.ApiKey is null)
             {
                 // Idempotent on a keyless backend: no store entry, no settings write.
-                Console.WriteLine($"Backend '{entry?.Name}' has no saved key; nothing to clear.");
+                Console.WriteLine($"Backend '{entry.Name}' has no saved key; nothing to clear.");
                 return 0;
             }
 
@@ -366,6 +371,32 @@ internal sealed class BackendCommands : Command
         });
 
         return cmd;
+    }
+
+    /// <summary>
+    /// Binds a no-override resolution to the saved entry for the config verbs
+    /// (remove, set-key, clear-key): the <c>Resolved</c> variant proves the
+    /// backend non-null, <c>Failed</c> carries its own message and typed exit
+    /// code, and <c>EmptySettings</c> is unreachable here - these verbs always
+    /// pass the required name argument, so resolution either finds the entry
+    /// or fails with the unknown-name class.
+    /// </summary>
+    private static async Task<(Backend? Entry, int ExitCode)> TryResolveEntryAsync(
+        BackendResolutionResult resolution)
+    {
+        switch (resolution)
+        {
+            case BackendResolutionResult.Resolved resolved:
+                return (resolved.Backend, 0);
+
+            case BackendResolutionResult.Failed failed:
+                await Console.Error.WriteLineAsync(failed.Message).ConfigureAwait(true);
+                return (null, ExitCodeFor(failed.Failure));
+
+            default:
+                await Console.Error.WriteLineAsync("No backend is configured.").ConfigureAwait(true);
+                return (null, (int)LaunchExitCode.UsageError);
+        }
     }
 
     private static int ExitCodeFor(BackendResolutionFailure failure) =>

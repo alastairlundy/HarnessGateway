@@ -32,9 +32,8 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, "secondary", null, null, null);
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend).IsNotNull();
-        await Assert.That(result.Backend!.Name).IsEqualTo("secondary");
+        BackendResolutionResult.Resolved resolved = (BackendResolutionResult.Resolved)result;
+        await Assert.That(resolved.Backend.Name).IsEqualTo("secondary");
     }
 
     [Test]
@@ -44,8 +43,8 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, "SECONDARY", null, null, null);
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend!.Name).IsEqualTo("secondary");
+        BackendResolutionResult.Resolved resolved = (BackendResolutionResult.Resolved)result;
+        await Assert.That(resolved.Backend.Name).IsEqualTo("secondary");
     }
 
     [Test]
@@ -68,14 +67,14 @@ public class BackendResolutionTests
             "openai-chat",
             null);
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend!.BaseUri).IsEqualTo(new Uri("https://override.example/v1"));
-        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+        BackendResolutionResult.Resolved resolved = (BackendResolutionResult.Resolved)result;
+        await Assert.That(resolved.Backend.BaseUri).IsEqualTo(new Uri("https://override.example/v1"));
+        await Assert.That(resolved.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
         // Every other field comes from the saved entry - including the key,
         // which is never overridable per launch.
-        await Assert.That(result.Backend.Name).IsEqualTo("secondary");
-        await Assert.That(result.Backend.DefaultModel).IsEqualTo("gpt-4o");
-        await Assert.That(result.Backend.ApiKey).IsEqualTo("hgkey:secondary");
+        await Assert.That(resolved.Backend.Name).IsEqualTo("secondary");
+        await Assert.That(resolved.Backend.DefaultModel).IsEqualTo("gpt-4o");
+        await Assert.That(resolved.Backend.ApiKey).IsEqualTo("hgkey:secondary");
     }
 
     [Test]
@@ -92,10 +91,10 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, "secondary", null, null, "gpt-5");
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend!.DefaultModel).IsEqualTo("gpt-5");
-        await Assert.That(result.Backend.BaseUri).IsEqualTo(new Uri("https://secondary.example/v1"));
-        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+        BackendResolutionResult.Resolved resolved = (BackendResolutionResult.Resolved)result;
+        await Assert.That(resolved.Backend.DefaultModel).IsEqualTo("gpt-5");
+        await Assert.That(resolved.Backend.BaseUri).IsEqualTo(new Uri("https://secondary.example/v1"));
+        await Assert.That(resolved.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
     }
 
     [Test]
@@ -105,8 +104,8 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, null, null, null, null);
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend!.Name).IsEqualTo("secondary");
+        BackendResolutionResult.Resolved resolved = (BackendResolutionResult.Resolved)result;
+        await Assert.That(resolved.Backend.Name).IsEqualTo("secondary");
     }
 
     [Test]
@@ -116,9 +115,9 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, null, null, null, null);
 
-        await Assert.That(result.IsSuccess).IsFalse();
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.AbsentDefaultBackend);
-        await Assert.That(result.Message!).Contains("config set defaultBackend");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.AbsentDefaultBackend);
+        await Assert.That(failed.Message).Contains("config set defaultBackend");
     }
 
     [Test]
@@ -128,10 +127,10 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, null, null, null, null);
 
-        await Assert.That(result.IsSuccess).IsFalse();
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
-        await Assert.That(result.Message!).Contains("unknown backend name 'ghost'");
-        await Assert.That(result.Message!).Contains("config set defaultBackend");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
+        await Assert.That(failed.Message).Contains("unknown backend name 'ghost'");
+        await Assert.That(failed.Message).Contains("config set defaultBackend");
     }
 
     [Test]
@@ -141,8 +140,7 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, null, null, null, null);
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend).IsNull();
+        await Assert.That(result).IsTypeOf<BackendResolutionResult.EmptySettings>();
     }
 
     [Test]
@@ -152,9 +150,9 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, "nope", null, null, null);
 
-        await Assert.That(result.IsSuccess).IsFalse();
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.UnknownBackendName);
-        await Assert.That(result.Message!).Contains("unknown backend name 'nope'");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.UnknownBackendName);
+        await Assert.That(failed.Message).Contains("unknown backend name 'nope'");
     }
 
     [Test]
@@ -165,9 +163,10 @@ public class BackendResolutionTests
         BackendResolutionResult result = BackendResolution.Resolve(settings, "prod", null, null, null);
 
         // The hint is best-effort, non-contractual UX; the outcome is the failure.
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.UnknownBackendName);
-        await Assert.That(result.Message!).Contains("unknown backend name 'prod'");
-        await Assert.That(result.Message!).Contains("production");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.UnknownBackendName);
+        await Assert.That(failed.Message).Contains("unknown backend name 'prod'");
+        await Assert.That(failed.Message).Contains("production");
     }
 
     [Test]
@@ -177,8 +176,9 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, null, "https://api.example.com/v1", null, null);
 
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.EndpointWithoutProtocol);
-        await Assert.That(result.Message!).Contains("--endpoint requires --protocol");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.EndpointWithoutProtocol);
+        await Assert.That(failed.Message).Contains("--endpoint requires --protocol");
     }
 
     [Test]
@@ -188,8 +188,9 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, null, null, "openai-chat", null);
 
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.ProtocolWithoutEndpoint);
-        await Assert.That(result.Message!).Contains("--protocol requires --endpoint");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.ProtocolWithoutEndpoint);
+        await Assert.That(failed.Message).Contains("--protocol requires --endpoint");
     }
 
     [Test]
@@ -199,8 +200,9 @@ public class BackendResolutionTests
 
         BackendResolutionResult result = BackendResolution.Resolve(settings, null, "not-a-url", "openai-chat", null);
 
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.InvalidEndpoint);
-        await Assert.That(result.Message!).Contains("not-a-url");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.InvalidEndpoint);
+        await Assert.That(failed.Message).Contains("not-a-url");
     }
 
     [Test]
@@ -215,8 +217,9 @@ public class BackendResolutionTests
             "smtp",
             null);
 
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.InvalidProtocol);
-        await Assert.That(result.Message!).Contains("openai-chat, openai-responses, anthropic");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.InvalidProtocol);
+        await Assert.That(failed.Message).Contains("openai-chat, openai-responses, anthropic");
     }
 
     [Test]
@@ -231,11 +234,11 @@ public class BackendResolutionTests
             "anthropic",
             "claude-sonnet-5");
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend!.Name).IsEqualTo("override");
-        await Assert.That(result.Backend.BaseUri).IsEqualTo(new Uri("https://raw.example/v1"));
-        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.Anthropic);
-        await Assert.That(result.Backend.DefaultModel).IsEqualTo("claude-sonnet-5");
+        BackendResolutionResult.Resolved resolved = (BackendResolutionResult.Resolved)result;
+        await Assert.That(resolved.Backend.Name).IsEqualTo("override");
+        await Assert.That(resolved.Backend.BaseUri).IsEqualTo(new Uri("https://raw.example/v1"));
+        await Assert.That(resolved.Backend.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(resolved.Backend.DefaultModel).IsEqualTo("claude-sonnet-5");
     }
 
     [Test]
@@ -252,11 +255,11 @@ public class BackendResolutionTests
             "openai-responses",
             null);
 
-        await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Backend!.Name).IsEqualTo("primary");
-        await Assert.That(result.Backend.BaseUri).IsEqualTo(new Uri("https://raw.example/v1"));
-        await Assert.That(result.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
-        await Assert.That(result.Backend.ApiKey).IsEqualTo("hgkey:primary");
+        BackendResolutionResult.Resolved resolved = (BackendResolutionResult.Resolved)result;
+        await Assert.That(resolved.Backend.Name).IsEqualTo("primary");
+        await Assert.That(resolved.Backend.BaseUri).IsEqualTo(new Uri("https://raw.example/v1"));
+        await Assert.That(resolved.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+        await Assert.That(resolved.Backend.ApiKey).IsEqualTo("hgkey:primary");
     }
 
     [Test]
@@ -273,7 +276,8 @@ public class BackendResolutionTests
             "openai-chat",
             null);
 
-        await Assert.That(result.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
-        await Assert.That(result.Message!).Contains("config set defaultBackend");
+        BackendResolutionResult.Failed failed = (BackendResolutionResult.Failed)result;
+        await Assert.That(failed.Failure).IsEqualTo(BackendResolutionFailure.DanglingDefaultBackend);
+        await Assert.That(failed.Message).Contains("config set defaultBackend");
     }
 }

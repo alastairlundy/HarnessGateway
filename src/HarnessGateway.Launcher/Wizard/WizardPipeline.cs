@@ -40,13 +40,18 @@ public sealed class WizardPipeline
             protocol: null,
             model: null);
 
-        if (!resolution.IsSuccess)
+        if (resolution is BackendResolutionResult.Failed failed)
         {
-            await Task.Run(() => _console.WriteError(resolution.Message ?? string.Empty), cancellationToken).ConfigureAwait(false);
+            // Failed carries a non-null user-facing message - no fallback text.
+            await Task.Run(() => _console.WriteError(failed.Message), cancellationToken).ConfigureAwait(false);
             return null;
         }
 
-        Backend? defaultBackend = resolution.Backend;
+        // A first run (EmptySettings) resolves to no backend at all and
+        // prompts with no prefill; Resolved carries its backend non-null.
+        Backend? defaultBackend = resolution is BackendResolutionResult.Resolved resolved
+            ? resolved.Backend
+            : null;
 
         // Locked step order (harness, endpoint, key, model). The pairing
         // guard re-enters only the harness step: the endpoint step runs
