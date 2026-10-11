@@ -106,8 +106,8 @@ public class PiAdapterTests
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
-        await Assert.That(plan.Process.Arguments).Contains("--model");
-        await Assert.That(plan.Process.Arguments).Contains("claude-sonnet-5");
+        await Assert.That(plan.Process.ArgumentList).Contains("--model");
+        await Assert.That(plan.Process.ArgumentList).Contains("claude-sonnet-5");
     }
 
     [Test]
@@ -118,7 +118,7 @@ public class PiAdapterTests
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
-        await Assert.That(plan.Process.Arguments).DoesNotContain("--model");
+        await Assert.That(plan.Process.ArgumentList).DoesNotContain("--model");
     }
 
     [Test]

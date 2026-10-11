@@ -12,7 +12,7 @@ List<IHarnessAdapter> adapters =
     new CopilotCliAdapter(),
     new PiAdapter(),
     new CodexAdapter(),
-    new ClaudeCodeAdapter()
+    new ClaudeCodeAdapter(),
 ];
 
 string settingsDir = SettingsStore.GetPlatformConfigDirectory();

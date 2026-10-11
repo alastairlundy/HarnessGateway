@@ -23,7 +23,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
 
     // Constant entropy binds the ciphertext to this application's purpose without
     // introducing a second secret the user has to manage.
-    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("HarnessGateway.SecureKeyStore.v1");
+    private static readonly byte[] Entropy = [.. "HarnessGateway.SecureKeyStore.v1"u8];
 
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
@@ -40,10 +40,10 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         _keysFilePath = Path.Combine(settingsDirectory, KeysFileName);
     }
 
-    public Task StoreAsync(string reference, string secret, CancellationToken cancellationToken = default)
+    public async Task StoreAsync(string reference, string secret, CancellationToken cancellationToken = default)
     {
         string backendName = KeyReference.RequireBackendName(reference);
-        Dictionary<string, string> entries = ReadEntries(backendName);
+        Dictionary<string, string> entries = await ReadEntries(backendName).ConfigureAwait(false);
 
         try
         {
@@ -59,18 +59,17 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
                 backendName, StoreOperation, "the data protection API rejected the secret.", ex);
         }
 
-        WriteEntries(backendName, entries, StoreOperation);
-        return Task.CompletedTask;
+        await WriteEntries(backendName, entries, StoreOperation).ConfigureAwait(false);
     }
 
-    public Task<string?> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
+    public async Task<string?> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
         string backendName = KeyReference.RequireBackendName(reference);
-        Dictionary<string, string> entries = ReadEntries(backendName);
+        Dictionary<string, string> entries = await ReadEntries(backendName).ConfigureAwait(false);
 
         if (!entries.TryGetValue(reference, out string? cipherText))
         {
-            return Task.FromResult<string?>(null);
+            return null;
         }
 
         try
@@ -79,48 +78,48 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
                 Convert.FromBase64String(cipherText),
                 Entropy,
                 DataProtectionScope.CurrentUser);
-            return Task.FromResult<string?>(Encoding.UTF8.GetString(plainBytes));
+            return Encoding.UTF8.GetString(plainBytes);
         }
         catch (Exception ex) when (ex is CryptographicException or FormatException)
         {
             // Undecryptable ciphertext: the file came from another machine or was
             // tampered with. Report it as "no entry" so the caller raises the
             // instructive dangling-reference failure instead of leaking detail.
-            return Task.FromResult<string?>(null);
+            return null;
         }
     }
 
-    public Task DeleteAsync(string reference, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(string reference, CancellationToken cancellationToken = default)
     {
         string backendName = KeyReference.RequireBackendName(reference);
 
         if (!File.Exists(_keysFilePath))
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        Dictionary<string, string> entries = ReadEntries(backendName);
+        Dictionary<string, string> entries = await ReadEntries(backendName).ConfigureAwait(false);
         if (!entries.Remove(reference))
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        WriteEntries(backendName, entries, DeleteOperation);
-        return Task.CompletedTask;
+        await WriteEntries(backendName, entries, DeleteOperation).ConfigureAwait(false);
     }
 
-    private Dictionary<string, string> ReadEntries(string backendName)
+    private async Task<Dictionary<string, string>> ReadEntries(string backendName)
     {
         if (!File.Exists(_keysFilePath))
         {
-            return new(StringComparer.Ordinal);
+            return new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
         try
         {
-            string json = File.ReadAllText(_keysFilePath);
+            string json = await File.ReadAllTextAsync(_keysFilePath).ConfigureAwait(false);
+            
             return JsonSerializer.Deserialize<Dictionary<string, string>>(json, SerializerOptions)
-                ?? new Dictionary<string, string>(StringComparer.Ordinal);
+                   ?? new Dictionary<string, string>(StringComparer.Ordinal);
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -129,7 +128,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         }
     }
 
-    private void WriteEntries(string backendName, Dictionary<string, string> entries, string operation)
+    private async Task WriteEntries(string backendName, Dictionary<string, string> entries, string operation)
     {
         try
         {
@@ -139,7 +138,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllText(_keysFilePath, JsonSerializer.Serialize(entries, SerializerOptions));
+            await File.WriteAllTextAsync(_keysFilePath, JsonSerializer.Serialize(entries, SerializerOptions)).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {

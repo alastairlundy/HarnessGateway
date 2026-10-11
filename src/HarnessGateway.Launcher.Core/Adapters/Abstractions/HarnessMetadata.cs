@@ -23,7 +23,7 @@ namespace HarnessGateway.Launcher.Core.Adapters.Abstractions;
 /// True when the harness will not start usefully without a model. Drives a
 /// warning, not a refusal.
 /// </param>
-/// <param name="InstallHint">Full install line, quoted verbatim in refusals.</param>
+/// <param name="InstallHint">Full install instructions line, quoted verbatim in refusals.</param>
 /// <param name="DetectionCommand">
 /// The command a user can run to check detection by hand. Surfaced in the
 /// not-installed refusal so a PATH false negative is diagnosable without

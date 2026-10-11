@@ -11,17 +11,17 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
         // prose say `GitHub Copilot CLI`, and neither has to compromise.
         Name: "GitHub Copilot CLI",
         CommandName: "copilot",
-        Aliases: ["github-copilot-cli", "copilot-cli"],
+        ["github-copilot-cli", "copilot-cli"],
         Kind: HarnessKind.Cli,
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @github/copilot",
         DetectionCommand: "copilot --version",
-        ConfigFileCandidates: [],
-        SupportedProtocols: new HashSet<ProtocolKind>
+        [],
+        new HashSet<ProtocolKind>
         {
             ProtocolKind.OpenAiChat,
             ProtocolKind.OpenAiResponses,
-            ProtocolKind.Anthropic
+            ProtocolKind.Anthropic,
         });
 
     private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
@@ -43,7 +43,7 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
     {
         Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
-            ["COPILOT_PROVIDER_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/')
+            ["COPILOT_PROVIDER_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
         };
 
         if (request.Backend.ApiKey is { Length: > 0 })
@@ -53,10 +53,10 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
         {
             ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => "openai",
             ProtocolKind.Anthropic => "anthropic",
-            _ => "openai"
+            _ => "openai",
         };
 
-        List<string> args = new();
+        List<string> args = [];
         if (request.Model is { Length: > 0 })
         {
             args.Add("--model");
@@ -65,10 +65,10 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
 
         ProcessConfiguration config = new("copilot")
         {
-            Arguments = args.Count > 0 ? string.Join(" ", args) : "",
+            ArgumentList = args,
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
-            EnvironmentVariables = envVars
+            EnvironmentVariables = envVars,
         };
 
         return Task.FromResult(new LaunchPlan(config, []));
@@ -81,7 +81,7 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
             string fileName = OperatingSystem.IsWindows() ? "where" : "which";
             ProcessConfiguration config = new(fileName, command)
             {
-                OutputRedirection = true
+                OutputRedirection = true,
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);

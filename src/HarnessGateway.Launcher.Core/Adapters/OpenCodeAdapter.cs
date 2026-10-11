@@ -9,17 +9,17 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
     public HarnessMetadata Metadata { get; } = new(
         Name: "OpenCode",
         CommandName: "opencode",
-        Aliases: [],
+        [],
         Kind: HarnessKind.Cli,
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @opencode/cli",
         DetectionCommand: "opencode --version",
-        ConfigFileCandidates: ["opencode.json"],
-        SupportedProtocols: new HashSet<ProtocolKind>
+        ["opencode.json"],
+        new HashSet<ProtocolKind>
         {
             ProtocolKind.OpenAiChat,
             ProtocolKind.OpenAiResponses,
-            ProtocolKind.Anthropic
+            ProtocolKind.Anthropic,
         });
 
     private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
@@ -47,7 +47,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
         {
             ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => "openai",
             ProtocolKind.Anthropic => "anthropic",
-            _ => null
+            _ => null,
         };
 
         switch (request.Backend.Protocol)
@@ -83,7 +83,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
             Arguments = "",
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
-            EnvironmentVariables = envVars
+            EnvironmentVariables = envVars,
         };
 
         return Task.FromResult(new LaunchPlan(config, []));
@@ -113,11 +113,11 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
         // payload's literal brace pairs ({"name":...}}), and every controlled
         // value is already escaped above.
         return "{\"$schema\":\"https://opencode.ai/config.json\",\"model\":" + modelIdJson
-            + ",\"provider\":{" + providerJson
-            + ":{\"options\":{\"baseURL\":" + baseUrlJson
-            + ",\"apiKey\":" + apiKeyJson
-            + "},\"models\":{" + modelJson
-            + ":{\"name\":" + modelJson + "}}}}}";
+                                                                             + ",\"provider\":{" + providerJson
+                                                                             + ":{\"options\":{\"baseURL\":" + baseUrlJson
+                                                                             + ",\"apiKey\":" + apiKeyJson
+                                                                             + "},\"models\":{" + modelJson
+                                                                             + ":{\"name\":" + modelJson + "}}}}}";
     }
 
     private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)

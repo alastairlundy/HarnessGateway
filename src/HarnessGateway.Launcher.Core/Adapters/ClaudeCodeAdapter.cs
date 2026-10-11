@@ -12,17 +12,17 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
         // The binary and the vendor's docs both say "claude", so users reach
         // for that spelling. Accepted as an input token only; help output and
         // the wizard list show "claude-code".
-        Aliases: ["claude"],
+        ["claude"],
         Kind: HarnessKind.Cli,
         RequiresModel: false,
-        InstallHint: "Install via: npm i -g @anthropic-ai/claude-code. Note: pointing Claude Code at a "
-                     + "non-first-party base URL disables MCP (Model Context Protocol) tool search and Remote "
-                     + "Control - that is a Claude Code consequence, not an action by the launcher.",
+        "Install via: npm i -g @anthropic-ai/claude-code. Note: pointing Claude Code at a "
+        + "non-first-party base URL disables MCP (Model Context Protocol) tool search and Remote "
+        + "Control - that is a Claude Code consequence, not an action by the launcher.",
         DetectionCommand: "claude --version",
-        ConfigFileCandidates: [],
-        SupportedProtocols: new HashSet<ProtocolKind>
+        [],
+        new HashSet<ProtocolKind>
         {
-            ProtocolKind.Anthropic
+            ProtocolKind.Anthropic,
         });
 
     private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
@@ -49,7 +49,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
         List<ConfigurationAction> actions = [];
         Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
-            ["ANTHROPIC_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/')
+            ["ANTHROPIC_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
         };
 
         // Token choice: ANTHROPIC_AUTH_TOKEN, never ANTHROPIC_API_KEY - the

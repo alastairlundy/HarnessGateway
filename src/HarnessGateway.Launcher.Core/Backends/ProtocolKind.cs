@@ -11,5 +11,5 @@ public enum ProtocolKind
     OpenAiResponses,
 
     [JsonPropertyName("anthropic")]
-    Anthropic
+    Anthropic,
 }

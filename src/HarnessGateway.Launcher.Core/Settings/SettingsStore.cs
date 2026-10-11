@@ -10,7 +10,7 @@ public sealed class SettingsStore
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        WriteIndented = true
+        WriteIndented = true,
     };
 
     private readonly string _settingsDirectory;
@@ -51,7 +51,7 @@ public sealed class SettingsStore
 
             LauncherSettings migrated = settings with
             {
-                SchemaVersion = LauncherSettings.CurrentSchemaVersion
+                SchemaVersion = LauncherSettings.CurrentSchemaVersion,
             };
             Save(migrated);
             return migrated;
@@ -80,7 +80,7 @@ public sealed class SettingsStore
 
         LauncherSettings stamped = settings with
         {
-            SchemaVersion = LauncherSettings.CurrentSchemaVersion
+            SchemaVersion = LauncherSettings.CurrentSchemaVersion,
         };
         string json = JsonSerializer.Serialize(stamped, SerializerOptions);
         File.WriteAllText(_settingsFilePath, json);

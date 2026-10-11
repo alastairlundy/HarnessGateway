@@ -28,14 +28,10 @@ public sealed class LaunchOrchestrator
     }
 
     public async Task<int> RunAsync(
-        string agentName,
-        string? backendName,
-        string? endpoint,
-        string? protocol,
-        string? model,
-        IReadOnlyList<string> persistValues,
-        string workingDirectory,
-        string? apiKey = null,
+        string agentName, string? backendName,
+        string? endpoint, string? protocol,
+        string? model, IReadOnlyList<string> persistValues,
+        string workingDirectory, string? apiKey = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -106,12 +102,13 @@ public sealed class LaunchOrchestrator
                     ", ",
                     adapter.Metadata.SupportedProtocols.Select(LaunchCommand.ProtocolName));
                 await Console.Error.WriteLineAsync(
-                    $"Refusing to launch {agentName}: the selected backend's protocol " +
-                    $"({LaunchCommand.ProtocolName(backend.Protocol)}) is not supported by " +
-                    $"{adapter.Metadata.Name}, which supports: {supported}. " +
-                    "Override the launch with --endpoint <backend-url> --protocol <supported-protocol>, " +
-                    "or re-point the default backend with 'harnessgateway config backend add " +
-                    $"{backend.Name} --endpoint <url> --protocol <supported-protocol>'.").ConfigureAwait(true);
+                        $"Refusing to launch {agentName}: the selected backend's protocol " +
+                        $"({LaunchCommand.ProtocolName(backend.Protocol)}) is not supported by " +
+                        $"{adapter.Metadata.Name}, which supports: {supported}. " +
+                        "Override the launch with --endpoint <backend-url> --protocol <supported-protocol>, " +
+                        "or re-point the default backend with 'harnessgateway config backend add " +
+                        $"{backend.Name} --endpoint <url> --protocol <supported-protocol>'.")
+                    .ConfigureAwait(true);
                 return (int)LaunchExitCode.UnknownAgent;
             }
 
@@ -130,6 +127,7 @@ public sealed class LaunchOrchestrator
             // when the resolved entry had none or the user typed one, so this
             // layering can only fill a gap; it never masks a stored key with a
             // stale copy.
+            
             if (!string.IsNullOrEmpty(apiKey) && backend is not null)
             {
                 backend = backend with { ApiKey = apiKey };

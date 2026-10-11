@@ -8,17 +8,17 @@ public sealed class PiAdapter : IHarnessAdapter
     public HarnessMetadata Metadata { get; } = new(
         Name: "Pi",
         CommandName: "pi",
-        Aliases: [],
+        [],
         Kind: HarnessKind.Cli,
         RequiresModel: false,
         InstallHint: "Install via: npm i -g @earendil-works/pi-coding-agent",
         DetectionCommand: "pi --version",
-        ConfigFileCandidates: [],
-        SupportedProtocols: new HashSet<ProtocolKind>
+        [],
+        new HashSet<ProtocolKind>
         {
             ProtocolKind.OpenAiChat,
             ProtocolKind.OpenAiResponses,
-            ProtocolKind.Anthropic
+            ProtocolKind.Anthropic,
         });
 
     private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
@@ -56,7 +56,7 @@ public sealed class PiAdapter : IHarnessAdapter
                 break;
         }
 
-        List<string> args = new();
+        List<string> args = [];
         if (request.Model is { Length: > 0 })
         {
             args.Add("--model");
@@ -65,10 +65,10 @@ public sealed class PiAdapter : IHarnessAdapter
 
         ProcessConfiguration config = new("pi")
         {
-            Arguments = args.Count > 0 ? string.Join(" ", args) : "",
+            ArgumentList = args,
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
-            EnvironmentVariables = envVars
+            EnvironmentVariables = envVars,
         };
 
         return Task.FromResult(new LaunchPlan(config, []));
@@ -81,7 +81,7 @@ public sealed class PiAdapter : IHarnessAdapter
             string fileName = OperatingSystem.IsWindows() ? "where" : "which";
             ProcessConfiguration config = new(fileName, command)
             {
-                OutputRedirection = true
+                OutputRedirection = true,
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);

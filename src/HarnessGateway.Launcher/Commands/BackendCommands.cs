@@ -25,21 +25,21 @@ internal sealed class BackendCommands : Command
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The backend entry name; an existing entry with the same name is replaced"
+            Description = "The backend entry name; an existing entry with the same name is replaced",
         };
         Option<string?> endpointOption = new("--endpoint")
         {
-            Description = "The backend endpoint URL (required)"
+            Description = "The backend endpoint URL (required)",
         };
         Option<string?> protocolOption = new("--protocol")
         {
-            Description = "The protocol (openai-chat, openai-responses, anthropic) (required)"
+            Description = "The protocol (openai-chat, openai-responses, anthropic) (required)",
         };
         Option<string?> keyOption = new("--key")
         {
             Description =
                 "API key to save in the platform credential store; skips the interactive prompt. " +
-                "Warning: the value is visible in your shell history - prefer the interactive prompt"
+                "Warning: the value is visible in your shell history - prefer the interactive prompt",
         };
 
         Command cmd = new("add", "Create or replace a saved backend entry")
@@ -172,7 +172,7 @@ internal sealed class BackendCommands : Command
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The saved backend entry to remove"
+            Description = "The saved backend entry to remove",
         };
 
         Command cmd = new("remove", "Delete a saved backend entry") { nameArg };
@@ -206,8 +206,8 @@ internal sealed class BackendCommands : Command
             if (string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase))
             {
                 await Console.Error.WriteLineAsync(
-                    $"Cannot remove '{entry.Name}': it is the current default backend. " +
-                    "Run 'harnessgateway config set defaultBackend <name>' to choose a new default first.")
+                        $"Cannot remove '{entry.Name}': it is the current default backend. " +
+                        "Run 'harnessgateway config set defaultBackend <name>' to choose a new default first.")
                     .ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
@@ -311,7 +311,7 @@ internal sealed class BackendCommands : Command
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The saved backend entry whose key to clear"
+            Description = "The saved backend entry whose key to clear",
         };
 
         Command cmd = new("clear-key", "Remove the saved API key from a backend entry") { nameArg };

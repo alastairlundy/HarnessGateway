@@ -20,7 +20,7 @@ public sealed class ModelCatalogClient
             {
                 ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => await FetchOpenAiModelsAsync(backend, cancellationToken).ConfigureAwait(false),
                 ProtocolKind.Anthropic => await FetchAnthropicModelsAsync(backend, cancellationToken).ConfigureAwait(false),
-                _ => new([], DateTimeOffset.UtcNow)
+                _ => new([], DateTimeOffset.UtcNow),
             };
         }
         catch

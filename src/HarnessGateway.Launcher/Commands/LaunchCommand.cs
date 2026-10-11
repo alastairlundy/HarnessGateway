@@ -19,28 +19,28 @@ public sealed class LaunchCommand : Command
 
     public static readonly Option<string?> BackendOption = new("--backend")
     {
-        Description = "Select a saved backend entry by name to launch against"
+        Description = "Select a saved backend entry by name to launch against",
     };
 
     public static readonly Option<string?> EndpointOption = new("--endpoint")
     {
-        Description = "Override the backend endpoint URL (requires --protocol)"
+        Description = "Override the backend endpoint URL (requires --protocol)",
     };
 
     public static readonly Option<string?> ProtocolOption = new("--protocol")
     {
-        Description = "Override the backend protocol (openai-chat, openai-responses, anthropic)"
+        Description = "Override the backend protocol (openai-chat, openai-responses, anthropic)",
     };
 
     public static readonly Option<string?> ModelOption = new("--model", "-m")
     {
-        Description = "Override the model to use for this launch"
+        Description = "Override the model to use for this launch",
     };
 
     public static readonly Option<string[]> PersistOption = new("--persist")
     {
         Description = "Persist settings after launch: 'config' to suppress restore, 'model' to save default model",
-        AllowMultipleArgumentsPerToken = true
+        AllowMultipleArgumentsPerToken = true,
     };
 
     public LaunchCommand() : this(orchestrator: null)

@@ -69,7 +69,7 @@ public sealed class CodexAdapter : IHarnessAdapter
             ["name"] = "HarnessGateway",
             ["base_url"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
             ["env_key"] = EnvKeyName,
-            ["wire_api"] = "responses"
+            ["wire_api"] = "responses",
         });
         editor.SetTopLevelValue("model_provider", ProviderId);
         if (request.Model is { Length: > 0 })
@@ -88,7 +88,7 @@ public sealed class CodexAdapter : IHarnessAdapter
 
         List<ConfigurationAction> actions =
         [
-            new ConfigFileWriteAction(configPath, editor.ToToml())
+            new ConfigFileWriteAction(configPath, editor.ToToml()),
         ];
 
         ProcessConfiguration config = new("codex")
@@ -96,7 +96,7 @@ public sealed class CodexAdapter : IHarnessAdapter
             Arguments = string.Empty,
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
-            EnvironmentVariables = envVars
+            EnvironmentVariables = envVars,
         };
 
         return new LaunchPlan(config, actions);
@@ -127,7 +127,7 @@ public sealed class CodexAdapter : IHarnessAdapter
             string fileName = OperatingSystem.IsWindows() ? "where" : "which";
             ProcessConfiguration config = new(fileName, command)
             {
-                OutputRedirection = true
+                OutputRedirection = true,
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);

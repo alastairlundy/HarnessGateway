@@ -139,8 +139,8 @@ public class CopilotCliAdapterTests
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
-        await Assert.That(plan.Process.Arguments).Contains("--model");
-        await Assert.That(plan.Process.Arguments).Contains("gpt-4o");
+        await Assert.That(plan.Process.ArgumentList).Contains("--model");
+        await Assert.That(plan.Process.ArgumentList).Contains("gpt-4o");
     }
 
     [Test]

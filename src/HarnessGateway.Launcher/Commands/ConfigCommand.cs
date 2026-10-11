@@ -76,7 +76,7 @@ public sealed class ConfigCommand : Command
         {
             Description =
                 "The typed settings key: defaultBackend, schemaVersion, backends, " +
-                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel"
+                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel",
         };
 
         Command cmd = new("get", "Read a non-secret setting by its typed key") { keyArg };
@@ -110,11 +110,11 @@ public sealed class ConfigCommand : Command
         {
             Description =
                 "The typed settings key: defaultBackend, " +
-                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel"
+                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel",
         };
         Argument<string> valueArg = new("value")
         {
-            Description = "The new value for the key"
+            Description = "The new value for the key",
         };
 
         Command cmd = new("set", "Write a non-secret setting by its typed key") { keyArg, valueArg };
@@ -215,6 +215,6 @@ public sealed class ConfigCommand : Command
         ProtocolKind.OpenAiChat => "openai-chat",
         ProtocolKind.OpenAiResponses => "openai-responses",
         ProtocolKind.Anthropic => "anthropic",
-        _ => protocol.ToString()
+        _ => protocol.ToString(),
     };
 }

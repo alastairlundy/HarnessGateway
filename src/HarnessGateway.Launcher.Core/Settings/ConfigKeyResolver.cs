@@ -1,55 +1,6 @@
 namespace HarnessGateway.Launcher.Core.Settings;
 
 /// <summary>
-/// Typed failure classes for config-key addressing. Callers map these to
-/// their own exit codes; the resolver itself never exits.
-/// </summary>
-public enum ConfigKeyFailure
-{
-    None = 0,
-
-    /// <summary>The key is not in the closed typed key set.</summary>
-    UnknownKey,
-
-    /// <summary>The key names a read-only setting (schemaVersion, backends).</summary>
-    ReadOnlyKey,
-
-    /// <summary>The key shape is valid but names no saved backend entry.</summary>
-    UnaddressableKey,
-
-    /// <summary>The value cannot be applied to the addressed setting.</summary>
-    InvalidValue,
-
-    /// <summary>A defaultBackend write named no saved backend entry.</summary>
-    UnknownBackendName,
-}
-
-/// <summary>
-/// Outcome of a typed config-key read or write. On success a get carries the
-/// scalar <see cref="Value"/>; a set carries the updated <see cref="Settings"/>
-/// snapshot to persist (plus <see cref="AlreadySatisfied"/> for a no-op
-/// pointer write). On failure <see cref="Message"/> is the user-facing line.
-/// </summary>
-public sealed record ConfigKeyResult
-{
-    public bool IsSuccess => Failure == ConfigKeyFailure.None;
-
-    /// <summary>User-facing confirmation (set) or error (failure).</summary>
-    public string Message { get; init; } = string.Empty;
-
-    /// <summary>The scalar value read by a successful get.</summary>
-    public string? Value { get; init; }
-
-    /// <summary>Updated settings to persist after a successful set.</summary>
-    public LauncherSettings? Settings { get; init; }
-
-    /// <summary>True when a set matched the current value and needs no save.</summary>
-    public bool AlreadySatisfied { get; init; }
-
-    public ConfigKeyFailure Failure { get; init; } = ConfigKeyFailure.None;
-}
-
-/// <summary>
 /// The closed typed key set over <see cref="LauncherSettings"/>: exactly
 /// <c>defaultBackend</c>, read-only <c>schemaVersion</c> and <c>backends</c>
 /// (names only), and the per-entry fields
@@ -100,7 +51,7 @@ public static class ConfigKeyResolver
             {
                 "endpoint" => Ok(entry.BaseUri.ToString()),
                 "protocol" => Ok(BackendResolution.ProtocolName(entry.Protocol)),
-                _ => Ok(entry.DefaultModel ?? string.Empty)
+                _ => Ok(entry.DefaultModel ?? string.Empty),
             };
         }
 
@@ -192,7 +143,7 @@ public static class ConfigKeyResolver
     /// </summary>
     private static ConfigKeyResult SetDefaultBackend(LauncherSettings settings, string value)
     {
-        BackendResolutionResult resolution = BackendResolution.Resolve(settings, value, null, null, null);
+        BackendResolutionResult resolution = BackendResolution.Resolve(settings, value, endpoint: null, protocol: null, model: null);
         if (!resolution.IsSuccess)
         {
             // With no overrides supplied this failure is always the unknown-name class.
@@ -208,14 +159,14 @@ public static class ConfigKeyResolver
             {
                 AlreadySatisfied = true,
                 Settings = settings,
-                Message = $"Default backend set to '{entry.Name}'."
+                Message = $"Default backend set to '{entry.Name}'.",
             };
         }
 
         return new ConfigKeyResult
         {
             Settings = settings with { DefaultBackend = entry.Name },
-            Message = $"Default backend set to '{entry.Name}'."
+            Message = $"Default backend set to '{entry.Name}'.",
         };
     }
 
@@ -238,7 +189,7 @@ public static class ConfigKeyResolver
         return new ConfigKeyResult
         {
             Settings = settings,
-            Message = $"{key} set to {DescribeField(key, updated)}"
+            Message = $"{key} set to {DescribeField(key, updated)}",
         };
     }
 
@@ -274,7 +225,7 @@ public static class ConfigKeyResolver
 
         name = rest[..separator];
         field = rest[(separator + 1)..];
-        return !field.Contains('.');
+        return !field.Contains('.', StringComparison.OrdinalIgnoreCase);
     }
 
     private static Backend? FindBackend(LauncherSettings settings, string name) =>

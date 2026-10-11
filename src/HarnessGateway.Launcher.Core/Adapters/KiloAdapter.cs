@@ -8,17 +8,17 @@ public sealed class KiloAdapter : IHarnessAdapter
     public HarnessMetadata Metadata { get; } = new(
         Name: "Kilo",
         CommandName: "kilo",
-        Aliases: [],
+        [],
         Kind: HarnessKind.Cli,
         RequiresModel: true,
         InstallHint: "Install via: npm i -g @kilocode/cli",
         DetectionCommand: "kilo --version",
-        ConfigFileCandidates: ["kilo.json"],
-        SupportedProtocols: new HashSet<ProtocolKind>
+        ["kilo.json"],
+        new HashSet<ProtocolKind>
         {
             ProtocolKind.OpenAiChat,
             ProtocolKind.OpenAiResponses,
-            ProtocolKind.Anthropic
+            ProtocolKind.Anthropic,
         });
 
     private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
@@ -65,10 +65,10 @@ public sealed class KiloAdapter : IHarnessAdapter
 
         ProcessConfiguration config = new("kilo")
         {
-            Arguments = args.Count > 0 ? string.Join(" ", args) : "",
+            ArgumentList = args,
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
-            EnvironmentVariables = envVars
+            EnvironmentVariables = envVars,
         };
 
         return Task.FromResult(new LaunchPlan(config, []));
@@ -81,7 +81,7 @@ public sealed class KiloAdapter : IHarnessAdapter
             string fileName = OperatingSystem.IsWindows() ? "where" : "which";
             ProcessConfiguration config = new(fileName, command)
             {
-                OutputRedirection = true
+                OutputRedirection = true,
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);

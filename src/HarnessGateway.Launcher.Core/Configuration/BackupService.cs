@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace HarnessGateway.Launcher.Core.Configuration;
@@ -137,9 +138,9 @@ public sealed class BackupService
 
     private string GetBackupPath(string targetPath)
     {
-        string sanitized = Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(targetPath))
-            .Replace("/", "_")
-            .Replace("\\", "_");
+        string sanitized = Convert.ToHexString(Encoding.UTF8.GetBytes(targetPath))
+            .Replace('/', '_')
+            .Replace('\\', '_');
         return Path.Combine(_backupsDirectory, $"{sanitized}.json");
     }
 }

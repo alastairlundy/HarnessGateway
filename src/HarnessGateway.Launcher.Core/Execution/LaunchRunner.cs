@@ -34,12 +34,12 @@ public sealed class LaunchRunner : ILaunchRunner
 
         if (!string.IsNullOrEmpty(result.StandardOutput))
         {
-            Console.Out.Write(result.StandardOutput);
+            await Console.Out.WriteAsync(result.StandardOutput).ConfigureAwait(false);
         }
 
         if (!string.IsNullOrEmpty(result.StandardError))
         {
-            Console.Error.Write(result.StandardError);
+            await Console.Error.WriteAsync(result.StandardError).ConfigureAwait(false);
         }
 
         return result.ExitCode;

@@ -372,7 +372,7 @@ public sealed class WizardPipeline
         [
             new("openai-chat"),
             new("openai-responses"),
-            new("anthropic")
+            new("anthropic"),
         ];
 
         string protocolStr = await _console.PromptChoiceAsync("Protocol:", 
@@ -382,7 +382,7 @@ public sealed class WizardPipeline
             "openai-chat" => ProtocolKind.OpenAiChat,
             "openai-responses" => ProtocolKind.OpenAiResponses,
             "anthropic" => ProtocolKind.Anthropic,
-            _ => ProtocolKind.OpenAiChat
+            _ => ProtocolKind.OpenAiChat,
         };
 
         return (input, parsedProtocol);
