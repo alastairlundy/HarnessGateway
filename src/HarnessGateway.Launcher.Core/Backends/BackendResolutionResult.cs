@@ -1,17 +1,25 @@
 namespace HarnessGateway.Launcher.Core.Backends;
 
 /// <summary>
-/// Outcome of a backend resolution: either a resolved backend (which may be
-/// null when nothing is configured at all) or a typed failure with a
-/// user-facing message.
+/// Outcome of a backend resolution: a closed family of exactly three
+/// sealed variants. Success carries its payload non-null - a resolved
+/// <see cref="Backend"/>, or proof that nothing is configured at all
+/// (<see cref="EmptySettings"/>) - and failure carries the typed
+/// <see cref="BackendResolutionFailure"/> plus a non-null user-facing message.
+/// <see cref="IsSuccess"/> is computed from the variant, so consumers
+/// pattern-match instead of null-forgiving.
 /// </summary>
-public sealed record BackendResolutionResult
+public abstract record BackendResolutionResult
 {
-    public Backend? Backend { get; init; }
+    /// <summary>True for the success variants (<see cref="Resolved"/>, <see cref="EmptySettings"/>).</summary>
+    public bool IsSuccess => this is Resolved or EmptySettings;
 
-    public BackendResolutionFailure Failure { get; init; } = BackendResolutionFailure.None;
+    /// <summary>A backend was resolved, possibly built from raw overrides alone.</summary>
+    public sealed record Resolved(Backend Backend) : BackendResolutionResult;
 
-    public string? Message { get; init; }
+    /// <summary>Success without a backend: no saved entries and no complete raw URL override.</summary>
+    public sealed record EmptySettings : BackendResolutionResult;
 
-    public bool IsSuccess => Failure == BackendResolutionFailure.None;
+    /// <summary>Resolution failed with a typed failure and a user-facing message.</summary>
+    public sealed record Failed(BackendResolutionFailure Failure, string Message) : BackendResolutionResult;
 }

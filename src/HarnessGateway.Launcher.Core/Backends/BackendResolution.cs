@@ -73,24 +73,28 @@ public static class BackendResolution
         Backend? entry;
         if (backendName is not null)
         {
-            entry = FindByName(settings, backendName);
-            if (entry is null)
+            Result<Backend> named = FindByName(settings, backendName);
+            if (!named.Success)
             {
                 return Fail(
                     BackendResolutionFailure.UnknownBackendName,
                     UnknownNameMessage(settings, backendName));
             }
+
+            entry = named.Value;
         }
         else if (!string.IsNullOrEmpty(settings.DefaultBackend))
         {
-            entry = FindByName(settings, settings.DefaultBackend);
-            if (entry is null)
+            Result<Backend> defaultEntry = FindByName(settings, settings.DefaultBackend);
+            if (!defaultEntry.Success)
             {
                 return Fail(
                     BackendResolutionFailure.DanglingDefaultBackend,
                     $"unknown backend name '{settings.DefaultBackend}' in the default backend pointer. " +
                     "Run 'harnessgateway config set defaultBackend <name>' to choose a default backend.");
             }
+
+            entry = defaultEntry.Value;
         }
         else if (settings.Backends.Count > 0)
         {
@@ -110,7 +114,7 @@ public static class BackendResolution
             // as an ad-hoc override entry; otherwise there is no backend at all.
             if (parsedEndpoint is not null && parsedProtocol is not null)
             {
-                return Success(new Backend
+                return new BackendResolutionResult.Resolved(new Backend
                 {
                     Name = "override",
                     BaseUri = parsedEndpoint,
@@ -119,7 +123,7 @@ public static class BackendResolution
                 });
             }
 
-            return Success(backend: null);
+            return new BackendResolutionResult.EmptySettings();
         }
 
         Backend resolved = entry;
@@ -138,7 +142,7 @@ public static class BackendResolution
             resolved = resolved with { DefaultModel = model };
         }
 
-        return Success(resolved);
+        return new BackendResolutionResult.Resolved(resolved);
     }
 
     public static bool IsValidProtocol(string? value) =>
@@ -160,9 +164,11 @@ public static class BackendResolution
         _ => protocol.ToString(),
     };
 
-    private static Backend? FindByName(LauncherSettings settings, string name) =>
+    private static Result<Backend> FindByName(LauncherSettings settings, string name) =>
         settings.Backends.FirstOrDefault(b =>
-            string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase));
+            string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase)) is { } match
+            ? Result.Ok(match)
+            : Result.Fail<Backend>("");
 
     private static string UnknownNameMessage(LauncherSettings settings, string name)
     {
@@ -180,8 +186,5 @@ public static class BackendResolution
     }
 
     private static BackendResolutionResult Fail(BackendResolutionFailure failure, string message) =>
-        new() { Failure = failure, Message = message };
-
-    private static BackendResolutionResult Success(Backend? backend) =>
-        new() { Backend = backend };
+        new BackendResolutionResult.Failed(failure, message);
 }
