@@ -433,3 +433,4 @@ FodyWeavers.xsd
 src\.idea
 
 artifacts-dotnet-releaser
+/src/.idea
