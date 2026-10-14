@@ -3,12 +3,12 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="CliInvoke" Version="3.0.2" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.294" />
+    <PackageVersion Include="CliInvoke" Version="3.0.3" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.303" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.12" />
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.13" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
     <PackageVersion Include="Tomlyn" Version="2.10.1" />
-    <PackageVersion Include="TUnit" Version="1.72.16" />
+    <PackageVersion Include="TUnit" Version="1.75.0" />
   </ItemGroup>
 </Project>
