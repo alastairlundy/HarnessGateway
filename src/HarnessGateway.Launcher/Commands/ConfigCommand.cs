@@ -12,7 +12,7 @@ public sealed class ConfigCommand : Command
     internal ConfigCommand(SettingsStore settingsStore)
         : this(
             settingsStore,
-            SecureKeyStoreFactory.Create(Path.GetDirectoryName(settingsStore.SettingsFilePath)!))
+            SecureKeyStoreFactory.Create(settingsStore.SettingsDirectory))
     {
     }
 
@@ -140,7 +140,13 @@ public sealed class ConfigCommand : Command
             // names this entry the file is left untouched.
             if (!write.AlreadySatisfied)
             {
-                _settingsStore.Save(write.Settings!);
+                if (write.Settings is not { } toSave)
+                {
+                    throw new InvalidOperationException(
+                        "A successful config set must carry the settings snapshot to persist.");
+                }
+
+                _settingsStore.Save(toSave);
             }
 
             Console.WriteLine(write.Message);

@@ -79,18 +79,42 @@ internal sealed class BackendCommands : Command
                 return ExitCodeFor(failed.Failure);
             }
 
+            // Parse the flags once, before the create-vs-update branch: the
+            // both-flags guard above and Resolve's pairing and format checks
+            // have already accepted both values; this single pattern is what
+            // proves their non-nullness to the compiler, replacing the two
+            // suppressions that used to lean on two methods' failure orderings.
+            (Uri BaseUri, ProtocolKind Protocol)? overridePair =
+                endpoint is { } endpointValue && protocol is { } protocolValue
+                    ? (LaunchCommand.ParseEndpoint(endpointValue), LaunchCommand.ParseProtocol(protocolValue))
+                    : null;
+
             // Resolved updates the saved entry in place; an unknown name (or
             // the unreachable EmptySettings - both flags are required above,
             // so a complete override always resolves) creates a new entry.
             bool isCreate = resolution is not BackendResolutionResult.Resolved;
-            Backend entry = resolution is BackendResolutionResult.Resolved resolved
-                ? resolved.Backend
-                : new Backend
+            Backend entry;
+            if (resolution is BackendResolutionResult.Resolved resolved)
+            {
+                entry = resolved.Backend;
+            }
+            else if (overridePair is { } pair)
+            {
+                entry = new Backend
                 {
                     Name = name,
-                    BaseUri = LaunchCommand.ParseEndpoint(endpoint!),
-                    Protocol = LaunchCommand.ParseProtocol(protocol!),
+                    BaseUri = pair.BaseUri,
+                    Protocol = pair.Protocol,
                 };
+            }
+            else
+            {
+                // Unreachable: the both-flags guard means the create path always
+                // carries a parsed pair. Thrown instead of suppressed so the
+                // compiler can verify the construction locally.
+                throw new InvalidOperationException(
+                    "config backend add reached the create path without --endpoint and --protocol.");
+            }
 
             string? secret = key ??
                              _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);

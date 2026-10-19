@@ -203,7 +203,7 @@ public sealed class TomlDocumentEditor
 
         for (int i = table.Items.ChildrenCount - 1; i >= 0; i--)
         {
-            KeyValueSyntax item = table.Items.GetChild(i)!;
+            KeyValueSyntax item = ChildAt(table.Items, i);
             if (survivors.Contains(item))
             {
                 continue;
@@ -231,7 +231,7 @@ public sealed class TomlDocumentEditor
     /// </summary>
     private static void MoveTrailingTrivia(TableSyntax table, int removedIndex, HashSet<KeyValueSyntax> survivors)
     {
-        KeyValueSyntax removed = table.Items.GetChild(removedIndex)!;
+        KeyValueSyntax removed = ChildAt(table.Items, removedIndex);
         List<SyntaxTrivia>? orphaned = removed.EndOfLineToken?.TrailingTrivia ?? removed.TrailingTrivia;
         if (orphaned is null || orphaned.Count == 0)
         {
@@ -241,7 +241,7 @@ public sealed class TomlDocumentEditor
         SyntaxNode? target = null;
         for (int i = removedIndex - 1; i >= 0; i--)
         {
-            KeyValueSyntax previous = table.Items.GetChild(i)!;
+            KeyValueSyntax previous = ChildAt(table.Items, i);
             if (survivors.Contains(previous))
             {
                 target = previous.EndOfLineToken is not null ? previous.EndOfLineToken : previous;
@@ -259,8 +259,28 @@ public sealed class TomlDocumentEditor
             ? orphaned
             : [.. target.TrailingTrivia, .. orphaned];
 
-        removed.EndOfLineToken!.TrailingTrivia = null;
+        if (removed.EndOfLineToken is { } eol)
+        {
+            eol.TrailingTrivia = null;
+        }
+
         removed.TrailingTrivia = null;
+    }
+
+    /// <summary>
+    /// Tomlyn's <c>GetChild</c> is annotated as nullable even though in-range
+    /// access never returns null (out-of-range access throws), so bind the child
+    /// explicitly here rather than suppressing the warning at each call site.
+    /// </summary>
+    private static KeyValueSyntax ChildAt(SyntaxList<KeyValueSyntax> children, int index)
+    {
+        if (children.GetChild(index) is { } child)
+        {
+            return child;
+        }
+
+        throw new InvalidOperationException(
+            $"The parsed TOML document has no key-value child at index {index}.");
     }
 
     private Result<TableSyntax> FindBlock(string[] path)
