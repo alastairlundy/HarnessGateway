@@ -106,7 +106,26 @@ public class VersionFlagTests
         (RootCommand root, string tempDir, Func<bool> wizardCalled) = CreateRoot();
         try
         {
-            int exitCode = root.Parse(Array.Empty<string>()).Invoke();
+            int previous = ConsoleErrorCapture.Depth.Value;
+            bool ownsGate = previous == 0;
+            ConsoleErrorCapture.Depth.Value = previous + 1;
+            if (ownsGate)
+            {
+                ConsoleErrorCapture.Gate.Wait();
+            }
+            int exitCode;
+            try
+            {
+                exitCode = root.Parse(Array.Empty<string>()).Invoke();
+            }
+            finally
+            {
+                if (ownsGate)
+                {
+                    ConsoleErrorCapture.Gate.Release();
+                }
+                ConsoleErrorCapture.Depth.Value = previous;
+            }
 
             await Assert.That(exitCode).IsEqualTo(WizardExitCode);
             await Assert.That(wizardCalled()).IsTrue();

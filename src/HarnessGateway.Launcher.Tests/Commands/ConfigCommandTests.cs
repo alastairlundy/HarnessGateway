@@ -27,7 +27,25 @@ public class ConfigCommandTests
         ConfigCommand cmd = new ConfigCommand(store, keyStore ?? new FakeSecureKeyStore());
         RootCommand rootCmd = new RootCommand { cmd };
         ParseResult result = rootCmd.Parse(args);
-        return result.Invoke();
+        int previous = ConsoleErrorCapture.Depth.Value;
+        bool ownsGate = previous == 0;
+        ConsoleErrorCapture.Depth.Value = previous + 1;
+        if (ownsGate)
+        {
+            ConsoleErrorCapture.Gate.Wait();
+        }
+        try
+        {
+            return result.Invoke();
+        }
+        finally
+        {
+            if (ownsGate)
+            {
+                ConsoleErrorCapture.Gate.Release();
+            }
+            ConsoleErrorCapture.Depth.Value = previous;
+        }
     }
 
     private static string Fingerprint(SettingsStore store) =>

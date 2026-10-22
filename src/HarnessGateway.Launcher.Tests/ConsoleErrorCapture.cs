@@ -13,10 +13,19 @@ namespace HarnessGateway.Launcher.Tests;
 public static class ConsoleErrorCapture
 {
     internal static readonly SemaphoreSlim Gate = new(1, 1);
+    internal static readonly AsyncLocal<int> Depth = new();
+
+    public static bool IsHeld => Depth.Value > 0;
 
     public static async Task<(T Result, string Error)> RunAsync<T>(Func<Task<T>> body)
     {
-        await Gate.WaitAsync().ConfigureAwait(false);
+        int previous = Depth.Value;
+        bool ownsGate = previous == 0;
+        Depth.Value = previous + 1;
+        if (ownsGate)
+        {
+            await Gate.WaitAsync().ConfigureAwait(false);
+        }
 
         TextWriter original = Console.Error;
         using StringWriter writer = new();
@@ -30,7 +39,11 @@ public static class ConsoleErrorCapture
         finally
         {
             Console.SetError(original);
-            Gate.Release();
+            if (ownsGate)
+            {
+                Gate.Release();
+            }
+            Depth.Value = previous;
         }
     }
 }

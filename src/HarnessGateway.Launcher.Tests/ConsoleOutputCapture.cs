@@ -15,7 +15,13 @@ public static class ConsoleOutputCapture
 {
     public static async Task<(T Result, string Output)> RunAsync<T>(Func<Task<T>> body)
     {
-        await ConsoleErrorCapture.Gate.WaitAsync().ConfigureAwait(false);
+        int previous = ConsoleErrorCapture.Depth.Value;
+        bool ownsGate = previous == 0;
+        ConsoleErrorCapture.Depth.Value = previous + 1;
+        if (ownsGate)
+        {
+            await ConsoleErrorCapture.Gate.WaitAsync().ConfigureAwait(false);
+        }
 
         TextWriter original = Console.Out;
         using StringWriter writer = new();
@@ -29,7 +35,11 @@ public static class ConsoleOutputCapture
         finally
         {
             Console.SetOut(original);
-            ConsoleErrorCapture.Gate.Release();
+            if (ownsGate)
+            {
+                ConsoleErrorCapture.Gate.Release();
+            }
+            ConsoleErrorCapture.Depth.Value = previous;
         }
     }
 }
