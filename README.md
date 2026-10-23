@@ -55,12 +55,12 @@ will find them on your `PATH`.
 
 | Harness Identifier | Harness Name | Binary | Protocols | Model | Install |
 |-------|------|--------|-----------|-------|---------|
-| `opencode` | OpenCode CLI | `opencode` | chat, responses, anthropic | required | `npm i -g @opencode/cli` |
-| `kilo` | Kilo CLI | `kilo` | chat, responses, anthropic | required | `npm i -g @kilocode/cli` |
-| `copilot` | GitHub Copilot CLI | `copilot` | chat, responses, anthropic | required | `npm i -g @github/copilot` |
-| `pi` | Pi CLI | `pi` | chat, responses, anthropic | optional | `npm i -g @earendil-works/pi-coding-agent` |
-| `codex` | Codex CLI | `codex` | responses | required | `npm i -g @openai/codex` |
-| `claude-code` | Claude Code CLI | `claude` | anthropic | optional | `npm i -g @anthropic-ai/claude-code` |
+| `opencode` | OpenCode CLI | `opencode` | chat, responses, anthropic | required | `npm install -g @opencode/cli` |
+| `kilo` | Kilo CLI | `kilo` | chat, responses, anthropic | required | `npm install -g @kilocode/cli` |
+| `copilot` | GitHub Copilot CLI | `copilot` | chat, responses, anthropic | required | `npm install -g @github/copilot` |
+| `pi` | Pi CLI | `pi` | chat, responses, anthropic | optional | `npm install -g @earendil-works/pi-coding-agent` |
+| `codex` | Codex CLI | `codex` | responses | required | `npm install -g @openai/codex` |
+| `claude-code` | Claude Code CLI | `claude` | anthropic | optional | `npm install -g @anthropic-ai/claude-code` |
 
 "chat" is shorthand for `openai-chat` and "responses" for `openai-responses`.
 If you request a protocol that the harness doesn't support, the launcher
