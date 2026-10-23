@@ -109,7 +109,7 @@ public static class WizardTestHelper
             return Task.FromResult(_isAvailable);
         }
 
-        public Task<Core.Launch.LaunchPlan> PlanLaunchAsync(Core.Launch.LaunchRequest request, CancellationToken cancellationToken = default)
+        public Task<Core.Launch.LaunchPlan> PlanLaunchAsync(Core.Launch.ResolvedLaunch request, CancellationToken cancellationToken = default)
         {
             ProcessConfiguration config = new CliInvoke.Core.ProcessConfiguration("test")
             {

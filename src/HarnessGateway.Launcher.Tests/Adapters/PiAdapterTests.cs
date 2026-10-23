@@ -8,12 +8,12 @@ namespace HarnessGateway.Launcher.Tests.Adapters;
 
 public class PiAdapterTests
 {
-    private static LaunchRequest CreateRequest(
+    private static ResolvedLaunch CreateRequest(
         ProtocolKind protocol = ProtocolKind.OpenAiChat,
         string? model = "gpt-4",
         string? apiKey = "sk-test")
     {
-        return new LaunchRequest(
+        return new ResolvedLaunch(
             new Backend
             {
                 Name = "test",
@@ -77,7 +77,7 @@ public class PiAdapterTests
     public async Task PlanLaunch_openai_sets_env_vars()
     {
         PiAdapter adapter = new PiAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.OpenAiChat);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -90,7 +90,7 @@ public class PiAdapterTests
     public async Task PlanLaunch_anthropic_sets_env_vars()
     {
         PiAdapter adapter = new PiAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.Anthropic);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.Anthropic);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -102,7 +102,7 @@ public class PiAdapterTests
     public async Task PlanLaunch_with_model_sets_cli_args()
     {
         PiAdapter adapter = new PiAdapter();
-        LaunchRequest request = CreateRequest(model: "claude-sonnet-5");
+        ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -114,7 +114,7 @@ public class PiAdapterTests
     public async Task PlanLaunch_without_model_omits_model_arg()
     {
         PiAdapter adapter = new PiAdapter();
-        LaunchRequest request = CreateRequest(model: null);
+        ResolvedLaunch request = CreateRequest(model: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -125,7 +125,7 @@ public class PiAdapterTests
     public async Task PlanLaunch_no_config_file_writes()
     {
         PiAdapter adapter = new PiAdapter();
-        LaunchRequest request = CreateRequest();
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -137,7 +137,7 @@ public class PiAdapterTests
     public async Task PlanLaunch_warn_and_launch_when_no_model()
     {
         PiAdapter adapter = new PiAdapter();
-        LaunchRequest request = CreateRequest(model: null);
+        ResolvedLaunch request = CreateRequest(model: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

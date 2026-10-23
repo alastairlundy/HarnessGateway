@@ -39,13 +39,13 @@ public class CodexAdapterTests
             name => name == "CODEX_HOME" ? codexHome : null);
     }
 
-    private static LaunchRequest CreateRequest(
+    private static ResolvedLaunch CreateRequest(
         ProtocolKind protocol = ProtocolKind.OpenAiResponses,
         string? model = "gpt-5",
         string? apiKey = "sk-test",
         string baseUri = "https://api.example.com/v1")
     {
-        return new LaunchRequest(
+        return new ResolvedLaunch(
             new Backend
             {
                 Name = "test",
@@ -173,7 +173,7 @@ public class CodexAdapterTests
         try
         {
             CodexAdapter adapter = CreateAdapter(codexHome);
-            LaunchRequest request = CreateRequest(apiKey: "sk-live");
+            ResolvedLaunch request = CreateRequest(apiKey: "sk-live");
 
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -204,7 +204,7 @@ public class CodexAdapterTests
         {
             await File.WriteAllTextAsync(configPath, OriginalConfig);
             CodexAdapter adapter = CreateAdapter(codexHome);
-            LaunchRequest request = CreateRequest(model: "gpt-5", baseUri: "https://api.example.com/v1/");
+            ResolvedLaunch request = CreateRequest(model: "gpt-5", baseUri: "https://api.example.com/v1/");
 
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
             string content = ((ConfigFileWriteAction)plan.ConfigurationActions[0]).Content;
@@ -237,7 +237,7 @@ public class CodexAdapterTests
         try
         {
             CodexAdapter adapter = CreateAdapter(codexHome);
-            LaunchRequest request = CreateRequest(model: "gpt-5");
+            ResolvedLaunch request = CreateRequest(model: "gpt-5");
 
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
             ConfigFileWriteAction write = (ConfigFileWriteAction)plan.ConfigurationActions[0];
@@ -268,7 +268,7 @@ public class CodexAdapterTests
         try
         {
             CodexAdapter adapter = CreateAdapter(codexHome);
-            LaunchRequest request = CreateRequest(apiKey: apiKey);
+            ResolvedLaunch request = CreateRequest(apiKey: apiKey);
 
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -288,7 +288,7 @@ public class CodexAdapterTests
         try
         {
             CodexAdapter adapter = CreateAdapter(codexHome);
-            LaunchRequest request = CreateRequest(apiKey: null);
+            ResolvedLaunch request = CreateRequest(apiKey: null);
 
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
             string content = ((ConfigFileWriteAction)plan.ConfigurationActions[0]).Content;
@@ -322,7 +322,7 @@ public class CodexAdapterTests
             await File.WriteAllTextAsync(configPath, userOwned.ReplaceLineEndings("\n"));
 
             CodexAdapter adapter = CreateAdapter(codexHome);
-            LaunchRequest request = CreateRequest();
+            ResolvedLaunch request = CreateRequest();
 
             LaunchRefusalException? caught = null;
             try

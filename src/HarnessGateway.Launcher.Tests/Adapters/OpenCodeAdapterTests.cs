@@ -7,12 +7,12 @@ namespace HarnessGateway.Launcher.Tests.Adapters;
 
 public class OpenCodeAdapterTests
 {
-    private static LaunchRequest CreateRequest(
+    private static ResolvedLaunch CreateRequest(
         ProtocolKind protocol = ProtocolKind.OpenAiChat,
         string? model = "gpt-4",
         string? apiKey = "sk-test")
     {
-        return new LaunchRequest(
+        return new ResolvedLaunch(
             new Backend
             {
                 Name = "test",
@@ -90,7 +90,7 @@ public class OpenCodeAdapterTests
     public async Task PlanLaunch_openai_sets_env_vars()
     {
         OpenCodeAdapter adapter = new OpenCodeAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.OpenAiChat);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -105,7 +105,7 @@ public class OpenCodeAdapterTests
     public async Task PlanLaunch_anthropic_sets_env_vars()
     {
         OpenCodeAdapter adapter = new OpenCodeAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.Anthropic);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.Anthropic);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -120,7 +120,7 @@ public class OpenCodeAdapterTests
         // opencode v2 rejects a top-level --model flag, so the model rides on
         // OPENCODE_CONFIG_CONTENT and the plan stays flag-free.
         OpenCodeAdapter adapter = new OpenCodeAdapter();
-        LaunchRequest request = CreateRequest(model: "claude-sonnet-5");
+        ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -139,7 +139,7 @@ public class OpenCodeAdapterTests
     public async Task PlanLaunch_anthropic_model_uses_anthropic_provider()
     {
         OpenCodeAdapter adapter = new OpenCodeAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.Anthropic, model: "claude-sonnet-5");
+        ResolvedLaunch request = CreateRequest(ProtocolKind.Anthropic, model: "claude-sonnet-5");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -153,7 +153,7 @@ public class OpenCodeAdapterTests
     public async Task PlanLaunch_without_model_omits_config_env_var()
     {
         OpenCodeAdapter adapter = new OpenCodeAdapter();
-        LaunchRequest request = CreateRequest(model: null);
+        ResolvedLaunch request = CreateRequest(model: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -164,7 +164,7 @@ public class OpenCodeAdapterTests
     public async Task PlanLaunch_no_api_key_omits_env_var()
     {
         OpenCodeAdapter adapter = new OpenCodeAdapter();
-        LaunchRequest request = CreateRequest(apiKey: null);
+        ResolvedLaunch request = CreateRequest(apiKey: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

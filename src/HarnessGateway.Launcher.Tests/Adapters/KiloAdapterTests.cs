@@ -7,12 +7,12 @@ namespace HarnessGateway.Launcher.Tests.Adapters;
 
 public class KiloAdapterTests
 {
-    private static LaunchRequest CreateRequest(
+    private static ResolvedLaunch CreateRequest(
         ProtocolKind protocol = ProtocolKind.OpenAiChat,
         string? model = "gpt-4",
         string? apiKey = "sk-test")
     {
-        return new LaunchRequest(
+        return new ResolvedLaunch(
             new Backend
             {
                 Name = "test",
@@ -76,7 +76,7 @@ public class KiloAdapterTests
     public async Task PlanLaunch_openai_sets_env_vars()
     {
         KiloAdapter adapter = new KiloAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.OpenAiChat);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -89,7 +89,7 @@ public class KiloAdapterTests
     public async Task PlanLaunch_anthropic_sets_env_vars()
     {
         KiloAdapter adapter = new KiloAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.Anthropic);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.Anthropic);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -101,7 +101,7 @@ public class KiloAdapterTests
     public async Task PlanLaunch_with_model_sets_cli_args()
     {
         KiloAdapter adapter = new KiloAdapter();
-        LaunchRequest request = CreateRequest(model: "claude-sonnet-5");
+        ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

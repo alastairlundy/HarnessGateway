@@ -144,7 +144,7 @@ public sealed class LaunchOrchestrator
                 backend = backend with { ApiKey = apiKey };
             }
 
-            LaunchRequest request = new(backend, resolvedModel, workingDirectory);
+            ResolvedLaunch request = new(backend, resolvedModel, workingDirectory);
             LaunchPlan plan = await adapter.PlanLaunchAsync(request, cancellationToken).ConfigureAwait(true);
 
             foreach (ConfigurationAction action in plan.ConfigurationActions)

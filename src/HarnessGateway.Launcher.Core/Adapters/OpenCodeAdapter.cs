@@ -37,7 +37,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("opencode", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
 

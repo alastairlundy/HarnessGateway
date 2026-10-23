@@ -14,12 +14,12 @@ public class ClaudeCodeAdapterTests
             (_, _) => Task.FromResult(available));
     }
 
-    private static LaunchRequest CreateRequest(
+    private static ResolvedLaunch CreateRequest(
         string? model = "claude-sonnet-5",
         string? apiKey = "sk-test",
         string baseUri = "https://api.example.com/v1/")
     {
-        return new LaunchRequest(
+        return new ResolvedLaunch(
             new Backend
             {
                 Name = "test",
@@ -99,7 +99,7 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_sets_base_url_on_the_spawned_process()
     {
         ClaudeCodeAdapter adapter = CreateAdapter();
-        LaunchRequest request = CreateRequest(apiKey: null, model: null);
+        ResolvedLaunch request = CreateRequest(apiKey: null, model: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -112,7 +112,7 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_uses_auth_token_never_api_key()
     {
         ClaudeCodeAdapter adapter = CreateAdapter();
-        LaunchRequest request = CreateRequest(apiKey: "sk-live");
+        ResolvedLaunch request = CreateRequest(apiKey: "sk-live");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -133,7 +133,7 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_omits_token_variable_when_no_saved_key(string? apiKey)
     {
         ClaudeCodeAdapter adapter = CreateAdapter();
-        LaunchRequest request = CreateRequest(apiKey: apiKey, model: null);
+        ResolvedLaunch request = CreateRequest(apiKey: apiKey, model: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -148,7 +148,7 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_with_model_sets_model_env_and_cli_argument_action()
     {
         ClaudeCodeAdapter adapter = CreateAdapter();
-        LaunchRequest request = CreateRequest(model: "claude-sonnet-5");
+        ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -167,7 +167,7 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_without_model_omits_model_env_and_cli_argument(string? model)
     {
         ClaudeCodeAdapter adapter = CreateAdapter();
-        LaunchRequest request = CreateRequest(model: model);
+        ResolvedLaunch request = CreateRequest(model: model);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -180,7 +180,7 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_never_plans_a_config_file_write()
     {
         ClaudeCodeAdapter adapter = CreateAdapter();
-        LaunchRequest request = CreateRequest();
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

@@ -8,12 +8,12 @@ namespace HarnessGateway.Launcher.Tests.Adapters;
 
 public class CopilotCliAdapterTests
 {
-    private static LaunchRequest CreateRequest(
+    private static ResolvedLaunch CreateRequest(
         ProtocolKind protocol = ProtocolKind.OpenAiChat,
         string? model = "gpt-4",
         string? apiKey = "sk-test")
     {
-        return new LaunchRequest(
+        return new ResolvedLaunch(
             new Backend
             {
                 Name = "test",
@@ -77,7 +77,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_sets_provider_base_url()
     {
         CopilotCliAdapter adapter = new CopilotCliAdapter();
-        LaunchRequest request = CreateRequest();
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -90,7 +90,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_sets_provider_type_for_openai()
     {
         CopilotCliAdapter adapter = new CopilotCliAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.OpenAiChat);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -101,7 +101,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_sets_provider_type_for_anthropic()
     {
         CopilotCliAdapter adapter = new CopilotCliAdapter();
-        LaunchRequest request = CreateRequest(ProtocolKind.Anthropic);
+        ResolvedLaunch request = CreateRequest(ProtocolKind.Anthropic);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -112,7 +112,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_sets_api_key()
     {
         CopilotCliAdapter adapter = new CopilotCliAdapter();
-        LaunchRequest request = CreateRequest(apiKey: "test-key");
+        ResolvedLaunch request = CreateRequest(apiKey: "test-key");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -124,7 +124,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_no_api_key_omits_env_var()
     {
         CopilotCliAdapter adapter = new CopilotCliAdapter();
-        LaunchRequest request = CreateRequest(apiKey: null);
+        ResolvedLaunch request = CreateRequest(apiKey: null);
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -135,7 +135,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_with_model_sets_cli_args()
     {
         CopilotCliAdapter adapter = new CopilotCliAdapter();
-        LaunchRequest request = CreateRequest(model: "gpt-4o");
+        ResolvedLaunch request = CreateRequest(model: "gpt-4o");
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
@@ -147,7 +147,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_no_config_file_writes()
     {
         CopilotCliAdapter adapter = new CopilotCliAdapter();
-        LaunchRequest request = CreateRequest();
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

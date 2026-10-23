@@ -40,7 +40,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("claude", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
         // claude-code is configured exclusively through environment variables
         // scoped to the spawned process. No config file is ever read or written,

@@ -184,7 +184,7 @@ public class LaunchCommandInvocationTests
     private sealed class FakeHarnessAdapter : IHarnessAdapter
     {
         public HarnessMetadata Metadata { get; }
-        public LaunchRequest? LastRequest { get; private set; }
+        public ResolvedLaunch? LastRequest { get; private set; }
 
         public FakeHarnessAdapter(string name)
         {
@@ -210,7 +210,7 @@ public class LaunchCommandInvocationTests
             return Task.FromResult(true);
         }
 
-        public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+        public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
             ProcessConfiguration process = new ProcessConfiguration("test")

@@ -264,10 +264,10 @@ public class ConfigurationActionTests
     }
 }
 
-public class LaunchRequestTests
+public class ResolvedLaunchTests
 {
     [Test]
-    public async Task LaunchRequest_stores_backend_model_and_working_directory()
+    public async Task ResolvedLaunch_stores_backend_model_and_working_directory()
     {
         Backend backend = new Core.Backends.Backend
         {
@@ -276,7 +276,7 @@ public class LaunchRequestTests
             Protocol = Core.Backends.ProtocolKind.OpenAiChat
         };
 
-        LaunchRequest request = new LaunchRequest(backend, "gpt-4", "/home/user/project");
+        ResolvedLaunch request = new ResolvedLaunch(backend, "gpt-4", "/home/user/project");
 
         await Assert.That(request.Backend).IsEqualTo(backend);
         await Assert.That(request.Model).IsEqualTo("gpt-4");
@@ -284,7 +284,7 @@ public class LaunchRequestTests
     }
 
     [Test]
-    public async Task LaunchRequest_allows_null_model()
+    public async Task ResolvedLaunch_allows_null_model()
     {
         Backend backend = new Core.Backends.Backend
         {
@@ -293,7 +293,7 @@ public class LaunchRequestTests
             Protocol = Core.Backends.ProtocolKind.OpenAiChat
         };
 
-        LaunchRequest request = new LaunchRequest(backend, null, "/tmp");
+        ResolvedLaunch request = new ResolvedLaunch(backend, null, "/tmp");
 
         await Assert.That(request.Model).IsNull();
     }

@@ -1505,7 +1505,7 @@ public class LaunchOrchestratorTests
         private readonly bool _isAvailable;
 
         public HarnessMetadata Metadata { get; }
-        public LaunchRequest? LastRequest { get; private set; }
+        public ResolvedLaunch? LastRequest { get; private set; }
 
         public TestHarnessAdapter(
             string name,
@@ -1536,7 +1536,7 @@ public class LaunchOrchestratorTests
             return Task.FromResult(_isAvailable);
         }
 
-        public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+        public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
             ProcessConfiguration config = new ProcessConfiguration("test")
@@ -1574,7 +1574,7 @@ public class LaunchOrchestratorTests
             return Task.FromResult(true);
         }
 
-        public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+        public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
         {
             ProcessConfiguration config = new ProcessConfiguration("test")
             {

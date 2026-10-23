@@ -46,7 +46,7 @@ public sealed class CodexAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("codex", cancellationToken);
 
-    public async Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+    public async Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
         string configPath = ResolveConfigPath(_getEnvironmentVariable);
         string existing = File.Exists(configPath)

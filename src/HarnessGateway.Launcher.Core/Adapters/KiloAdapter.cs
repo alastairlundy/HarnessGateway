@@ -36,7 +36,7 @@ public sealed class KiloAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("kilo", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(LaunchRequest request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
 
