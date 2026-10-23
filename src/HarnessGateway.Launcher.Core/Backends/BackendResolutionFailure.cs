@@ -11,10 +11,10 @@ public enum BackendResolutionFailure
     /// <summary>--backend named no saved backend entry.</summary>
     UnknownBackendName,
 
-    /// <summary>The DefaultBackend pointer names no saved backend entry.</summary>
+    /// <summary>The default-backend pointer is set but names no saved entry.</summary>
     DanglingDefaultBackend,
 
-    /// <summary>The DefaultBackend pointer is empty while entries exist (no first-entry fallback).</summary>
+    /// <summary>The pointer is empty while saved entries exist — no first-entry fallback.</summary>
     AbsentDefaultBackend,
 
     /// <summary>--protocol was given without --endpoint.</summary>

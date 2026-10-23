@@ -142,11 +142,18 @@ the entry's saved key, comes from the entry itself. There is no per-launch
 key.
 
 Without `--backend`, the launcher uses only the `defaultBackend` pointer. It
-never falls back to the first entry, so a settings file with entries but no
-default makes the launcher exit with exit code 8 until you run
-`config set defaultBackend <name>`. A `--backend` name that matches no entry
-also exits with code 8, printing `unknown backend name '<name>'` plus a
-similar-name suggestion when a saved name is close.
+never falls back to the first entry, and the two pointer failures are
+distinct refusals — both exit with exit code 8:
+
+- **DanglingDefaultBackend** — the default-backend pointer is set but names no
+  saved entry.
+- **AbsentDefaultBackend** — the pointer is empty while saved entries exist —
+  no first-entry fallback.
+
+Run `config set defaultBackend <name>` to fix either one. A `--backend` name
+that matches no entry is the third exit-code-8 refusal; it prints
+`unknown backend name '<name>'` plus a similar-name suggestion when a saved
+name is close.
 
 ### What `--persist config` actually does
 
@@ -206,8 +213,11 @@ or `backends`). Keys can't create or delete backends; the `backend add` and
 `config set defaultBackend <name>` is the only way to move the default
 pointer. The command checks the name against your saved entries, prints
 `Default backend set to '<name>'`, and succeeds without changing anything if
-the pointer already names that entry. An unknown name exits with code 8,
-just as it does for `--backend`.
+the pointer already names that entry. An unknown name exits with code 8, as
+do both default-pointer refusals the command exists to fix:
+DanglingDefaultBackend (the default-backend pointer is set but names no saved
+entry) and AbsentDefaultBackend (the pointer is empty while saved entries
+exist — no first-entry fallback).
 
 ### Backends
 
@@ -283,20 +293,22 @@ leaves it untouched.
 
 | Code | Name | Meaning |
 |------|------|---------|
-| 0 | Ok | Command succeeded |
-| 2 | UsageError | Invalid arguments, a launch with no backend configured, or a `remove` that would break the default pointer or empty the entry list |
+| 0 | Ok | Command succeeded; for `launch`, the harness process itself exited 0 |
+| 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), or a `remove` that would break the default pointer or empty the entry list |
 | 3 | UnknownAgent | Unrecognized harness identifier, or a protocol the chosen harness doesn't support. A near miss prompts a suggestion of the correct identifier |
-| 4 | HarnessUnavailable | The harness binary isn't on `PATH` |
+| 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
 | 6 | RequiredModelMissing | **Reserved.** Declared but never returned; the launcher prints a warning when a harness requires a model but has none, then launches it anyway |
-| 7 | ConfigRestoreFailure | Credential-store failure, or an unhandled launch error. Messages from the unhandled path start with `Launch failed:` |
-| 8 | UnknownBackendName | `--backend` matched no entry, or the `defaultBackend` pointer is missing or empty while entries exist |
+| 7 | ConfigRestoreFailure | Credential-store failure (absent key or store error), or an unexpected fault inside the launch flow — including a config restore that fails. Messages from the unexpected path start with `Launch failed:` |
+| 8 | UnknownBackendName | `--backend` matched no entry (unknown backend name), the default-backend pointer is set but names no saved entry (DanglingDefaultBackend), or the pointer is empty while saved entries exist (AbsentDefaultBackend — no first-entry fallback) |
 | 9 | UnsupportedSettingsSchema | `schemaVersion` is missing, malformed, or newer than this build. Nothing is written |
 | 10 | ConfigConflict | A user-authored `model_providers.harnessgateway` block already exists in the codex config |
 
 Exit codes 5 and 6 are reserved and won't appear in this release. The enum
 keeps them so that a future build can claim those numbers without
-renumbering anything documented here. New exit codes are appended only.
+renumbering anything documented here. New exit codes are appended only. On a
+launch, the harness process's own exit status is passed through unchanged,
+so a number the harness itself returns can coincide with any code above.
 
 ## License
 

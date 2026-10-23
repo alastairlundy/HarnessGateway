@@ -20,6 +20,13 @@ public abstract record BackendResolutionResult
     /// <summary>Success without a backend: no saved entries and no complete raw URL override.</summary>
     public sealed record EmptySettings : BackendResolutionResult;
 
-    /// <summary>Resolution failed with a typed failure and a user-facing message.</summary>
+    /// <summary>
+    /// Resolution failed with a typed failure and a user-facing message. The
+    /// two default-pointer failures are distinct:
+    /// <see cref="BackendResolutionFailure.DanglingDefaultBackend"/> (the
+    /// default-backend pointer is set but names no saved entry) versus
+    /// <see cref="BackendResolutionFailure.AbsentDefaultBackend"/> (the
+    /// pointer is empty while saved entries exist — no first-entry fallback).
+    /// </summary>
     public sealed record Failed(BackendResolutionFailure Failure, string Message) : BackendResolutionResult;
 }
