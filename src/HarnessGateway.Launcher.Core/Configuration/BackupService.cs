@@ -95,29 +95,6 @@ public sealed class BackupService
         }
     }
 
-    public void RegisterSignalHandlers(CancellationTokenSource linkedCts)
-    {
-        bool restored = false;
-
-        Console.CancelKeyPress += (_, e) =>
-        {
-            e.Cancel = true;
-            if (!restored)
-            {
-                restored = true;
-                linkedCts.Cancel();
-            }
-        };
-
-        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-        {
-            if (!restored)
-            {
-                restored = true;
-            }
-        };
-    }
-
     private async Task RestoreRecordAsync(BackupRecord record, CancellationToken cancellationToken)
     {
         string? directory = Path.GetDirectoryName(record.TargetPath);

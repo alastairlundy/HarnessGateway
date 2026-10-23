@@ -55,6 +55,7 @@ jobs:
           MA0048|src/HarnessGateway.Launcher.Core/Settings/Security/ISecureKeyStore.cs
           MA0048|src/HarnessGateway.Launcher.Core/Settings/SettingsStore.cs
           MA0051|src/HarnessGateway.Launcher.Core/Backends/BackendResolution.cs
+          MA0051|src/HarnessGateway.Launcher.Core/Launch/LaunchFlow.cs
           MA0051|src/HarnessGateway.Launcher/Commands/BackendCommands.cs
           MA0051|src/HarnessGateway.Launcher/Commands/LaunchCommand.cs
           MA0051|src/HarnessGateway.Launcher/Commands/LaunchOrchestrator.cs

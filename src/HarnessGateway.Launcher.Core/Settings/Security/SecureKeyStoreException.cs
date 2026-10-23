@@ -18,6 +18,14 @@ public sealed class SecureKeyStoreException : Exception
     }
 
     /// <summary>
+    /// True only for the <see cref="AbsentKey(string)"/> variant: the reference
+    /// is fine but the store holds no secret for it. Every variant is this one
+    /// class, so this marker is the fold seam the launch flow reads to separate
+    /// that user-rectifiable miss from an operational credential-store failure.
+    /// </summary>
+    public bool IsAbsentKey { get; private init; }
+
+    /// <summary>
     /// A reference is present at rest but the platform credential store holds no
     /// secret for it - the entry was deleted, migrated away, or copied from
     /// another machine where it cannot be decrypted.
@@ -48,7 +56,10 @@ public sealed class SecureKeyStoreException : Exception
     /// this machine. The reference is the opaque key name, never secret material.
     /// </summary>
     public static SecureKeyStoreException AbsentKey(string reference) =>
-        new($"No stored API key found for '{reference}'.");
+        new($"No stored API key found for '{reference}'.")
+        {
+            IsAbsentKey = true,
+        };
 
     /// <summary>
     /// The named platform credential store refused or failed an operation.
