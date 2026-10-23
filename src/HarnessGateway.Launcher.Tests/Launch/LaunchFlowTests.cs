@@ -88,7 +88,11 @@ public class LaunchFlowTests
         return (flow, tempDir, configFile, settingsDir);
     }
 
-    private static (LaunchFlow flow, string tempDir, string configPath) CreateCodexFlow(string userOwnedConfig)
+    private static (LaunchFlow flow, string tempDir, string configPath, string backupsDir) CreateCodexFlow(
+        string userOwnedConfig,
+        ILaunchRunner? runner = null,
+        string? apiKey = null,
+        bool codexAvailable = true)
     {
         string tempDir = CreateTempDir();
         string codexHome = Path.Combine(tempDir, "codex-home");
@@ -101,7 +105,10 @@ public class LaunchFlowTests
         string backupsDir = Path.Combine(tempDir, "backups");
         Directory.CreateDirectory(backupsDir);
 
-        SettingsStore settingsStore = new(settingsDir, new FakeSecureKeyStore());
+        FakeSecureKeyStore keyStore = new();
+        string? keyReference = SeedKey(keyStore, "codex-backend", apiKey);
+
+        SettingsStore settingsStore = new(settingsDir, keyStore);
         settingsStore.Save(new LauncherSettings
         {
             Backends =
@@ -111,22 +118,82 @@ public class LaunchFlowTests
                     Name = "codex-backend",
                     BaseUri = new Uri("https://api.example.com/v1"),
                     Protocol = ProtocolKind.OpenAiResponses,
+                    ApiKey = keyReference
                 },
             ],
             DefaultBackend = "codex-backend",
         });
 
         CodexAdapter adapter = new(
-            (_, _) => Task.FromResult(true),
+            (_, _) => Task.FromResult(codexAvailable),
             name => name == "CODEX_HOME" ? codexHome : null);
 
         LaunchFlow flow = new(
             settingsStore,
             new BackupService(backupsDir),
-            new TestLaunchRunner(),
+            runner ?? new TestLaunchRunner(),
             [adapter],
-            new FakeSecureKeyStore());
-        return (flow, tempDir, configPath);
+            keyStore);
+        return (flow, tempDir, configPath, backupsDir);
+    }
+
+    private static (LaunchFlow flow, string tempDir, string backupsDir) CreateClaudeFlow(
+        bool available = true,
+        string? apiKey = null,
+        FakeSecureKeyStore? keyStore = null,
+        ILaunchRunner? runner = null)
+    {
+        string tempDir = CreateTempDir();
+        string settingsDir = Path.Combine(tempDir, "settings");
+        Directory.CreateDirectory(settingsDir);
+        string backupsDir = Path.Combine(tempDir, "backups");
+        Directory.CreateDirectory(backupsDir);
+
+        FakeSecureKeyStore effectiveKeyStore = keyStore ?? new FakeSecureKeyStore();
+        string? keyReference = SeedKey(effectiveKeyStore, "claude-backend", apiKey);
+
+        SettingsStore settingsStore = new(settingsDir, effectiveKeyStore);
+        settingsStore.Save(new LauncherSettings
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "claude-backend",
+                    BaseUri = new Uri("https://api.example.com"),
+                    Protocol = ProtocolKind.Anthropic,
+                    ApiKey = keyReference
+                },
+            ],
+            DefaultBackend = "claude-backend",
+        });
+
+        // Fake detection delegate: availability never touches the real PATH.
+        ClaudeCodeAdapter adapter = new((_, _) => Task.FromResult(available));
+
+        LaunchFlow flow = new(
+            settingsStore,
+            new BackupService(backupsDir),
+            runner ?? new TestLaunchRunner(),
+            [adapter],
+            effectiveKeyStore);
+        return (flow, tempDir, backupsDir);
+    }
+
+    /// <summary>
+    /// Settings fixtures only ever carry the reference; the secret itself is
+    /// seeded into the fake store the way the real store would hold it.
+    /// </summary>
+    private static string? SeedKey(FakeSecureKeyStore keyStore, string backendName, string? secret)
+    {
+        if (secret is null)
+        {
+            return null;
+        }
+
+        string reference = KeyReference.ForBackend(backendName);
+        keyStore.Seed(reference, secret);
+        return reference;
     }
 
     private static LauncherSettings DefaultSettings(string name = "default") => new()
@@ -292,7 +359,7 @@ public class LaunchFlowTests
             + "base_url = \"https://mine.example/v1\"\n"
             + "env_key = \"MINE_KEY\"\n"
             + "wire_api = \"responses\"\n";
-        (LaunchFlow flow, string tempDir, string configPath) = CreateCodexFlow(userOwnedConfig);
+        (LaunchFlow flow, string tempDir, string configPath, _) = CreateCodexFlow(userOwnedConfig);
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -776,6 +843,793 @@ public class LaunchFlowTests
         }
     }
 
+    // --- End-to-end scenarios migrated from the orchestrator suite (#T016):
+    //     same coverage, re-pointed onto the flow; assertions now speak the
+    //     outcome vocabulary, never exit codes. ---
+
+    [Test]
+    public async Task ExecuteAsync_endpoint_and_protocol_override_builds_an_ad_hoc_backend()
+    {
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(adapter: adapter);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest(
+                    "TestAgent", null, "https://api.example.com/v1", "openai-chat", null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.BaseUri)
+                .IsEqualTo(new Uri("https://api.example.com/v1"));
+            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_without_overrides_uses_the_default_backend()
+    {
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: adapter,
+            settings: DefaultSettings());
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("default");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_model_required_but_missing_warns_and_still_launches()
+    {
+        TestHarnessAdapter adapter = new("TestAgent", requiresModel: true);
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: adapter,
+            settings: DefaultSettings());
+        try
+        {
+            (LaunchOutcome outcome, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                flow.ExecuteAsync(
+                    new LaunchRequest("TestAgent", null, null, null, null, [], null)));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(errorOutput).Contains("requires a model but none was specified");
+            // The warning never blocks: planning still produced a request.
+            await Assert.That(adapter.LastRequest).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_model_provided_for_required_harness_does_not_warn()
+    {
+        TestHarnessAdapter adapter = new("TestAgent", requiresModel: true);
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: adapter,
+            settings: DefaultSettings());
+        try
+        {
+            (LaunchOutcome outcome, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                flow.ExecuteAsync(
+                    new LaunchRequest("TestAgent", null, null, null, "gpt-4", [], null)));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
+            await Assert.That(adapter.LastRequest).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_model_not_required_does_not_warn()
+    {
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: adapter,
+            settings: DefaultSettings());
+        try
+        {
+            (LaunchOutcome outcome, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                flow.ExecuteAsync(
+                    new LaunchRequest("TestAgent", null, null, null, null, [], null)));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_codex_launch_injects_key_writes_config_and_restores_on_exit()
+    {
+        const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";
+        string? contentDuringLaunch = null;
+        string? envDuringLaunch = null;
+        // The runner needs the config path, which the factory returns; seed
+        // the capture slot before the call and fill it from the result (the
+        // callback runs later, during ExecuteAsync).
+        string configPath = string.Empty;
+        CallbackLaunchRunner runner = new(plan =>
+        {
+            contentDuringLaunch = File.ReadAllText(configPath);
+            // The saved key rides on the plan's process configuration,
+            // scoped to the spawned codex process under the env_key
+            // variable's name.
+            plan.Process.EnvironmentVariables.TryGetValue(
+                CodexAdapter.EnvKeyName,
+                out envDuringLaunch);
+            return Task.FromResult(0);
+        });
+
+        (LaunchFlow flow, string tempDir, string path, string backupsDir) = CreateCodexFlow(
+            originalConfig,
+            runner: runner,
+            apiKey: "sk-codex");
+        configPath = path;
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("codex", null, null, null, "gpt-5", [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            // The launch saw the launcher-owned provider block...
+            await Assert.That(contentDuringLaunch).IsNotNull();
+            await Assert.That(contentDuringLaunch!).Contains("[model_providers.harnessgateway]");
+            await Assert.That(contentDuringLaunch!).Contains("model_provider = \"harnessgateway\"");
+            // ...and the saved key injected under the env_key variable's name.
+            await Assert.That(envDuringLaunch).IsEqualTo("sk-codex");
+
+            // Without persist-config the original file is restored on exit.
+            string finalContent = await File.ReadAllTextAsync(configPath);
+            await Assert.That(finalContent).IsEqualTo(originalConfig);
+            // No persisted marker is left behind either.
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_codex_persist_config_keeps_the_write_and_consumes_the_marker()
+    {
+        const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";
+        // Uppercased to prove agent lookup resolves CommandName case-insensitively.
+        (LaunchFlow flow, string tempDir, string configPath, string backupsDir) = CreateCodexFlow(
+            originalConfig);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("CODEX", null, null, null, "gpt-5", ["config"], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+
+            string content = await File.ReadAllTextAsync(configPath);
+            await Assert.That(content).Contains("[model_providers.harnessgateway]");
+            await Assert.That(content).Contains("model_provider = \"harnessgateway\"");
+            // Persisting consumed the backup marker.
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_restricted_protocol_adapter_launches_when_the_pairing_matches()
+    {
+        // A restricted fake harness that only speaks openai-chat, pointed at
+        // a matching backend: compatible pairings launch.
+        TestHarnessAdapter adapter = new(
+            "TestAgent",
+            supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+        LauncherSettings settings = new()
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "openai-backend",
+                    BaseUri = new Uri("https://api.openai.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                },
+            ],
+            DefaultBackend = "openai-backend",
+        };
+
+        (LaunchFlow flow, string tempDir, _, string backupsDir) = CreateFlow(
+            adapter: adapter,
+            settings: settings);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_codex_self_heal_restores_leftover_backup()
+    {
+        const string originalConfig = "# original codex config\n";
+        const string corrupted = "leftover launch write\n";
+        (LaunchFlow flow, string tempDir, string configPath, string backupsDir) = CreateCodexFlow(
+            corrupted,
+            codexAvailable: false);
+
+        try
+        {
+            // Simulate a crash: a leftover, un-persisted backup marker for
+            // the Codex write.
+            BackupRecord record = new(
+                configPath,
+                System.Text.Encoding.UTF8.GetBytes(originalConfig),
+                Persisted: false);
+            string leftoverPath = Path.Combine(backupsDir, "leftover.json");
+            await File.WriteAllTextAsync(leftoverPath, System.Text.Json.JsonSerializer.Serialize(record));
+
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("codex", null, null, null, null, [], null));
+
+            // Self-heal runs before anything else, so the original config is
+            // back even though the launch itself never reached the plan
+            // (harness unavailable).
+            LaunchRefused refused = (LaunchRefused)outcome;
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.HarnessUnavailable);
+            string content = await File.ReadAllTextAsync(configPath);
+            await Assert.That(content).IsEqualTo(originalConfig);
+            await Assert.That(File.Exists(leftoverPath)).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_claude_plan_is_env_vars_only_and_registers_no_backups()
+    {
+        LaunchPlan? planDuringLaunch = null;
+        CallbackLaunchRunner runner = new(plan =>
+        {
+            planDuringLaunch = plan;
+            return Task.FromResult(0);
+        });
+
+        (LaunchFlow flow, string tempDir, string backupsDir) = CreateClaudeFlow(
+            apiKey: "sk-claude",
+            runner: runner);
+
+        try
+        {
+            // Agent lookup resolves the CommandName token case-insensitively.
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("CLAUDE-CODE", null, null, null, "claude-sonnet-5", [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(planDuringLaunch).IsNotNull();
+
+            IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
+            await Assert.That(env["ANTHROPIC_BASE_URL"]).IsEqualTo("https://api.example.com");
+            await Assert.That(env["ANTHROPIC_AUTH_TOKEN"]).IsEqualTo("sk-claude");
+            await Assert.That(env["ANTHROPIC_MODEL"]).IsEqualTo("claude-sonnet-5");
+            // Token variable choice, locked end to end: never ANTHROPIC_API_KEY.
+            await Assert.That(env.ContainsKey("ANTHROPIC_API_KEY")).IsFalse();
+
+            // The credential reaches the harness as the secret; the at-rest
+            // reference never appears in any planned environment variable.
+            foreach (KeyValuePair<string, string> variable in env)
+            {
+                await Assert.That(variable.Value.Contains("hgkey:")).IsFalse();
+            }
+
+            List<CliArgumentAction> cliArgs =
+            [
+                .. planDuringLaunch.ConfigurationActions.OfType<CliArgumentAction>()
+            ];
+            await Assert.That(cliArgs).Count().IsEqualTo(1);
+            await Assert.That(cliArgs[0].Argument).IsEqualTo("--model");
+            await Assert.That(cliArgs[0].Value).IsEqualTo("claude-sonnet-5");
+
+            // No config file is written, so restore-on-exit is trivially
+            // satisfied: no backup marker is ever created.
+            await Assert.That(
+                planDuringLaunch.ConfigurationActions.OfType<ConfigFileWriteAction>()).IsEmpty();
+            await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_claude_without_saved_key_omits_token_and_never_touches_the_store()
+    {
+        LaunchPlan? planDuringLaunch = null;
+        CallbackLaunchRunner runner = new(plan =>
+        {
+            planDuringLaunch = plan;
+            return Task.FromResult(0);
+        });
+
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        (LaunchFlow flow, string tempDir, string backupsDir) = CreateClaudeFlow(
+            keyStore: keyStore,
+            runner: runner);
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("claude-code", null, null, null, null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(planDuringLaunch).IsNotNull();
+
+            IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
+            await Assert.That(env.ContainsKey("ANTHROPIC_BASE_URL")).IsTrue();
+            // No saved key: no token variable at all, and no dummy value.
+            await Assert.That(env.ContainsKey("ANTHROPIC_AUTH_TOKEN")).IsFalse();
+            // No model chosen: no model variable and no --model argument action.
+            await Assert.That(env.ContainsKey("ANTHROPIC_MODEL")).IsFalse();
+            await Assert.That(planDuringLaunch.ConfigurationActions).IsEmpty();
+            await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
+
+            // A keyless backend never reaches the store at all.
+            await Assert.That(keyStore.RetrieveCallCount).IsEqualTo(0);
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_persist_model_never_writes_the_resolved_secret_into_settings()
+    {
+        LauncherSettings settings = new()
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "test-backend",
+                    BaseUri = new Uri("https://api.example.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:test-backend",
+                },
+            ],
+            DefaultBackend = "test-backend",
+        };
+
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:test-backend", "sk-never-on-disk");
+
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(
+            adapter: adapter,
+            settings: settings,
+            keyStore: keyStore);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, "gpt-4", ["model"], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+
+            string fileBytes = await File.ReadAllTextAsync(
+                Path.Combine(settingsDir, "HarnessGateway-launcher.json"));
+            // The at-rest reference is what a later Save rewrites; the
+            // resolved secret never lands on disk.
+            await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
+            await Assert.That(fileBytes.Contains("sk-never-on-disk")).IsFalse();
+
+            // And the harness saw the secret, never the reference.
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-never-on-disk");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_wizard_key_on_an_ad_hoc_override_reaches_the_launch_and_writes_nothing()
+    {
+        // First-run wizard shape: no saved backend at all, so resolution
+        // builds the ad-hoc override entry with no key. The key the wizard
+        // collected must ride the invocation - this is the regression the
+        // silent-fail bug shipped - and the ad-hoc launch must never create
+        // a settings file.
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(adapter: adapter);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest(
+                    "TestAgent",
+                    null,
+                    "https://api.example.com/v1",
+                    "openai-chat",
+                    "gpt-4",
+                    [],
+                    "sk-wizard-only"));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-wizard-only");
+
+            // Launch-copy-only: an ad-hoc override against an empty settings
+            // dir never persists anything, secret or otherwise.
+            await Assert.That(File.Exists(
+                Path.Combine(settingsDir, "HarnessGateway-launcher.json"))).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_session_key_overrides_the_stored_entry_key_on_the_launch_copy()
+    {
+        LauncherSettings settings = new()
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "test-backend",
+                    BaseUri = new Uri("https://api.example.com/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:test-backend",
+                },
+            ],
+            DefaultBackend = "test-backend",
+        };
+
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:test-backend", "sk-stored");
+
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(
+            adapter: adapter,
+            settings: settings,
+            keyStore: keyStore);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, null, [], "sk-explicit"));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-explicit");
+
+            // The override is launch-copy-only: the stored entry keeps its
+            // reference and the store keeps sk-stored under it.
+            string fileBytes = await File.ReadAllTextAsync(
+                Path.Combine(settingsDir, "HarnessGateway-launcher.json"));
+            await Assert.That(fileBytes.Contains("hgkey:test-backend")).IsTrue();
+            await Assert.That(fileBytes.Contains("sk-explicit")).IsFalse();
+            await Assert.That(keyStore.Contains("hgkey:test-backend")).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_backend_name_launches_that_entry_with_its_resolved_key()
+    {
+        LauncherSettings settings = new()
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                },
+                new Backend
+                {
+                    Name = "secondary",
+                    BaseUri = new Uri("https://secondary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses,
+                    ApiKey = "hgkey:secondary",
+                },
+            ],
+            DefaultBackend = "primary",
+        };
+
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:secondary", "sk-secondary");
+
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: adapter,
+            settings: settings,
+            keyStore: keyStore);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", "secondary", null, null, null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
+            // The selection's stored key is the only credential source,
+            // resolved through the store before the adapter ever sees it.
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-secondary");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_backend_with_endpoint_override_replaces_only_that_field()
+    {
+        LauncherSettings settings = new()
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                },
+                new Backend
+                {
+                    Name = "secondary",
+                    BaseUri = new Uri("https://secondary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses,
+                    DefaultModel = "gpt-4o",
+                    ApiKey = "hgkey:secondary",
+                },
+            ],
+            DefaultBackend = "primary",
+        };
+
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        keyStore.Seed("hgkey:secondary", "sk-secondary");
+
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: adapter,
+            settings: settings,
+            keyStore: keyStore);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest(
+                    "TestAgent",
+                    "secondary",
+                    "https://override.example/v1",
+                    "openai-chat",
+                    null,
+                    [],
+                    null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+            await Assert.That(adapter.LastRequest!.Backend.BaseUri)
+                .IsEqualTo(new Uri("https://override.example/v1"));
+            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            // The flag replaced only its own fields; the rest stays as saved.
+            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
+            await Assert.That(adapter.LastRequest!.Backend.DefaultModel).IsEqualTo("gpt-4o");
+            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-secondary");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_persist_model_on_a_named_backend_never_repoints_the_default()
+    {
+        LauncherSettings settings = new()
+        {
+            Backends =
+            [
+                new Backend
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://primary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiChat,
+                },
+                new Backend
+                {
+                    Name = "secondary",
+                    BaseUri = new Uri("https://secondary.example/v1"),
+                    Protocol = ProtocolKind.OpenAiResponses,
+                },
+            ],
+            DefaultBackend = "primary",
+        };
+
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(
+            adapter: adapter,
+            settings: settings);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", "secondary", null, null, "gpt-5", ["model"], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+
+            // Persisting the model never re-points DefaultBackend: selecting
+            // a backend per launch has no settings side effect beyond the
+            // model.
+            LauncherSettings saved = new SettingsStore(settingsDir).Load();
+            await Assert.That(saved.DefaultBackend).IsEqualTo("primary");
+            await Assert.That(saved.Backends.Single(b => b.Name == "secondary").DefaultModel)
+                .IsEqualTo("gpt-5");
+            await Assert.That(saved.Backends.Single(b => b.Name == "primary").DefaultModel)
+                .IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_persist_model_with_raw_url_and_no_entries_writes_nothing()
+    {
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(adapter: adapter);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest(
+                    "TestAgent", null, "https://raw.example/v1", "openai-chat", "gpt-5", ["model"], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+
+            // No stored entry exists to persist onto, so nothing is written -
+            // an ad-hoc override never becomes a settings entry.
+            LauncherSettings saved = new SettingsStore(settingsDir).Load();
+            await Assert.That(saved.Backends).IsEmpty();
+            await Assert.That(saved.DefaultBackend).IsEqualTo(string.Empty);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_unsupported_schema_version_folds_to_failed_without_partial_state()
+    {
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, string settingsDir, string backupsDir) = CreateFlow(
+            adapter: adapter);
+        try
+        {
+            string settingsPath = Path.Combine(settingsDir, "HarnessGateway-launcher.json");
+            string rawJson = """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""";
+            await File.WriteAllTextAsync(settingsPath, rawJson);
+
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, null, [], null));
+
+            LaunchFailed failed = (LaunchFailed)outcome;
+            await Assert.That(failed.Kind).IsEqualTo(LaunchFailureKind.UnsupportedSettingsSchema);
+            await Assert.That(failed.Message).Contains("unsupported settings schema version");
+            await Assert.That(adapter.LastRequest).IsNull();
+            await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
+            await Assert.That(File.ReadAllText(settingsPath)).IsEqualTo(rawJson);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_v1_plaintext_settings_migrate_on_the_launch_read_path()
+    {
+        FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(
+            adapter: adapter,
+            keyStore: keyStore);
+        try
+        {
+            string settingsPath = Path.Combine(settingsDir, "HarnessGateway-launcher.json");
+            await File.WriteAllTextAsync(
+                settingsPath,
+                """
+                {
+                  "backends": [
+                    {
+                      "name": "default",
+                      "baseUri": "https://api.example.com/v1",
+                      "protocol": 0,
+                      "apiKey": "sk-legacy-plaintext"
+                    }
+                  ],
+                  "defaultBackend": "default",
+                  "schemaVersion": 1
+                }
+                """);
+
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
+            await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
+
+            string fileBytes = await File.ReadAllTextAsync(settingsPath);
+            string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
+            await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
+            await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();
+            await Assert.That(fileBytes.Contains("sk-legacy-plaintext")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     // --- LaunchRequest shape ---
 
     [Test]
@@ -865,6 +1719,7 @@ public class LaunchFlowTests
     private sealed class TestHarnessAdapter : IHarnessAdapter
     {
         private readonly bool _isAvailable;
+        private readonly bool _requiresModel;
 
         public HarnessMetadata Metadata { get; }
 
@@ -874,15 +1729,17 @@ public class LaunchFlowTests
             string name,
             bool isAvailable = true,
             string installHint = "Install via: test-install",
-            IReadOnlySet<ProtocolKind>? supportedProtocols = null)
+            IReadOnlySet<ProtocolKind>? supportedProtocols = null,
+            bool requiresModel = false)
         {
             _isAvailable = isAvailable;
+            _requiresModel = requiresModel;
             Metadata = new HarnessMetadata(
                 name,
                 name,
                 [],
                 HarnessKind.Cli,
-                RequiresModel: false,
+                requiresModel,
                 installHint,
                 DetectionCommand: $"{name} --version",
                 [],

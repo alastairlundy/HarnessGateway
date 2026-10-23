@@ -3,6 +3,7 @@ using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Backends.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
+using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Wizard;
 
 List<IHarnessAdapter> adapters =
@@ -23,12 +24,11 @@ Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
 LaunchRunner runner = new();
 
-LaunchOrchestrator orchestrator = new(
-    settingsStore,
-    backupService,
-    runner,
-    adapters,
-    keyStore);
+// One flow, both callers (#T002): the CLI-side orchestrator and the wizard
+// handoff below both submit a LaunchRequest through this single LaunchFlow,
+// so there is no second launch-order convention in the exe.
+LaunchFlow flow = new(settingsStore, backupService, runner, adapters, keyStore);
+LaunchOrchestrator orchestrator = new(flow);
 // The wizard is the no-args root action and, via LaunchCommand's own
 // action, also what a bare `launch` runs - one implementation, two entry
 // points, so the two can never drift in exception handling or exit codes.
@@ -59,21 +59,30 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         return 0;
     }
 
-    // Direct launches run through the orchestrator too; the wizard result is
-    // launch-only input (the pipeline never persists settings). The collected
-    // ApiKey must be handed over explicitly - without it the launch proceeds
-    // with no credential at all on a first run, and the harness fails auth
-    // downstream with no clue that the key the user typed was dropped.
-    return await orchestrator.RunAsync(
+    // The wizard handoff is the flow's second caller (#T002, #T014): it
+    // builds the complete declarative LaunchRequest here - every decision is
+    // visible in this construction - and submits it to the same flow the
+    // direct CLI path uses. The wizard pipeline itself stays write-free: it
+    // only produced this input; the flow owns everything that follows.
+    //
+    // The collected ApiKey must ride as SessionKey - without it the launch
+    // proceeds with no credential at all on a first run, and the harness
+    // fails auth downstream with no clue that the key the user typed was
+    // dropped. When a key was collected, persist is forced to ["config"]: a
+    // launch-time credential change the user confirmed in the wizard must
+    // survive the launch, so the restore-on-exit default opts out.
+    LaunchRequest request = new(
         wizardResult.AgentCommandName,
-        backendName: null,
+        BackendName: null,
         wizardResult.Endpoint,
         LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,
-        wizardResult.ApiKey is not null ? ["config"] : [],
-        Directory.GetCurrentDirectory(),
-        wizardResult.ApiKey,
-        cancellationToken).ConfigureAwait(true);
+        Persist: wizardResult.ApiKey is not null ? ["config"] : [],
+        SessionKey: wizardResult.ApiKey);
+
+    LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)
+        .ConfigureAwait(true);
+    return await LaunchOrchestrator.MapOutcomeAsync(outcome).ConfigureAwait(true);
 }
 
 // Root wiring (the --version action, launch/config registration, and the

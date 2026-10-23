@@ -174,7 +174,9 @@ public sealed class LaunchCommand : Command
 
             // The direct CLI path never carries a launch-time key: keys are a
             // stored-entry concern here (set via 'config backend set-key'),
-            // which the resolution below already handles.
+            // which the flow's resolution already handles. The orchestrator
+            // builds the LaunchRequest from these parsed flags (SessionKey
+            // stays null) and submits it to the shared launch flow.
             return await orchestrator.RunAsync(
                 harness,
                 backendName,
@@ -182,9 +184,7 @@ public sealed class LaunchCommand : Command
                 protocol,
                 model,
                 persist,
-                Directory.GetCurrentDirectory(),
-                apiKey: null,
-                cancellationToken: cancellationToken).ConfigureAwait(true);
+                cancellationToken).ConfigureAwait(true);
         });
     }
 

@@ -33,7 +33,8 @@ public class VersionFlagTests
         SettingsStore settingsStore = new SettingsStore(settingsDir, new FakeSecureKeyStore());
         BackupService backupService = new BackupService(backupsDir);
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
-            settingsStore, backupService, new RefuseToLaunchRunner(), [], new FakeSecureKeyStore());
+            new LaunchFlow(
+                settingsStore, backupService, new RefuseToLaunchRunner(), [], new FakeSecureKeyStore()));
 
         bool wizardCalled = false;
         RootCommand root = RootCommandFactory.Create(

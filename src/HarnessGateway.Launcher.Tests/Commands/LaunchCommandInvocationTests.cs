@@ -48,7 +48,8 @@ public class LaunchCommandInvocationTests
 
         BackupService backupService = new BackupService(backupsDir);
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
-            settingsStore, backupService, new StubLaunchRunner(runnerExitCode), [adapter], new FakeSecureKeyStore());
+            new LaunchFlow(
+                settingsStore, backupService, new StubLaunchRunner(runnerExitCode), [adapter], new FakeSecureKeyStore()));
 
         LaunchCommand launchCommand = new LaunchCommand(orchestrator, wizardAction);
         return (new RootCommand { launchCommand }, adapter, tempDir);
