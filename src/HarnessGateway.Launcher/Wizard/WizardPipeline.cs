@@ -1,5 +1,6 @@
 using HarnessGateway.Launcher.Core;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
+using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Backends.Models;
 
 namespace HarnessGateway.Launcher.Wizard;
@@ -26,8 +27,10 @@ public sealed class WizardPipeline
         _catalogClient = catalogClient;
     }
 
-    public async Task<WizardResult?> RunAsync(CancellationToken cancellationToken = default)
+    public async Task<WizardOutcome> RunAsync(CancellationToken cancellationToken = default)
     {
+        try
+        {
         LauncherSettings settings = _settingsStore.Load();
 
         // Strict default-pointer read: no first-entry fallback.
@@ -45,7 +48,13 @@ public sealed class WizardPipeline
         {
             // Failed carries a non-null user-facing message - no fallback text.
             await Task.Run(() => _console.WriteError(failed.Message), cancellationToken).ConfigureAwait(false);
-            return null;
+            WizardAbortReason abortReason = failed.Failure switch
+            {
+                BackendResolutionFailure.DanglingDefaultBackend => WizardAbortReason.DanglingDefaultBackend,
+                BackendResolutionFailure.AbsentDefaultBackend => WizardAbortReason.AbsentDefaultBackend,
+                _ => WizardAbortReason.CredentialStoreError,
+            };
+            return new WizardAborted(abortReason);
         }
 
         // A first run (EmptySettings) resolves to no backend at all and
@@ -65,9 +74,10 @@ public sealed class WizardPipeline
 
         while (true)
         {
-            harnessName = await RunHarnessStepAsync(
+            (string? selectedHarness, WizardAbortReason? harnessAbort) = await RunHarnessStepAsync(
                 protocolToCheck, annotateIncompatible, cancellationToken).ConfigureAwait(true);
-            if (harnessName is null) return null;
+            if (harnessAbort is not null) return new WizardAborted(harnessAbort.Value);
+            harnessName = selectedHarness;
 
             Result<IHarnessAdapter> adapterResult = HarnessLookup.TryResolve(_adapters, harnessName);
             adapter = adapterResult.Success ? adapterResult.Value : null;
@@ -75,7 +85,7 @@ public sealed class WizardPipeline
             if (endpointResult.endpoint is null)
             {
                 endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken).ConfigureAwait(true);
-                if (endpointResult.endpoint is null) return null;
+                if (endpointResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
             }
 
             if (adapter is null || adapter.Metadata.SupportedProtocols.Contains(endpointResult.protocol))
@@ -91,7 +101,7 @@ public sealed class WizardPipeline
             if (!AnyAdapterSupports(endpointResult.protocol))
             {
                 WriteNoHarnessSupports(endpointResult.protocol);
-                return null;
+                return new WizardAborted(WizardAbortReason.NoHarnessSupportsProtocol);
             }
 
             await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(
@@ -116,7 +126,7 @@ public sealed class WizardPipeline
             catch (SecureKeyStoreException ex)
             {
                 await Task.Run(() => _console.WriteError(ex.Message), cancellationToken).ConfigureAwait(false);
-                return null;
+                return new WizardAborted(WizardAbortReason.CredentialStoreError);
             }
         }
 
@@ -135,15 +145,20 @@ public sealed class WizardPipeline
         string? savedDefaultModel = defaultBackend?.DefaultModel;
         string? model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
 
-        return new WizardResult(
-            AgentCommandName: harnessName,
+        return new WizardCompleted(new WizardResult(
+            AgentCommandName: harnessName!,
             Endpoint: endpointResult.endpoint!,
             Protocol: endpointResult.protocol,
             ApiKey: apiKey,
-            Model: model);
+            Model: model));
+        }
+        catch (OperationCanceledException)
+        {
+            return new WizardAborted(WizardAbortReason.Cancelled);
+        }
     }
 
-    private async Task<string?> RunHarnessStepAsync(
+    private async Task<(string? HarnessName, WizardAbortReason? AbortReason)> RunHarnessStepAsync(
         ProtocolKind? protocolToCheck,
         bool annotateIncompatible,
         CancellationToken cancellationToken)
@@ -151,8 +166,8 @@ public sealed class WizardPipeline
         if (_adapters.Count == 0)
         {
             await Task.Run(() => _console.WriteError("No agent harnesses found."), cancellationToken).ConfigureAwait(false);
- 
-            return null;
+
+            return (null, WizardAbortReason.NoHarnessInstalled);
         }
 
         // Dead-end guard (decision 4): if no harness can satisfy the protocol
@@ -160,7 +175,7 @@ public sealed class WizardPipeline
         if (protocolToCheck is not null && !AnyAdapterSupports(protocolToCheck.Value))
         {
             WriteNoHarnessSupports(protocolToCheck.Value);
-            return null;
+            return (null, WizardAbortReason.NoHarnessSupportsProtocol);
         }
 
         bool showIncompatible = annotateIncompatible;
@@ -194,13 +209,13 @@ public sealed class WizardPipeline
                 if (protocolToCheck is null)
                 {
                     WriteNoHarnessInstalled();
+                    return (null, WizardAbortReason.NoHarnessInstalled);
                 }
                 else
                 {
                     WriteNoInstalledSupports(protocolToCheck.Value);
+                    return (null, WizardAbortReason.NoHarnessSupportsProtocol);
                 }
-
-                return null;
             }
 
             List<ConsoleChoice> choices = BuildHarnessChoices(
@@ -235,7 +250,7 @@ public sealed class WizardPipeline
                 // The wizard result feeds straight into the launch path, which
                 // resolves tokens; returning "GitHub Copilot CLI" there would
                 // not resolve once display names stopped being matchable.
-                return selected is null ? pick : selected.Metadata.CommandName;
+                return (selected is null ? pick : selected.Metadata.CommandName, null);
             }
 
             await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(

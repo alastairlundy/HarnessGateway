@@ -38,10 +38,10 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     ModelCatalogClient catalogClient = new(new HttpClient());
     WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
 
-    WizardResult? wizardResult;
+    WizardOutcome wizardOutcome;
     try
     {
-        wizardResult = await wizard.RunAsync(cancellationToken).ConfigureAwait(true);
+        wizardOutcome = await wizard.RunAsync(cancellationToken).ConfigureAwait(true);
     }
     catch (UnsupportedSettingsSchemaException ex)
     {
@@ -54,10 +54,21 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         return (int)LaunchExitCode.ConfigRestoreFailure;
     }
 
-    if (wizardResult is null)
+    if (wizardOutcome is WizardAborted aborted)
     {
-        return 0;
+        return aborted.Reason switch
+        {
+            WizardAbortReason.Cancelled => 0,
+            WizardAbortReason.DanglingDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
+            WizardAbortReason.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
+            WizardAbortReason.NoHarnessInstalled => (int)LaunchExitCode.HarnessUnavailable,
+            WizardAbortReason.NoHarnessSupportsProtocol => (int)LaunchExitCode.UnknownAgent,
+            WizardAbortReason.CredentialStoreError => (int)LaunchExitCode.ConfigRestoreFailure,
+            _ => (int)LaunchExitCode.ConfigRestoreFailure,
+        };
     }
+
+    WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
 
     // The wizard handoff is the flow's second caller (#T002, #T014): it
     // builds the complete declarative LaunchRequest here - every decision is
