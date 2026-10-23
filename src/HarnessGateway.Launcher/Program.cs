@@ -24,7 +24,7 @@ Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
 LaunchRunner runner = new();
 
-// One flow, both callers (#T002): the CLI-side orchestrator and the wizard
+// One flow, both callers: the CLI-side orchestrator and the wizard
 // handoff below both submit a LaunchRequest through this single LaunchFlow,
 // so there is no second launch-order convention in the exe.
 LaunchFlow flow = new(settingsStore, backupService, runner, adapters, keyStore);
@@ -70,7 +70,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 
     WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
 
-    // The wizard handoff is the flow's second caller (#T002, #T014): it
+    // The wizard handoff is the flow's second caller: it
     // builds the complete declarative LaunchRequest here - every decision is
     // visible in this construction - and submits it to the same flow the
     // direct CLI path uses. The wizard pipeline itself stays write-free: it

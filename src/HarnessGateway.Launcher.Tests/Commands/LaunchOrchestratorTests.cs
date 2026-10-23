@@ -13,7 +13,7 @@ using HarnessGateway.Launcher.Tests.Fakes;
 namespace HarnessGateway.Launcher.Tests.Commands;
 
 /// <summary>
-/// Thin mapping and wiring suite for the CLI-side adapter (#T012, #T016):
+/// Thin mapping and wiring suite for the CLI-side adapter:
 /// every <see cref="LaunchRefusalKind"/> and <see cref="LaunchFailureKind"/>
 /// maps to its contract exit code byte-for-byte, the "Launch failed:" prefix
 /// is single-honest-source (Unexpected only), and <c>RunAsync</c> wires parsed
@@ -22,7 +22,7 @@ namespace HarnessGateway.Launcher.Tests.Commands;
 /// </summary>
 public class LaunchOrchestratorTests
 {
-    // --- Outcome-to-exit-code mapping: exhaustive per kind (#T012, #T020) ---
+    // --- Outcome-to-exit-code mapping: exhaustive per kind ---
 
     [Test]
     [Arguments(LaunchRefusalKind.NoBackend, (int)LaunchExitCode.UsageError)]
@@ -63,7 +63,7 @@ public class LaunchOrchestratorTests
             LaunchOrchestrator.MapOutcomeAsync(new LaunchFailed(kind, message)));
 
         await Assert.That(exitCode).IsEqualTo(expectedExitCode);
-        // Single-honest-source prefix rule (#T021): only Unexpected may wear
+        // Single-honest-source prefix rule: only Unexpected may wear
         // "Launch failed:"; every other failure prints the outcome's message
         // exactly as composed.
         await Assert.That(errorOutput).IsEqualTo(message + Environment.NewLine);
@@ -92,7 +92,7 @@ public class LaunchOrchestratorTests
         await Assert.That(errorOutput).IsEqualTo(string.Empty);
     }
 
-    // --- Wiring: RunAsync builds the request, the flow executes it (#T014) ---
+    // --- Wiring: RunAsync builds the request, the flow executes it ---
 
     [Test]
     public async Task RunAsync_unknown_agent_returns_exit_code_3()
@@ -252,7 +252,7 @@ public class LaunchOrchestratorTests
         }
 
         // Same collaborators the production wiring shares; the orchestrator
-        // is now a thin adapter over the concrete flow (#T009: no interface).
+        // is now a thin adapter over the concrete flow.
         LaunchFlow flow = new LaunchFlow(
             settingsStore,
             new BackupService(backupsDir),

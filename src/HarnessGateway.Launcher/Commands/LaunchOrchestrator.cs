@@ -7,13 +7,13 @@ namespace HarnessGateway.Launcher.Commands;
 /// arguments into a declarative <see cref="LaunchRequest"/>, submits it to the
 /// flow, and maps the closed <see cref="LaunchOutcome"/> family back to this
 /// CLI's exit codes and stderr lines. The launch order itself lives Core-side;
-/// this class owns none of it (#T002, #T014).
+/// this class owns none of it.
 /// </summary>
 /// <remarks>
 /// The wizard handoff is the second caller: it builds its own
 /// <see cref="LaunchRequest"/> and shares the same flow instance and the same
 /// <see cref="MapOutcomeAsync"/> switch, so no second outcome-mapping
-/// convention can form (#T002, #T012).
+/// convention can form.
 /// </remarks>
 public sealed class LaunchOrchestrator
 {
@@ -51,7 +51,7 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// The one exhaustive outcome-to-exit-code mapping (#T012): the flow
+    /// The one exhaustive outcome-to-exit-code mapping: the flow
     /// speaks outcomes carrying no numbers; this switch is where every kind
     /// picks its CLI exit code and stderr line. Contract values are the
     /// append-only README table and must stay byte-for-byte stable.
@@ -91,7 +91,7 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// Exhaustive over the twelve refusal kinds (#T020): every kind names its
+    /// Exhaustive over the twelve refusal kinds: every kind names its
     /// exit code explicitly so a newly added kind cannot silently land on a
     /// catch-all default. Codes are today's values, preserved byte-for-byte.
     /// </summary>

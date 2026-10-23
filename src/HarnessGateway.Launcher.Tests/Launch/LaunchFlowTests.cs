@@ -13,7 +13,7 @@ using HarnessGateway.Launcher.Tests.Fakes;
 namespace HarnessGateway.Launcher.Tests.Launch;
 
 /// <summary>
-/// Pins the flow interface itself (#T016): the structural restore guarantee,
+/// Pins the flow interface itself: the structural restore guarantee,
 /// refusal and key folding, the pair rule, and persist ordering. The
 /// orchestrator keeps mapping/wiring tests - no end-to-end duplication here.
 /// Did-you-mean hint wording is deliberately never pinned: it is
@@ -843,7 +843,7 @@ public class LaunchFlowTests
         }
     }
 
-    // --- End-to-end scenarios migrated from the orchestrator suite (#T016):
+    // --- End-to-end scenarios migrated from the orchestrator suite:
     //     same coverage, re-pointed onto the flow; assertions now speak the
     //     outcome vocabulary, never exit codes. ---
 
