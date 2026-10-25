@@ -40,7 +40,9 @@ public sealed class CodexAdapter : IHarnessAdapter
             new HashSet<ProtocolKind>
             {
                 ProtocolKind.OpenAiResponses,
-            });
+            },
+            new HashSet<ConfigurationSurface>(),
+            []);
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>

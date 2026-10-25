@@ -31,6 +31,18 @@ namespace HarnessGateway.Launcher.Core.Adapters.Abstractions;
 /// </param>
 /// <param name="ConfigFileCandidates">Harness config files the launcher may touch.</param>
 /// <param name="SupportedProtocols">Protocols this harness can speak.</param>
+/// <param name="SupportedSurfaces">
+/// Configuration mechanisms this harness can actually be configured through.
+/// Set semantics like <paramref name="SupportedProtocols"/>: membership, not
+/// priority. Kind=Cli adapters pass an empty set - the CLI launch path configures
+/// the way it always has, and only GUI planning reads this.
+/// </param>
+/// <param name="InstanceProcessNames">
+/// Process executable names an already-running instance of this harness
+/// reports, ordered like <paramref name="Aliases"/>. The order is an authoring
+/// convention only - matching never reads it - and availability stays a
+/// runtime discovery concern, so Kind=Cli adapters pass an empty list.
+/// </param>
 public sealed record HarnessMetadata(
     string Name,
     string CommandName,
@@ -40,7 +52,9 @@ public sealed record HarnessMetadata(
     string InstallHint,
     string DetectionCommand,
     IReadOnlyList<string> ConfigFileCandidates,
-    IReadOnlySet<ProtocolKind> SupportedProtocols)
+    IReadOnlySet<ProtocolKind> SupportedProtocols,
+    IReadOnlySet<ConfigurationSurface> SupportedSurfaces,
+    IReadOnlyList<string> InstanceProcessNames)
 {
     /// <summary>Every token that resolves this harness: the command name plus aliases.</summary>
     public IEnumerable<string> AcceptedTokens

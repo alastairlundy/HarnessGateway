@@ -1766,7 +1766,9 @@ public class LaunchFlowTests
                 installHint,
                 DetectionCommand: $"{name} --version",
                 [],
-                supportedProtocols ?? AllProtocols);
+                supportedProtocols ?? AllProtocols,
+                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+                InstanceProcessNames: []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
@@ -1798,7 +1800,9 @@ public class LaunchFlowTests
             InstallHint: "N/A",
             DetectionCommand: "ConfigWriter --version",
             [],
-            AllProtocols);
+            AllProtocols,
+            new HashSet<ConfigurationSurface>(),
+            []);
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
         {

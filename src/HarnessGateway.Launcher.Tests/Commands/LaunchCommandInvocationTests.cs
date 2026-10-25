@@ -203,7 +203,9 @@ public class LaunchCommandInvocationTests
                     ProtocolKind.OpenAiChat,
                     ProtocolKind.OpenAiResponses,
                     ProtocolKind.Anthropic
-                });
+                },
+                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+                InstanceProcessNames: []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

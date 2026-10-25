@@ -101,7 +101,9 @@ public static class WizardTestHelper
                 $"Install {name}",
                 DetectionCommand: $"{name} --version",
                 [],
-                supportedProtocols ?? AllProtocols);
+                supportedProtocols ?? AllProtocols,
+                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+                InstanceProcessNames: []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

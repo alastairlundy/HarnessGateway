@@ -25,7 +25,9 @@ public class HarnessMetadataTests
             SupportedProtocols: new HashSet<Core.Backends.ProtocolKind>
             {
                 Core.Backends.ProtocolKind.OpenAiChat
-            }
+            },
+            SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+            InstanceProcessNames: []
         );
 
         await Assert.That(metadata.Name).IsEqualTo("opencode");
@@ -53,7 +55,9 @@ public class HarnessMetadataTests
             InstallHint: "Install from kilo.dev",
             DetectionCommand: "kilo --version",
             [],
-            new HashSet<Core.Backends.ProtocolKind>()
+            new HashSet<Core.Backends.ProtocolKind>(),
+            SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+            InstanceProcessNames: []
         );
 
         await Assert.That(metadata.DetectionCommand).IsEqualTo("kilo --version");
@@ -80,7 +84,9 @@ public class HarnessMetadataTests
             new HashSet<Core.Backends.ProtocolKind>
             {
                 Core.Backends.ProtocolKind.Anthropic
-            }
+            },
+            SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+            InstanceProcessNames: []
         );
 
         await Assert.That(metadata.SupportedProtocols).Contains(Core.Backends.ProtocolKind.Anthropic);
