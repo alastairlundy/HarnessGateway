@@ -1663,11 +1663,21 @@ public class LaunchFlowTests
         {
             return Task.FromResult(0);
         }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return 0;
+        }
     }
 
     private sealed class FaultingLaunchRunner(Exception exception) : ILaunchRunner
     {
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            throw exception;
+        }
+
+        public int Handoff(LaunchPlan plan)
         {
             throw exception;
         }
@@ -1679,16 +1689,29 @@ public class LaunchFlowTests
         {
             return onRun(plan);
         }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return onRun(plan).GetAwaiter().GetResult();
+        }
     }
 
     private sealed class CountingLaunchRunner : ILaunchRunner
     {
         public int RunCallCount { get; private set; }
 
+        public int HandoffCallCount { get; private set; }
+
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             RunCallCount++;
             return Task.FromResult(0);
+        }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            HandoffCallCount++;
+            return HandoffCallCount;
         }
     }
 

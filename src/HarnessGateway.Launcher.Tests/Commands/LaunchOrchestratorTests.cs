@@ -270,6 +270,11 @@ public class LaunchOrchestratorTests
         {
             return Task.FromResult(0);
         }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return 0;
+        }
     }
 
     private sealed class CallbackLaunchRunner(Func<LaunchPlan, Task<int>> onRun) : ILaunchRunner
@@ -277,6 +282,11 @@ public class LaunchOrchestratorTests
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return onRun(plan);
+        }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return onRun(plan).GetAwaiter().GetResult();
         }
     }
 

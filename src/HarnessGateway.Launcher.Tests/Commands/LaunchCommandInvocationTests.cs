@@ -230,5 +230,10 @@ public class LaunchCommandInvocationTests
         {
             return Task.FromResult(exitCode);
         }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return exitCode;
+        }
     }
 }
