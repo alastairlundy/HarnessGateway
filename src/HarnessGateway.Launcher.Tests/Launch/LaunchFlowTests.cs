@@ -59,7 +59,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
             adapter is not null ? [adapter] : [],
-            effectiveKeyStore);
+            effectiveKeyStore,
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, settingsDir, backupsDir);
     }
 
@@ -84,7 +87,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runnerFactory?.Invoke(configFile) ?? new TestLaunchRunner(),
             [new ConfigWritingAdapter(configFile)],
-            new FakeSecureKeyStore());
+            new FakeSecureKeyStore(),
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, configFile, settingsDir);
     }
 
@@ -133,7 +139,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
             [adapter],
-            keyStore);
+            keyStore,
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, configPath, backupsDir);
     }
 
@@ -176,7 +185,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
             [adapter],
-            effectiveKeyStore);
+            effectiveKeyStore,
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, backupsDir);
     }
 
@@ -270,7 +282,10 @@ public class LaunchFlowTests
                 new BackupService(backupsDir),
                 runner,
                 [new ConfigWritingAdapter(blockedTarget)],
-                new FakeSecureKeyStore());
+                new FakeSecureKeyStore(),
+                new FakeGuiInstallDiscovery(),
+                new FakeRunningInstanceDetector(),
+                new FakeConfirmationPrompt());
 
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));

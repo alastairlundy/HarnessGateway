@@ -106,9 +106,11 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// Exhaustive over the twelve refusal kinds: every kind names its
+    /// Exhaustive over the fifteen refusal kinds: every kind names its
     /// exit code explicitly so a newly added kind cannot silently land on a
-    /// catch-all default. Codes are today's values, preserved byte-for-byte.
+    /// catch-all default. Codes are today's values, preserved byte-for-byte;
+    /// the three GUI kinds are producer additions to existing families, not
+    /// new numbers.
     /// </summary>
     private static int ExitCodeFor(LaunchRefusalKind kind) => kind switch
     {
@@ -117,6 +119,13 @@ public sealed class LaunchOrchestrator
         LaunchRefusalKind.HarnessUnavailable => (int)LaunchExitCode.HarnessUnavailable,
         LaunchRefusalKind.ProtocolNotSupported => (int)LaunchExitCode.UnknownAgent,
         LaunchRefusalKind.ProviderBlockConflict => (int)LaunchExitCode.ConfigConflict,
+        // GUI stops reuse the unavailable-harness family: a confirmation
+        // nothing confirmed and a surface nothing can carry both mean this
+        // launch cannot run as asked.
+        LaunchRefusalKind.RunningInstanceUnconfirmed
+            or LaunchRefusalKind.GuiBackendUnsupported => (int)LaunchExitCode.HarnessUnavailable,
+        // Flag misuse is a usage error, same as every other bad-flag stop.
+        LaunchRefusalKind.ConfirmUnsupportedForHarness => (int)LaunchExitCode.UsageError,
         LaunchRefusalKind.UnknownBackendName
             or LaunchRefusalKind.DanglingDefaultBackend
             or LaunchRefusalKind.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,

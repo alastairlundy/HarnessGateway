@@ -34,7 +34,14 @@ public class VersionFlagTests
         BackupService backupService = new BackupService(backupsDir);
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             new LaunchFlow(
-                settingsStore, backupService, new RefuseToLaunchRunner(), [], new FakeSecureKeyStore()));
+                settingsStore,
+                backupService,
+                new RefuseToLaunchRunner(),
+                [],
+                new FakeSecureKeyStore(),
+                new FakeGuiInstallDiscovery(),
+                new FakeRunningInstanceDetector(),
+                new FakeConfirmationPrompt()));
 
         bool wizardCalled = false;
         RootCommand root = RootCommandFactory.Create(

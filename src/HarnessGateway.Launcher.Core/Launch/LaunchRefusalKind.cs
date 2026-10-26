@@ -41,4 +41,23 @@ public enum LaunchRefusalKind
 
     /// <summary>The Codex provider block collided with the configured backend.</summary>
     ProviderBlockConflict,
+
+    /// <summary>
+    /// A GUI harness's app instance is already running and the confirmation
+    /// prompt was declined - or no interactive terminal could answer it.
+    /// </summary>
+    RunningInstanceUnconfirmed,
+
+    /// <summary>
+    /// <c>--confirm-running</c> was requested for a Kind=Cli harness, which
+    /// has no running instance to confirm.
+    /// </summary>
+    ConfirmUnsupportedForHarness,
+
+    /// <summary>
+    /// The GUI harness's declared configuration surfaces cannot carry what
+    /// this launch asked to deliver: a backend or model override with no
+    /// capable surface, or a key when only file surfaces are declared.
+    /// </summary>
+    GuiBackendUnsupported,
 }

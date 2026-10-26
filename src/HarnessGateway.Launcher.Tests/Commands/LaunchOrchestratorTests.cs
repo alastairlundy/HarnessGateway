@@ -37,6 +37,12 @@ public class LaunchOrchestratorTests
     [Arguments(LaunchRefusalKind.EndpointWithoutProtocol, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidEndpoint, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidProtocol, (int)LaunchExitCode.UsageError)]
+    // The three GUI kinds are producer additions to existing families:
+    // unconfirmed instance and incapable surface both ride the
+    // unavailable-harness number, flag misuse rides the usage number.
+    [Arguments(LaunchRefusalKind.RunningInstanceUnconfirmed, (int)LaunchExitCode.HarnessUnavailable)]
+    [Arguments(LaunchRefusalKind.GuiBackendUnsupported, (int)LaunchExitCode.HarnessUnavailable)]
+    [Arguments(LaunchRefusalKind.ConfirmUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
     public async Task MapOutcomeAsync_refusal_kind_maps_to_its_exit_code(
         LaunchRefusalKind kind, int expectedExitCode)
     {
@@ -90,6 +96,19 @@ public class LaunchOrchestratorTests
 
         await Assert.That(exitCode).IsEqualTo(42);
         // A completed launch prints nothing on stderr.
+        await Assert.That(errorOutput).IsEqualTo(string.Empty);
+    }
+
+    [Test]
+    public async Task MapOutcomeAsync_handed_off_completed_maps_to_exit_0()
+    {
+        // A detached start reports the handoff it already succeeded at: exit
+        // 0, with no stderr line - there was no exit status to wait for.
+        (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+            LaunchOrchestrator.MapOutcomeAsync(
+                new LaunchCompleted(new CompletedPayload.HandedOff(4242))));
+
+        await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
         await Assert.That(errorOutput).IsEqualTo(string.Empty);
     }
 
@@ -259,7 +278,10 @@ public class LaunchOrchestratorTests
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
             adapter is not null ? [adapter] : [],
-            keyStore);
+            keyStore,
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (new LaunchOrchestrator(flow), tempDir);
     }
 
