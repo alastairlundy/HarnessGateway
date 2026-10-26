@@ -95,7 +95,7 @@ public class LaunchFlowGuiTests
         ISecureKeyStore? keyStore = null,
         FakeGuiInstallDiscovery? discovery = null,
         FakeRunningInstanceDetector? detector = null,
-        FakeConfirmationPrompt? prompt = null,
+        IConfirmationPrompt? prompt = null,
         string? tempDir = null)
     {
         tempDir ??= CreateTempDir();
@@ -230,7 +230,53 @@ public class LaunchFlowGuiTests
             LaunchRefused refused = (LaunchRefused)outcome;
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.RunningInstanceUnconfirmed);
             await Assert.That(prompt.PromptedMessages).Count().IsEqualTo(1);
+            // The composed question names the harness and states the hazard
+            // (configuration applied to an open application), so the refusal
+            // is diagnosable from the prompt text alone.
+            await Assert.That(prompt.PromptedMessages[0]).Contains("GUI Test Agent");
+            await Assert.That(prompt.PromptedMessages[0]).Contains("already running");
             // Stopped before anything ran or was written.
+            await Assert.That(runner.RunCallCount).IsEqualTo(0);
+            await Assert.That(runner.HandoffCallCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(ConfigOriginal);
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_live_instance_with_a_prompt_that_cannot_answer_stops_as_unconfirmed()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            string configPath = SeedConfigFile(tempDir);
+            TestGuiHarnessAdapter adapter = new(
+                supportedSurfaces: FileSurfaces,
+                actions: [new ConfigFileWriteAction(configPath, ModifiedConfig)]);
+            UnanswerableConfirmationPrompt prompt = new();
+            RecordingLaunchRunner runner = new();
+            (LaunchFlow flow, _, string backupsDir) = CreateGuiFlow(
+                adapter: adapter,
+                runner: runner,
+                detector: new FakeRunningInstanceDetector(found: true),
+                prompt: prompt,
+                tempDir: tempDir);
+
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("gui-agent", null, null, null, null, [], null));
+
+            // The non-interactive case is part of the refusal contract, not an
+            // error: the terminal prompt declines without asking when no
+            // interactive terminal can answer, and the flow maps that to the
+            // same user-rectifiable refusal an explicit decline gets - the
+            // seam is deliberately unable to tell the two apart.
+            LaunchRefused refused = (LaunchRefused)outcome;
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.RunningInstanceUnconfirmed);
+            await Assert.That(prompt.PromptedMessages).Count().IsEqualTo(1);
             await Assert.That(runner.RunCallCount).IsEqualTo(0);
             await Assert.That(runner.HandoffCallCount).IsEqualTo(0);
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(ConfigOriginal);
@@ -496,6 +542,44 @@ public class LaunchFlowGuiTests
         }
     }
 
+    [Test]
+    public async Task ExecuteAsync_handoff_fault_on_the_persisting_gui_path_folds_to_failure()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            string configPath = SeedConfigFile(tempDir);
+            TestGuiHarnessAdapter adapter = new(
+                supportedSurfaces: FileSurfaces,
+                actions: [new ConfigFileWriteAction(configPath, ModifiedConfig)]);
+            RecordingLaunchRunner runner = new();
+            runner.HandoffFault = new InvalidOperationException("gui handoff exploded");
+            (LaunchFlow flow, _, string backupsDir) = CreateGuiFlow(
+                adapter: adapter,
+                runner: runner,
+                tempDir: tempDir);
+
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("gui-agent", null, null, null, null, ["config"], null));
+
+            // A detached start that never started folds like every other
+            // runner fault: one typed failure, no leaked exception. The
+            // persist path opted out of the restore, so the applied write
+            // stays durable and its backup marker is consumed rather than
+            // replayed - no half-restored state is left behind either way.
+            LaunchFailed failed = (LaunchFailed)outcome;
+            await Assert.That(failed.Kind).IsEqualTo(LaunchFailureKind.Unexpected);
+            await Assert.That(runner.HandoffCallCount).IsEqualTo(1);
+            await Assert.That(runner.RunCallCount).IsEqualTo(0);
+            await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(ModifiedConfig);
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     // --- Fakes for this suite ---
 
     /// <summary>
@@ -589,9 +673,26 @@ public class LaunchFlowGuiTests
     }
 
     /// <summary>
+    /// The prompt as a non-interactive context implements it: it presents
+    /// the question - it received it - but nothing can answer, so it
+    /// reports the same decline the contract defines for an unanswerable
+    /// prompt, without ever consulting a scripted answer.
+    /// </summary>
+    private sealed class UnanswerableConfirmationPrompt : IConfirmationPrompt
+    {
+        public List<string> PromptedMessages { get; } = [];
+
+        public Task<bool> ConfirmAsync(string message, CancellationToken cancellationToken = default)
+        {
+            PromptedMessages.Add(message);
+            return Task.FromResult(false);
+        }
+    }
+
+    /// <summary>
     /// The runner fake this suite observes: a fixed blocking exit status, a
     /// fixed handoff pid, per-mode call counts, the plan it was handed, and
-    /// an optional fault for the restore path.
+    /// an optional fault per mode for the restore paths.
     /// </summary>
     private sealed class RecordingLaunchRunner : ILaunchRunner
     {
@@ -602,6 +703,8 @@ public class LaunchFlowGuiTests
         public LaunchPlan? LastPlan { get; private set; }
 
         public Exception? RunFault { get; set; }
+
+        public Exception? HandoffFault { get; set; }
 
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
@@ -619,6 +722,11 @@ public class LaunchFlowGuiTests
         {
             HandoffCallCount++;
             LastPlan = plan;
+            if (HandoffFault is not null)
+            {
+                throw HandoffFault;
+            }
+
             return HandedOffProcessId;
         }
     }

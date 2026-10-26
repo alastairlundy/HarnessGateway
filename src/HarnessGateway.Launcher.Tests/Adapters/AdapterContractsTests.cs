@@ -106,26 +106,30 @@ public class HarnessMetadataTests
 
 public class ShippedAdapterContractTests
 {
-    // Mirrors the adapter registry inline at Program.cs (the same six
-    // parameterless constructions). Program.cs has no shared factory, so a
-    // seventh adapter added there will not fail this test automatically -
-    // keep both lists in sync.
+    // Mirrors the adapter registry inline at Program.cs (the same seven
+    // parameterless constructions, in the same order). Program.cs has no
+    // shared factory, so an eighth adapter added there will not fail this
+    // test automatically - keep both lists in sync.
+    private static IHarnessAdapter[] ShippedAdapters() =>
+    [
+        new OpenCodeAdapter(),
+        new OpenCodeDesktopAdapter(),
+        new KiloAdapter(),
+        new CopilotCliAdapter(),
+        new PiAdapter(),
+        new CodexAdapter(),
+        new ClaudeCodeAdapter()
+    ];
+
     [Test]
     public async Task Shipped_adapters_declare_expected_model_requirements()
     {
-        IHarnessAdapter[] shipped =
-        [
-            new OpenCodeAdapter(),
-            new KiloAdapter(),
-            new CopilotCliAdapter(),
-            new PiAdapter(),
-            new CodexAdapter(),
-            new ClaudeCodeAdapter()
-        ];
+        IHarnessAdapter[] shipped = ShippedAdapters();
 
         Dictionary<string, bool> expected = new()
         {
             ["OpenCode"] = true,
+            ["OpenCode Desktop"] = true,
             ["Kilo"] = true,
             ["GitHub Copilot CLI"] = true,
             ["Pi"] = false,
@@ -154,15 +158,7 @@ public class ShippedAdapterContractTests
     [Test]
     public async Task Shipped_adapters_declare_unique_command_names()
     {
-        IHarnessAdapter[] shipped =
-        [
-            new OpenCodeAdapter(),
-            new KiloAdapter(),
-            new CopilotCliAdapter(),
-            new PiAdapter(),
-            new CodexAdapter(),
-            new ClaudeCodeAdapter()
-        ];
+        IHarnessAdapter[] shipped = ShippedAdapters();
 
         // A duplicate command name would make `launch <token>` resolve to
         // whichever adapter happens to be first in Program.cs's list, which is
@@ -176,15 +172,7 @@ public class ShippedAdapterContractTests
     [Test]
     public async Task Shipped_adapters_resolve_their_own_command_names()
     {
-        IHarnessAdapter[] shipped =
-        [
-            new OpenCodeAdapter(),
-            new KiloAdapter(),
-            new CopilotCliAdapter(),
-            new PiAdapter(),
-            new CodexAdapter(),
-            new ClaudeCodeAdapter()
-        ];
+        IHarnessAdapter[] shipped = ShippedAdapters();
 
         // The property the help text depends on: every token the launcher
         // advertises must actually resolve. This is the check that would have
@@ -201,20 +189,12 @@ public class ShippedAdapterContractTests
     [Test]
     public async Task Copilot_resolves_its_command_name_but_not_its_display_name()
     {
-        IHarnessAdapter[] shipped =
-        [
-            new OpenCodeAdapter(),
-            new KiloAdapter(),
-            new CopilotCliAdapter(),
-            new PiAdapter(),
-            new CodexAdapter(),
-            new ClaudeCodeAdapter()
-        ];
+        IHarnessAdapter[] shipped = ShippedAdapters();
 
         // Compare against the instance inside `shipped`, not a fresh
         // construction: TryResolve hands back the registered adapter, so
         // reference identity is the thing under test.
-        CopilotCliAdapter copilot = (CopilotCliAdapter)shipped[2];
+        CopilotCliAdapter copilot = shipped.OfType<CopilotCliAdapter>().Single();
 
         // Display name is a label, not a token. `launch "GitHub Copilot CLI"`
         // failing is the intended contract, not an oversight.
@@ -223,6 +203,84 @@ public class ShippedAdapterContractTests
         await Assert.That(HarnessLookup.TryResolve(shipped, "github-copilot-cli").Value)
             .IsSameReferenceAs(copilot);
         await Assert.That(HarnessLookup.TryResolve(shipped, "GitHub Copilot CLI").Success).IsFalse();
+    }
+}
+
+/// <summary>
+/// The GUI members of <c>HarnessMetadata</c>, per Kind: Kind=Cli adapters
+/// pass both GUI members empty - the CLI path configures the way it always
+/// has - and the shipped Kind=Gui adapter declares the researched values the
+/// flow's discovery, detection, surface gating, and refusal prose depend on.
+/// </summary>
+public class GuiAdapterContractTests
+{
+    private static IHarnessAdapter[] ShippedAdapters() =>
+    [
+        new OpenCodeAdapter(),
+        new OpenCodeDesktopAdapter(),
+        new KiloAdapter(),
+        new CopilotCliAdapter(),
+        new PiAdapter(),
+        new CodexAdapter(),
+        new ClaudeCodeAdapter()
+    ];
+
+    [Test]
+    public async Task Cli_adapters_declare_no_gui_members()
+    {
+        foreach (IHarnessAdapter adapter in ShippedAdapters().Where(a => a.Metadata.Kind == HarnessKind.Cli))
+        {
+            // Empty, not absent: discovery and detection read these members
+            // unconditionally, so a CLI adapter passing empties is what
+            // keeps it out of both mechanisms rather than a null special
+            // case somewhere in the flow.
+            await Assert.That(adapter.Metadata.SupportedSurfaces).IsEmpty();
+            await Assert.That(adapter.Metadata.InstanceProcessNames).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Exactly_one_gui_adapter_ships_today()
+    {
+        // GUI support shipped with OpenCode Desktop as its first entry; a
+        // second GUI harness is a deliberate registry change, and this pin
+        // makes adding one a conscious edit rather than an accident.
+        IHarnessAdapter[] guiAdapters = [.. ShippedAdapters().Where(a => a.Metadata.Kind == HarnessKind.Gui)];
+
+        await Assert.That(guiAdapters.Length).IsEqualTo(1);
+        await Assert.That(guiAdapters[0].Metadata.CommandName).IsEqualTo("opencode-desktop");
+    }
+
+    [Test]
+    public async Task Opencode_desktop_declares_its_researched_gui_members()
+    {
+        IHarnessAdapter adapter = ShippedAdapters().OfType<OpenCodeDesktopAdapter>().Single();
+        HarnessMetadata metadata = adapter.Metadata;
+
+        await Assert.That(metadata.Kind).IsEqualTo(HarnessKind.Gui);
+        await Assert.That(metadata.CommandName).IsEqualTo("opencode-desktop");
+
+        // Environment and Files are the surfaces the desktop app's sidecar
+        // actually reads; Flags is deliberately absent - the embedded server
+        // parses no command line.
+        await Assert.That(metadata.SupportedSurfaces)
+            .IsEquivalentTo([ConfigurationSurface.Environment, ConfigurationSurface.Files]);
+
+        // Declared-name order is discovery's first-match order: the Windows
+        // image name, the macOS bundle and the process name it runs as, then
+        // the Linux executable.
+        await Assert.That(metadata.InstanceProcessNames).IsEquivalentTo(
+            ["OpenCode.exe", "OpenCode.app", "OpenCode", "ai.opencode.desktop"]);
+
+        // The unavailable refusal quotes the install hint verbatim, so it
+        // must carry the real install story, not a placeholder.
+        await Assert.That(metadata.InstallHint).Contains("brew install --cask opencode-desktop");
+        await Assert.That(metadata.InstallHint).Contains("https://opencode.ai/download");
+
+        // The protocol vocabulary mirrors the CLI sibling - the two speak
+        // the same backends through different surfaces.
+        await Assert.That(metadata.SupportedProtocols)
+            .IsEquivalentTo([ProtocolKind.OpenAiChat, ProtocolKind.OpenAiResponses, ProtocolKind.Anthropic]);
     }
 }
 
