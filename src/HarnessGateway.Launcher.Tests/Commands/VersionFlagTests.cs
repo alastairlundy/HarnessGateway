@@ -151,6 +151,11 @@ public class VersionFlagTests
             throw new InvalidOperationException("The version flag must never reach the launch runner.");
         }
 
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             throw new InvalidOperationException("The version flag must never reach the launch runner.");

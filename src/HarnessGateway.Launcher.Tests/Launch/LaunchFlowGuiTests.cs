@@ -500,6 +500,9 @@ public class LaunchFlowGuiTests
             await Assert.That(completed.Payload).IsEqualTo(new CompletedPayload.ExitStatus(7));
             await Assert.That(runner.RunCallCount).IsEqualTo(1);
             await Assert.That(runner.HandoffCallCount).IsEqualTo(0);
+            // The blocking GUI wait has no timeout: the launch routed through
+            // the runner's unbounded member, not the CLI's default bounded run.
+            await Assert.That(runner.NoTimeoutRunCallCount).IsEqualTo(1);
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(ConfigOriginal);
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
@@ -692,11 +695,15 @@ public class LaunchFlowGuiTests
     /// <summary>
     /// The runner fake this suite observes: a fixed blocking exit status, a
     /// fixed handoff pid, per-mode call counts, the plan it was handed, and
-    /// an optional fault per mode for the restore paths.
+    /// an optional fault per mode for the restore paths. The two blocking
+    /// members share one core - counted together in RunCallCount, with
+    /// NoTimeoutRunCallCount pinning which member the flow routed to.
     /// </summary>
     private sealed class RecordingLaunchRunner : ILaunchRunner
     {
         public int RunCallCount { get; private set; }
+
+        public int NoTimeoutRunCallCount { get; private set; }
 
         public int HandoffCallCount { get; private set; }
 
@@ -708,14 +715,12 @@ public class LaunchFlowGuiTests
 
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
-            RunCallCount++;
-            LastPlan = plan;
-            if (RunFault is not null)
-            {
-                throw RunFault;
-            }
+            return BlockingRunCoreAsync(plan, noTimeoutMember: false);
+        }
 
-            return Task.FromResult(7);
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return BlockingRunCoreAsync(plan, noTimeoutMember: true);
         }
 
         public int Handoff(LaunchPlan plan)
@@ -728,6 +733,23 @@ public class LaunchFlowGuiTests
             }
 
             return HandedOffProcessId;
+        }
+
+        private async Task<int> BlockingRunCoreAsync(LaunchPlan plan, bool noTimeoutMember)
+        {
+            RunCallCount++;
+            if (noTimeoutMember)
+            {
+                NoTimeoutRunCallCount++;
+            }
+
+            LastPlan = plan;
+            if (RunFault is not null)
+            {
+                throw RunFault;
+            }
+
+            return 7;
         }
     }
 }

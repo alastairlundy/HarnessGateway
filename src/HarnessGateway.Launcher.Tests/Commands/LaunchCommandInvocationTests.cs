@@ -271,6 +271,11 @@ public class LaunchCommandInvocationTests
             return Task.FromResult(exitCode);
         }
 
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             return exitCode;

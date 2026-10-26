@@ -1682,6 +1682,11 @@ public class LaunchFlowTests
             return Task.FromResult(0);
         }
 
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             return 0;
@@ -1695,6 +1700,11 @@ public class LaunchFlowTests
             throw exception;
         }
 
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             throw exception;
@@ -1706,6 +1716,11 @@ public class LaunchFlowTests
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return onRun(plan);
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
         }
 
         public int Handoff(LaunchPlan plan)
@@ -1724,6 +1739,11 @@ public class LaunchFlowTests
         {
             RunCallCount++;
             return Task.FromResult(0);
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
         }
 
         public int Handoff(LaunchPlan plan)

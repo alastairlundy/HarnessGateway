@@ -294,6 +294,11 @@ public class LaunchOrchestratorTests
             return Task.FromResult(0);
         }
 
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             return 0;
@@ -305,6 +310,11 @@ public class LaunchOrchestratorTests
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return onRun(plan);
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
         }
 
         public int Handoff(LaunchPlan plan)

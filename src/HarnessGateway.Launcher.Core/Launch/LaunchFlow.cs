@@ -245,10 +245,24 @@ public sealed class LaunchFlow
                     await ExecuteConfigurationActionAsync(action, ct).ConfigureAwait(false);
                 }
 
-                completed = detached
-                    ? new CompletedPayload.HandedOff(_runner.Handoff(plan))
-                    : new CompletedPayload.ExitStatus(
-                        await _runner.RunAsync(plan, ct).ConfigureAwait(false));
+                if (detached)
+                {
+                    completed = new CompletedPayload.HandedOff(_runner.Handoff(plan));
+                }
+                else
+                {
+                    // The blocking wait is where the two kinds diverge: a GUI
+                    // launch waits on a human closing the application, so its
+                    // run carries no timeout - the process library's default
+                    // 2-minute bound would kill the app mid-session. A CLI
+                    // launch keeps the default bounded run it has always had.
+                    Task<int> blockingRun = adapter.Metadata.Kind == HarnessKind.Gui
+                        ? _runner.RunWithoutTimeoutAsync(plan, ct)
+                        : _runner.RunAsync(plan, ct);
+
+                    completed = new CompletedPayload.ExitStatus(
+                        await blockingRun.ConfigureAwait(false));
+                }
             }
             finally
             {
