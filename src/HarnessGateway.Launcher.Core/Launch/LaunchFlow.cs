@@ -199,7 +199,8 @@ public sealed class LaunchFlow
                 PersistDefaultModel(settings, backend, resolvedModel);
             }
 
-            return new LaunchCompleted(exitStatus);
+            // Blocking run: the payload is the exit status this flow waited on.
+            return new LaunchCompleted(new CompletedPayload.ExitStatus(exitStatus));
         }
         catch (UnsupportedSettingsSchemaException ex)
         {

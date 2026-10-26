@@ -85,7 +85,8 @@ public class LaunchOrchestratorTests
     public async Task MapOutcomeAsync_completed_carries_the_harness_exit_status()
     {
         (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-            LaunchOrchestrator.MapOutcomeAsync(new LaunchCompleted(42)));
+            LaunchOrchestrator.MapOutcomeAsync(
+                new LaunchCompleted(new CompletedPayload.ExitStatus(42))));
 
         await Assert.That(exitCode).IsEqualTo(42);
         // A completed launch prints nothing on stderr.

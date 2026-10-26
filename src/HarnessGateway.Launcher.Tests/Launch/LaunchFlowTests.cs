@@ -210,6 +210,14 @@ public class LaunchFlowTests
         DefaultBackend = name,
     };
 
+    /// <summary>
+    /// The blocking-run payload these CLI-shaped tests assert on, read
+    /// through a cast that fails loudly if a completed outcome ever carries
+    /// the detached <see cref="CompletedPayload.HandedOff"/> variant instead.
+    /// </summary>
+    private static int ExitStatusOf(LaunchCompleted completed) =>
+        ((CompletedPayload.ExitStatus)completed.Payload).Value;
+
     // --- Restore guarantee: structural, on every exit path ---
 
     [Test]
@@ -291,7 +299,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // Nothing was ever registered, so the restore was a clean no-op.
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
@@ -312,7 +320,7 @@ public class LaunchFlowTests
                 new LaunchRequest("ConfigWriter", null, null, null, null, ["config"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo("{\"modified\":true}");
         }
         finally
@@ -473,7 +481,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, "gpt-5", ["model"], "sk-session"));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             // The launch copy carries the secret...
             await Assert.That(adapter.LastRequest).IsNotNull();
@@ -794,7 +802,7 @@ public class LaunchFlowTests
                     "ConfigWriter", null, null, null, "gpt-5", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // Both post-conditions of one call: the restore put the original
             // config back, and the model landed in settings afterwards.
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(originalConfig);
@@ -859,7 +867,7 @@ public class LaunchFlowTests
                     "TestAgent", null, "https://api.example.com/v1", "openai-chat", null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.BaseUri)
                 .IsEqualTo(new Uri("https://api.example.com/v1"));
@@ -884,7 +892,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("default");
         }
@@ -908,7 +916,7 @@ public class LaunchFlowTests
                     new LaunchRequest("TestAgent", null, null, null, null, [], null)));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(errorOutput).Contains("requires a model but none was specified");
             // The warning never blocks: planning still produced a request.
             await Assert.That(adapter.LastRequest).IsNotNull();
@@ -933,7 +941,7 @@ public class LaunchFlowTests
                     new LaunchRequest("TestAgent", null, null, null, "gpt-4", [], null)));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
             await Assert.That(adapter.LastRequest).IsNotNull();
         }
@@ -957,7 +965,7 @@ public class LaunchFlowTests
                     new LaunchRequest("TestAgent", null, null, null, null, [], null)));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
         }
         finally
@@ -1000,7 +1008,7 @@ public class LaunchFlowTests
                 new LaunchRequest("codex", null, null, null, "gpt-5", [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // The launch saw the launcher-owned provider block...
             await Assert.That(contentDuringLaunch).IsNotNull();
             await Assert.That(contentDuringLaunch!).Contains("[model_providers.harnessgateway]");
@@ -1033,7 +1041,7 @@ public class LaunchFlowTests
                 new LaunchRequest("CODEX", null, null, null, "gpt-5", ["config"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             string content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).Contains("[model_providers.harnessgateway]");
@@ -1078,7 +1086,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
@@ -1148,7 +1156,7 @@ public class LaunchFlowTests
                 new LaunchRequest("CLAUDE-CODE", null, null, null, "claude-sonnet-5", [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
             IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
@@ -1206,7 +1214,7 @@ public class LaunchFlowTests
                 new LaunchRequest("claude-code", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
             IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
@@ -1260,7 +1268,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, "gpt-4", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             string fileBytes = await File.ReadAllTextAsync(
                 Path.Combine(settingsDir, "HarnessGateway-launcher.json"));
@@ -1301,7 +1309,7 @@ public class LaunchFlowTests
                     "sk-wizard-only"));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-wizard-only");
 
             // Launch-copy-only: an ad-hoc override against an empty settings
@@ -1347,7 +1355,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], "sk-explicit"));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-explicit");
 
             // The override is launch-copy-only: the stored entry keeps its
@@ -1402,7 +1410,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", "secondary", null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
             // The selection's stored key is the only credential source,
@@ -1461,7 +1469,7 @@ public class LaunchFlowTests
                     null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.BaseUri)
                 .IsEqualTo(new Uri("https://override.example/v1"));
@@ -1510,7 +1518,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", "secondary", null, null, "gpt-5", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             // Persisting the model never re-points DefaultBackend: selecting
             // a backend per launch has no settings side effect beyond the
@@ -1540,7 +1548,7 @@ public class LaunchFlowTests
                     "TestAgent", null, "https://raw.example/v1", "openai-chat", "gpt-5", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             // No stored entry exists to persist onto, so nothing is written -
             // an ad-hoc override never becomes a settings entry.
@@ -1614,7 +1622,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
             await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
 

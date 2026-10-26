@@ -66,7 +66,17 @@ public sealed class LaunchOrchestrator
         switch (outcome)
         {
             case LaunchCompleted completed:
-                return completed.ExitStatus;
+                // The payload is mode-honest: a blocking run's exit status
+                // passes through untouched, and a detached start reports the
+                // handoff it already succeeded at as Ok - there is no exit
+                // code to wait for.
+                return completed.Payload switch
+                {
+                    CompletedPayload.ExitStatus exitStatus => exitStatus.Value,
+                    CompletedPayload.HandedOff => (int)LaunchExitCode.Ok,
+                    _ => throw new InvalidOperationException(
+                        $"unexpected completed payload variant '{completed.Payload?.GetType().Name}'"),
+                };
 
             case LaunchRefused refused:
                 // User-rectifiable: the message the flow composed Core-side
