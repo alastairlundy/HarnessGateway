@@ -49,9 +49,7 @@ namespace HarnessGateway.Launcher.Core.Adapters;
 /// <para>
 /// Config files: the app chdirs to the home directory at startup
 /// (packages/desktop/src/main/index.ts), so the launcher's working directory
-/// does not select the project config the sidecar reads - which is why this
-/// adapter plans environment-only configuration and never writes a key or a
-/// config file to disk.
+/// does not select the project config the sidecar reads.
 /// </para>
 /// </remarks>
 public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
@@ -71,7 +69,9 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
     /// same location the vendor's own issue tracker quotes): the NSIS
     /// installer lays this build down per-user, under a directory name no
     /// repository configuration declares and no discovery root scans. Used
-    /// only when it exists - see <see cref="LaunchTarget"/>.
+    /// only when it exists - otherwise <see cref="LaunchTarget"/> falls back
+    /// to the bare name, which resolves case-insensitively on Windows and can
+    /// hand back the CLI sibling's binary instead of this app.
     /// </summary>
     private static readonly string WindowsLaunchTarget = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -191,16 +191,12 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
     }
 
     /// <summary>
-    /// The file this adapter starts. Availability stays discovery's answer,
-    /// and this only says what to run once discovery says yes - but the plan
-    /// has to name a file, and on two of the three platforms the file that
-    /// starts is not the file a bare-name lookup would return:
-    /// macOS starts the executable inside the bundle discovery matched, and
-    /// Windows prefers the per-user install location (which discovery does not
-    /// scan) over the bare name - because a bare "OpenCode.exe" resolves
-    /// case-insensitively and can hand back the CLI sibling's binary instead
-    /// of this app. Linux takes the bare name, which is where the packaging
-    /// symlink puts it.
+    /// The file this adapter starts. Availability stays discovery's answer;
+    /// this only says what to run once discovery says yes - and on two of the
+    /// three platforms the file that starts is not the file a bare-name lookup
+    /// would return (see <see cref="MacosLaunchTarget"/> and
+    /// <see cref="WindowsLaunchTarget"/>). Linux takes the packaged name,
+    /// which is where the packaging symlink puts it.
     /// </summary>
     private static string LaunchTarget()
     {

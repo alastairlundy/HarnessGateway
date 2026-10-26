@@ -23,12 +23,7 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// this flow executes their plans and interposes the guarantee. Refusals never
 /// cross this seam as exceptions; <see cref="LaunchRefusalException"/> from an
 /// adapter's planning step is caught here and folded into the outcome family.
-/// The GUI behaviors sit inside that same pipeline: discovery-backed
-/// availability, the <c>--confirm-running</c> misuse check, the live-instance
-/// confirmation through an injected prompt, declared-surface gating for
-/// configuration and keys, and mode dispatch between blocking run and
-/// detached handoff - every one of them still under the one restore
-/// try/finally, with refusal messages composed here Core-side.
+/// GUI refusals are composed here Core-side rather than in the exe.
 /// </remarks>
 public sealed class LaunchFlow
 {
@@ -69,9 +64,7 @@ public sealed class LaunchFlow
     /// <summary>
     /// Executes one launch submission and returns its terminal outcome. The
     /// working directory is captured from <see cref="Environment.CurrentDirectory"/>
-    /// at call time (decision I003): both callers used to pass
-    /// <c>Directory.GetCurrentDirectory()</c>, the same value for an in-process
-    /// CLI, so <see cref="LaunchRequest"/> stays purely declarative.
+    /// at call time so <see cref="LaunchRequest"/> stays purely declarative.
     /// </summary>
     public async Task<LaunchOutcome> ExecuteAsync(LaunchRequest request, CancellationToken ct = default)
     {
@@ -175,9 +168,7 @@ public sealed class LaunchFlow
             backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, ct).ConfigureAwait(false);
 
             // The wizard's collected key (and only that carry-over) overrides
-            // on this local copy, never on the stored entry: `settings` keeps
-            // carrying its reference, so a later Save (PersistDefaultModel)
-            // can never write the launch-time secret back out. The wizard
+            // on this local copy, never on the stored entry. The wizard
             // supplies a key only when the resolved entry had none or the user
             // typed one, so this layering can only fill a gap; it never masks
             // a stored key with a stale copy.
@@ -254,8 +245,6 @@ public sealed class LaunchFlow
                     await ExecuteConfigurationActionAsync(action, ct).ConfigureAwait(false);
                 }
 
-                // The payload is built by mode: the exit status this flow
-                // waited on, or the process id it handed off to.
                 completed = detached
                     ? new CompletedPayload.HandedOff(_runner.Handoff(plan))
                     : new CompletedPayload.ExitStatus(
@@ -276,8 +265,6 @@ public sealed class LaunchFlow
                 PersistDefaultModel(settings, backend, resolvedModel);
             }
 
-            // The completed outcome carries the mode-honest payload: the
-            // exit status this flow waited on, or the handoff it returned at.
             return new LaunchCompleted(completed);
         }
         catch (UnsupportedSettingsSchemaException ex)

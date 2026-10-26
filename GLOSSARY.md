@@ -8,6 +8,10 @@ An API endpoint a harness is pointed at, identified by a base URL and a protocol
 
 A step the launcher performs to make a harness use a chosen backend: passing CLI flags or writing a harness config file. Harness environment variables are not configuration actions — they ride the spawned process plan and never mutate the launcher's own environment.
 
+## Configuration surface
+
+A mechanism a harness can be handed launcher configuration through: environment variables, command-line flags, or configuration files. The launcher only uses the ones a harness declares, and picks no surface of its own.
+
 ## Default endpoint
 
 The user-saved backend that `launch` uses when no per-launch endpoint override is given.

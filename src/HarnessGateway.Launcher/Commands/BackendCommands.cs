@@ -82,8 +82,7 @@ internal sealed class BackendCommands : Command
             // Parse the flags once, before the create-vs-update branch: the
             // both-flags guard above and Resolve's pairing and format checks
             // have already accepted both values; this single pattern is what
-            // proves their non-nullness to the compiler, replacing the two
-            // suppressions that used to lean on two methods' failure orderings.
+            // proves their non-nullness to the compiler.
             (Uri BaseUri, ProtocolKind Protocol)? overridePair =
                 endpoint is { } endpointValue && protocol is { } protocolValue
                     ? (LaunchCommand.ParseEndpoint(endpointValue), LaunchCommand.ParseProtocol(protocolValue))

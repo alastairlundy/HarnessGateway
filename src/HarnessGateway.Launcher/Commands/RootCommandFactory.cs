@@ -19,11 +19,7 @@ public static class RootCommandFactory
     /// (<c>0.1.0</c>) and nothing more. The csproj sets
     /// <c>IncludeSourceRevisionInInformationalVersion=false</c> so SourceLink's
     /// "+&lt;sha&gt;" commit suffix is never stamped on - the flag's output is
-    /// exactly the pin, bare Major.Minor.Patch. This is the build's identity
-    /// in the field. It is deliberately not the
-    /// settings <c>schemaVersion</c>, which describes the settings file's
-    /// shape and is reported only by <c>config get schemaVersion</c> - the
-    /// two never share a surface.
+    /// exactly the pin, bare Major.Minor.Patch: the build's identity in the field.
     /// </summary>
     public static string InformationalVersion { get; } = ReadInformationalVersion();
 
@@ -52,9 +48,7 @@ public static class RootCommandFactory
         // process that parses this command - a test host would report its own
         // version. Re-point the action at the Launcher assembly so the flag
         // always reports this build's identity (the csproj pin), whatever the
-        // host is. Adding a second, duplicate `--version` option instead is
-        // not an option: the built-in symbol wins the token and the duplicate
-        // silently never runs.
+        // host is.
         VersionOption versionOption = rootCommand.Options.OfType<VersionOption>().Single();
         versionOption.Action = new PrintInformationalVersionAction();
 
@@ -71,9 +65,7 @@ public static class RootCommandFactory
     }
 
     /// <summary>
-    /// Prints the Launcher assembly's informational version and exits 0.
-    /// Nothing else is ever reported: not settings <c>schemaVersion</c>, not
-    /// the entry assembly, not help text.
+    /// Prints <see cref="InformationalVersion"/> and exits 0.
     /// </summary>
     private sealed class PrintInformationalVersionAction : SynchronousCommandLineAction
     {

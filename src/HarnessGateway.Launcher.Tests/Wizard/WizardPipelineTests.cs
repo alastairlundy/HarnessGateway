@@ -195,9 +195,6 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_empty_endpoint_reprompts_instead_of_aborting()
     {
-        // A blank endpoint used to return null from the pipeline, which the
-        // root action mapped to exit 0 with no output - a silent "crash" the
-        // user saw as soon as they left the URL empty.
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try
         {
@@ -293,7 +290,8 @@ public class WizardPipelineTests
 
             await Assert.That(result).IsNull();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
-            // The store throws AbsentKey at its source; the resolver no longer wraps it.
+            // The store throws AbsentKey at its source, so the surfaced
+            // message is the store's own.
             await Assert.That(console.ErrorMessages[0]).Contains("No stored API key found");
             await Assert.That(console.ErrorMessages[0]).Contains("hgkey:default");
         }

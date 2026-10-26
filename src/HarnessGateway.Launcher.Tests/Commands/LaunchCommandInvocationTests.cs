@@ -14,10 +14,9 @@ namespace HarnessGateway.Launcher.Tests.Commands;
 /// <summary>
 /// Regression tests for the launch wiring: `harnessgateway launch <harness>`
 /// must reach the orchestrator through the real parse-and-invoke pipeline.
-/// The launch subcommand previously had no action of its own, and
-/// System.CommandLine's no-action fallback silently succeeded with exit 0 -
-/// while every orchestrator-level test kept passing, because they call
-/// RunAsync directly instead of parsing.
+/// System.CommandLine's no-action fallback silently succeeds with exit 0, and
+/// the orchestrator-level tests call RunAsync directly instead of parsing, so
+/// neither can catch missing wiring on its own.
 /// </summary>
 public class LaunchCommandInvocationTests
 {

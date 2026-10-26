@@ -866,9 +866,8 @@ public class LaunchFlowTests
         }
     }
 
-    // --- End-to-end scenarios migrated from the orchestrator suite:
-    //     same coverage, re-pointed onto the flow; assertions now speak the
-    //     outcome vocabulary, never exit codes. ---
+    // --- End-to-end scenarios: assertions speak the outcome vocabulary,
+    //     never exit codes. ---
 
     [Test]
     public async Task ExecuteAsync_endpoint_and_protocol_override_builds_an_ad_hoc_backend()
@@ -1061,7 +1060,6 @@ public class LaunchFlowTests
             string content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).Contains("[model_providers.harnessgateway]");
             await Assert.That(content).Contains("model_provider = \"harnessgateway\"");
-            // Persisting consumed the backup marker.
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
         finally
@@ -1073,8 +1071,6 @@ public class LaunchFlowTests
     [Test]
     public async Task ExecuteAsync_restricted_protocol_adapter_launches_when_the_pairing_matches()
     {
-        // A restricted fake harness that only speaks openai-chat, pointed at
-        // a matching backend: compatible pairings launch.
         TestHarnessAdapter adapter = new(
             "TestAgent",
             supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
@@ -1306,9 +1302,8 @@ public class LaunchFlowTests
     {
         // First-run wizard shape: no saved backend at all, so resolution
         // builds the ad-hoc override entry with no key. The key the wizard
-        // collected must ride the invocation - this is the regression the
-        // silent-fail bug shipped - and the ad-hoc launch must never create
-        // a settings file.
+        // collected must ride the invocation, and the ad-hoc launch must
+        // never create a settings file.
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(adapter: adapter);
         try

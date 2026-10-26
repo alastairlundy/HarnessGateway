@@ -170,7 +170,7 @@ public sealed class WizardPipeline
             return (null, WizardAbortReason.NoHarnessInstalled);
         }
 
-        // Dead-end guard (decision 4): if no harness can satisfy the protocol
+        // Dead-end guard: if no harness can satisfy the protocol
         // this flow will enforce, abort instead of re-prompting forever.
         if (protocolToCheck is not null && !AnyAdapterSupports(protocolToCheck.Value))
         {

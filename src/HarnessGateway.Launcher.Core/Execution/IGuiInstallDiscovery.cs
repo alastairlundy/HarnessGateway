@@ -4,7 +4,7 @@ namespace HarnessGateway.Launcher.Core.Execution;
 /// Where a Kind=Gui harness's executable actually is: the launcher asks the
 /// operating system at launch time instead of trusting a declared path, so
 /// availability stays truthful as apps install, update, or move. This is the
-/// seam that supersedes adapter-declared install-path probing (D009): the
+/// seam that supersedes adapter-declared install-path probing: the
 /// harness's declared identity strings are the only per-harness input, and the
 /// conventional install roots are launcher-owned operating-system facts.
 /// </summary>

@@ -130,7 +130,7 @@ public sealed class LaunchOrchestrator
             or LaunchRefusalKind.DanglingDefaultBackend
             or LaunchRefusalKind.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
         // Pair-rule and invalid-override refusals keep the resolution
-        // failure's historical default: usage error.
+        // failure's default: usage error.
         LaunchRefusalKind.ProtocolWithoutEndpoint
             or LaunchRefusalKind.EndpointWithoutProtocol
             or LaunchRefusalKind.InvalidEndpoint

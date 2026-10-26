@@ -37,8 +37,7 @@ IRunningInstanceDetector instanceDetector = CreateInstanceDetector();
 IConfirmationPrompt confirmationPrompt = new TerminalConfirmationPrompt();
 
 // One flow, both callers: the CLI-side orchestrator and the wizard
-// handoff below both submit a LaunchRequest through this single LaunchFlow,
-// so there is no second launch-order convention in the exe.
+// handoff below both submit through this instance.
 LaunchFlow flow = new(
     settingsStore,
     backupService,
@@ -49,9 +48,6 @@ LaunchFlow flow = new(
     instanceDetector,
     confirmationPrompt);
 LaunchOrchestrator orchestrator = new(flow);
-// The wizard is the no-args root action and, via LaunchCommand's own
-// action, also what a bare `launch` runs - one implementation, two entry
-// points, so the two can never drift in exception handling or exit codes.
 async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 {
     SpectreConsoleAbstraction console = new();
@@ -90,12 +86,6 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 
     WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
 
-    // The wizard handoff is the flow's second caller: it
-    // builds the complete declarative LaunchRequest here - every decision is
-    // visible in this construction - and submits it to the same flow the
-    // direct CLI path uses. The wizard pipeline itself stays write-free: it
-    // only produced this input; the flow owns everything that follows.
-    //
     // The collected ApiKey must ride as SessionKey - without it the launch
     // proceeds with no credential at all on a first run, and the harness
     // fails auth downstream with no clue that the key the user typed was

@@ -11,9 +11,7 @@ public sealed class LaunchCommand : Command
         // harness are still rejected (see the validator below).
         //
         // The Description is set in the constructor from the adapter list, not
-        // here: a handwritten name list drifts from Program.cs's registry, and
-        // it already had to lie once (it advertised "copilot" while lookup
-        // matched "GitHub Copilot CLI").
+        // here: a handwritten name list would drift from Program.cs's registry.
         Arity = ArgumentArity.ZeroOrOne,
     };
 
@@ -46,10 +44,10 @@ public sealed class LaunchCommand : Command
     public static readonly Option<bool> ConfirmRunningOption = new("--confirm-running")
     {
         // A flag, not a valued option: it carries a yes/no the terminal would
-        // otherwise collect, so the token is the whole spelling. No short alias
-        // (D008: skip everywhere, no new short flags), and deliberately no
-        // harness-kind gate here - whether the flag is misused against a
-        // Kind=Cli harness is the flow's refusal to make, not a parse error.
+        // otherwise collect, so the token is the whole spelling. Deliberately
+        // no harness-kind gate here either - whether the flag is misused
+        // against a Kind=Cli harness is the flow's refusal to make, not a
+        // parse error.
         Description = "Confirm a running instance of the harness instead of being prompted (GUI harnesses)",
     };
 
@@ -185,11 +183,6 @@ public sealed class LaunchCommand : Command
                     "wire one via the internal constructor before invoking 'launch <harness>'.");
             }
 
-            // The direct CLI path never carries a launch-time key: keys are a
-            // stored-entry concern here (set via 'config backend set-key'),
-            // which the flow's resolution already handles. The orchestrator
-            // builds the LaunchRequest from these parsed flags (SessionKey
-            // stays null) and submits it to the shared launch flow.
             return await orchestrator.RunAsync(
                 harness,
                 backendName,

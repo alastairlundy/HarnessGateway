@@ -4,10 +4,9 @@ using CliInvoke.Builders;
 namespace HarnessGateway.Launcher.Core.Settings.Security;
 
 /// <summary>
-/// Shared CliInvoke plumbing for the two process-backed key stores. Follows the
-/// repo rule of never touching <c>System.Diagnostics.Process</c>, and is the only
-/// place a store passes a secret to a child process - always on stdin, never on
-/// argv.
+/// Shared CliInvoke plumbing for the two process-backed key stores. The only
+/// place a store passes a secret to a child process - always on stdin, never
+/// on argv.
 /// </summary>
 internal static class SecureKeyStoreProcess
 {

@@ -266,9 +266,7 @@ public class GuiAdapterContractTests
         await Assert.That(metadata.SupportedSurfaces)
             .IsEquivalentTo([ConfigurationSurface.Environment, ConfigurationSurface.Files]);
 
-        // Declared-name order is discovery's first-match order: the Windows
-        // image name, the macOS bundle and the process name it runs as, then
-        // the Linux executable.
+        // Declared-name order is discovery's first-match order.
         await Assert.That(metadata.InstanceProcessNames).IsEquivalentTo(
             ["OpenCode.exe", "OpenCode.app", "OpenCode", "ai.opencode.desktop"]);
 

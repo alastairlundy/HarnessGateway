@@ -144,7 +144,12 @@ instead. The wizard
 prompts for the harness, endpoint, key, and model, in that order. For the model step it
 fetches the endpoint's model list to fill in your choices, and falls back to
 free text if that request fails. Nothing it collects gets saved. Options
-without a harness are a parse error, not a silently ignored flag.
+without a harness are a parse error, not a silently ignored flag. An aborted
+wizard run exits with the same code the direct `launch` path returns for the
+equivalent condition: 0 when you cancel, 3 when no installed harness speaks
+the chosen protocol, 4 when nothing is installed, 8 for a default-backend
+pointer problem, 7 for a credential-store failure. Exit status alone cannot
+tell you which entry point you ran.
 
 ### Choosing a backend
 

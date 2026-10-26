@@ -55,8 +55,8 @@ public class BackendKeyResolverTests
             caught = ex;
         }
 
-        // The store classifies absence at its source; the resolver no longer
-        // wraps it, so the message the caller sees is the store's.
+        // The store classifies absence at its source, so the message the
+        // caller sees is the store's.
         await Assert.That(caught).IsNotNull();
         await Assert.That(caught!.Message)
             .IsEqualTo(SecureKeyStoreException.AbsentKey("hgkey:default").Message);
@@ -65,8 +65,8 @@ public class BackendKeyResolverTests
     [Test]
     public async Task Legacy_plaintext_key_passes_through_untouched()
     {
-        // Decision 1: only 007 ever writes references; an older plaintext value
-        // stays usable in memory until ticket 008 migrates it.
+        // Only the reference-writing path migrates a key, so an older
+        // plaintext value stays usable in memory as-is.
         FakeSecureKeyStore keyStore = new();
         Backend entry = Entry("sk-legacy");
 

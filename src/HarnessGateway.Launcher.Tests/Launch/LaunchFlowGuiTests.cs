@@ -17,8 +17,8 @@ namespace HarnessGateway.Launcher.Tests.Launch;
 /// chain (proceed, decline, bypass), declared-surface gating for keys and
 /// overrides, mode dispatch by persist, and the mode-honest completed
 /// payload - with the restore guarantee holding across every new branch.
-/// The GUI test adapter stands in for the not-yet-shipped Kind=Gui registry
-/// entry; no test here starts a real process or touches a real harness.
+/// The GUI test adapter stands in for a Kind=Gui registry entry; no test here
+/// starts a real process or touches a real harness.
 /// </summary>
 public class LaunchFlowGuiTests
 {

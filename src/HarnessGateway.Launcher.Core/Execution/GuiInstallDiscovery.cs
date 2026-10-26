@@ -12,9 +12,8 @@ namespace HarnessGateway.Launcher.Core.Execution;
 /// </summary>
 /// <remarks>
 /// Deliberately shallow: an executable must sit where a conventional install
-/// puts it (directly under a root). Portable installs elsewhere stay
-/// unsupported by design until a case exists for them, and a miss never
-/// throws - it is the input the caller's refusal is built from.
+/// puts it (directly under a root), and a miss never throws - it is the input
+/// the caller's refusal is built from.
 /// </remarks>
 public sealed class GuiInstallDiscovery : IGuiInstallDiscovery
 {

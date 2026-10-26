@@ -4,7 +4,8 @@ namespace HarnessGateway.Launcher.Core.Settings.Security;
 /// The one read rule for turning a stored <c>Backend.ApiKey</c> into a secret:
 /// a <see cref="KeyReference"/> resolves through the <see cref="ISecureKeyStore"/>,
 /// a null key stays null without touching the store (no dummy values), and
-/// any other value is a legacy plaintext key used as-is until ticket 008 migrates it.
+/// any other value is a legacy plaintext key, used as-is until plaintext
+/// keys are migrated.
 /// Always returns a fresh record, so the settings object itself is never mutated
 /// with secrets and every <c>Save</c> path keeps writing references.
 /// </summary>
