@@ -10,6 +10,7 @@ using HarnessGateway.Launcher.Wizard;
 List<IHarnessAdapter> adapters =
 [
     new OpenCodeAdapter(),
+    new OpenCodeDesktopAdapter(),
     new KiloAdapter(),
     new CopilotCliAdapter(),
     new PiAdapter(),
