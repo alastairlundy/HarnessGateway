@@ -1635,7 +1635,7 @@ public class LaunchFlowTests
     [Test]
     public async Task LaunchRequest_carries_no_resolved_secret_beyond_session_key()
     {
-        // The request is purely declarative: its seven fields are all
+        // The request is purely declarative: its fields are all
         // pre-resolution inputs. A Backend - the type that carries the
         // resolved secret - must not be reachable through any of them, and
         // SessionKey is the only secret-adjacent slot (a plain string the
@@ -1646,7 +1646,7 @@ public class LaunchFlowTests
             ",",
             properties.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal));
         await Assert.That(declaredNames).IsEqualTo(
-            "BackendName,Endpoint,Harness,Model,Persist,Protocol,SessionKey");
+            "BackendName,ConfirmRunning,Endpoint,Harness,Model,Persist,Protocol,SessionKey");
 
         await Assert.That(
             properties.Any(p => typeof(Backend).IsAssignableFrom(p.PropertyType))).IsFalse();

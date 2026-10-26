@@ -109,6 +109,46 @@ public class LaunchCommandFlagParsingTests
         await Assert.That(LaunchCommand.EndpointOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.ProtocolOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.PersistOption.Aliases).IsEmpty();
+        await Assert.That(LaunchCommand.ConfirmRunningOption.Aliases).IsEmpty();
+    }
+
+    [Test]
+    public async Task Parse_confirm_running_is_a_bare_long_form_flag()
+    {
+        // The flag carries a yes/no, so the token is the whole spelling: it
+        // parses as present/absent, never as a valued option.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult absent = command.Parse("launch opencode");
+        ParseResult present = command.Parse("launch opencode --confirm-running");
+
+        await Assert.That(present.Errors).IsEmpty();
+        await Assert.That(present.GetValue(LaunchCommand.ConfirmRunningOption)).IsTrue();
+        await Assert.That(absent.GetValue(LaunchCommand.ConfirmRunningOption)).IsFalse();
+    }
+
+    [Test]
+    public async Task Parse_confirm_running_without_agent_fails()
+    {
+        // Options without a harness stay a parse error for this flag too: the
+        // wizard fallback must not swallow it, and the wizard could not answer
+        // the running-instance question anyway.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch --confirm-running");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+        await Assert.That(result.Errors[0].Message).Contains("A harness identifier is required");
+    }
+
+    [Test]
+    public async Task Parse_confirm_running_with_a_cli_harness_is_accepted()
+    {
+        // Kind=Cli misuse is the flow's refusal to make (the parse layer never
+        // inspects the harness kind), so a CLI harness parses cleanly here.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --confirm-running");
+
+        await Assert.That(result.Errors).IsEmpty();
+        await Assert.That(result.GetValue(LaunchCommand.ConfirmRunningOption)).IsTrue();
     }
 
     [Test]

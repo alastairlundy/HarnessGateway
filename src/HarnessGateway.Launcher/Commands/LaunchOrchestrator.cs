@@ -28,12 +28,16 @@ public sealed class LaunchOrchestrator
     /// The direct CLI path: parsed flags and nothing more. The direct path
     /// never carries a launch-time key - keys are a stored-entry concern here
     /// (set via <c>config backend set-key</c>) - so the request always builds
-    /// with a null <see cref="LaunchRequest.SessionKey"/>.
+    /// with a null <see cref="LaunchRequest.SessionKey"/>. The
+    /// <paramref name="confirmRunning"/> fact rides verbatim from the flag: the
+    /// request builder never inspects the harness kind, because the misuse
+    /// refusal (flag against a Kind=Cli harness) belongs to the flow.
     /// </summary>
     public async Task<int> RunAsync(
         string agentName, string? backendName,
         string? endpoint, string? protocol,
         string? model, IReadOnlyList<string> persistValues,
+        bool confirmRunning = false,
         CancellationToken cancellationToken = default)
     {
         LaunchRequest request = new(
@@ -43,7 +47,8 @@ public sealed class LaunchOrchestrator
             protocol,
             model,
             persistValues,
-            SessionKey: null);
+            SessionKey: null,
+            ConfirmRunning: confirmRunning);
 
         LaunchOutcome outcome = await _flow.ExecuteAsync(request, cancellationToken)
             .ConfigureAwait(true);

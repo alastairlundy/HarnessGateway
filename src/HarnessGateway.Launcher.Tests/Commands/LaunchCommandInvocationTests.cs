@@ -131,6 +131,31 @@ public class LaunchCommandInvocationTests
     }
 
     [Test]
+    public async Task Invoke_launch_with_confirm_running_reaches_the_flow()
+    {
+        // The flag is parsed CLI-side and carried through the orchestrator
+        // into the LaunchRequest: a parse-only flag would leave this launch
+        // identical to one without it. The flow-side consumption (skip the
+        // prompt, or refuse on a Kind=Cli harness) is its own ticket's test.
+        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        (RootCommand root, _, string tempDir) = CreateRoot(adapter);
+        try
+        {
+            int exitCode = await root
+                .Parse("launch TestAgent --confirm-running " +
+                       "--endpoint https://api.example.com/v1 --protocol openai-chat")
+                .InvokeAsync();
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
+            await Assert.That(adapter.LastRequest).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Invoke_unknown_agent_surfaces_exit_3_instead_of_silent_success()
     {
         FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
