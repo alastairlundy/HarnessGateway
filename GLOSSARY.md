@@ -26,7 +26,7 @@ The ordered pipeline the launcher runs to resolve a backend and keys, write or r
 
 ## Launch outcome
 
-The closed set of terminal results a launch flow can produce: a refusal (user-rectifiable, no harness run) or a completed run carrying the harness's exit status.
+The closed set of terminal results a launch flow can produce: a refusal (user-rectifiable, no harness run), or a completed run carrying the harness's exit status when the launcher waited on the harness and a handoff fact when it returned without waiting.
 
 ## Restore guarantee
 
