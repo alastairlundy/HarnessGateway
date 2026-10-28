@@ -70,11 +70,9 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 
     WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
 
-    // The wizard handoff is the flow's second caller: it
-    // builds the complete declarative LaunchRequest here - every decision is
-    // visible in this construction - and submits it to the same flow the
-    // direct CLI path uses. The wizard pipeline itself stays write-free: it
-    // only produced this input; the flow owns everything that follows.
+    // The wizard handoff builds the LaunchRequest and submits it to the same
+    // flow the direct CLI path uses; the wizard pipeline itself stays
+    // write-free - the flow owns everything that follows.
     //
     // The collected ApiKey must ride as SessionKey - without it the launch
     // proceeds with no credential at all on a first run, and the harness
