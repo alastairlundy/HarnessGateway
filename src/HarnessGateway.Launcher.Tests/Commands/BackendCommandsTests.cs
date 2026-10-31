@@ -161,7 +161,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends.Count).IsEqualTo(1);
             await Assert.That(saved.Backends[0].Name).IsEqualTo("work");
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
@@ -214,7 +214,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends.Count).IsEqualTo(1);
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
             await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
@@ -246,7 +246,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
@@ -303,7 +303,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(prompt.CallCount).IsEqualTo(1);
@@ -456,7 +456,7 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("API key for backend 'work' saved.");
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
@@ -500,7 +500,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(prompt.CallCount).IsEqualTo(1);
@@ -568,7 +568,7 @@ public class BackendCommandsTests
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsNull();
         }
         finally
@@ -625,7 +625,7 @@ public class BackendCommandsTests
             await Assert.That(errorOutput).Contains("backend 'work'");
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsNull();
         }
         finally
@@ -663,7 +663,7 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("API key for backend 'work' cleared.");
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsNull();
             await Assert.That(keyStore.Contains("hgkey:work")).IsFalse();
             await Assert.That(keyStore.DeleteCallCount).IsEqualTo(1);
@@ -756,7 +756,7 @@ public class BackendCommandsTests
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
         }
         finally
@@ -788,7 +788,7 @@ public class BackendCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends.Count).IsEqualTo(1);
             await Assert.That(saved.Backends[0].Name).IsEqualTo("alpha");
             await Assert.That(keyStore.Contains("hgkey:beta")).IsFalse();
@@ -912,7 +912,7 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
             await Assert.That(errorOutput).Contains("backend 'beta'");
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends.Count).IsEqualTo(2);
             await Assert.That(keyStore.Contains("hgkey:beta")).IsTrue();
         }

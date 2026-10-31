@@ -302,28 +302,104 @@ public sealed class TomlDocumentEditor
     /// between previous structural content and the new block. Pure trivia documents
     /// (empty or comment-only) need no separator.
     /// </summary>
+    /// <remarks>
+    /// Probes the document's serialized tail from the syntax tree instead of
+    /// serializing the whole document: the tail after the last structural node is
+    /// exactly the end-of-line token, its trailing trivia, the node's trailing
+    /// trivia, the carrying table's trailing trivia, and the document's trailing
+    /// trivia, in serialization order - so the same
+    /// <c>EndsWith</c> checks the full text used to satisfy run over the tail alone.
+    /// </remarks>
     private List<SyntaxTrivia>? BuildAppendSeparator()
     {
-        string text = _document.ToString();
         bool hasStructure = _document.KeyValues.ChildrenCount > 0 || _document.Tables.ChildrenCount > 0;
-        if (text.Length == 0 || !hasStructure)
+        if (!hasStructure)
         {
             return null;
         }
 
+        string tail = ComputeDocumentTail();
+
         List<SyntaxTrivia> separator = [];
-        if (!text.EndsWith(_newLine, StringComparison.Ordinal))
+        if (!tail.EndsWith(_newLine, StringComparison.Ordinal))
         {
             separator.Add(CreateNewLineTrivia());
-            text += _newLine;
+            tail += _newLine;
         }
 
-        if (!text.EndsWith(_newLine + _newLine, StringComparison.Ordinal))
+        if (!tail.EndsWith(_newLine + _newLine, StringComparison.Ordinal))
         {
             separator.Add(CreateNewLineTrivia());
         }
 
         return separator;
+    }
+
+    /// <summary>
+    /// The serialized text that follows the last structural content of the
+    /// document. Tomlyn distributes the document tail onto the deepest last
+    /// node's end-of-line token and trailing trivia (the document node does not
+    /// carry it), so walking that chain reproduces the exact suffix of the
+    /// serialized output without serializing the untouched prefix.
+    /// </summary>
+    private string ComputeDocumentTail()
+    {
+        StringBuilder tail = new();
+
+        if (_document.Tables.ChildrenCount > 0)
+        {
+            TableSyntaxBase lastTable =
+                (TableSyntaxBase)_document.Tables.GetChild(_document.Tables.ChildrenCount - 1)!;
+            SyntaxNode lastNode = lastTable.Items.ChildrenCount > 0
+                ? ChildAt(lastTable.Items, lastTable.Items.ChildrenCount - 1)
+                : lastTable;
+            AppendTailFrom(tail, lastNode);
+
+            // The carrying table serializes its own trailing trivia after its
+            // last item, before anything that follows the document.
+            AppendTriviaText(tail, lastTable.TrailingTrivia);
+        }
+        else if (_document.KeyValues.ChildrenCount > 0)
+        {
+            AppendTailFrom(tail, ChildAt(_document.KeyValues, _document.KeyValues.ChildrenCount - 1));
+        }
+
+        AppendTriviaText(tail, _document.TrailingTrivia);
+        return tail.ToString();
+    }
+
+    private static void AppendTailFrom(StringBuilder tail, SyntaxNode node)
+    {
+        SyntaxToken? endOfLine = node switch
+        {
+            KeyValueSyntax key => key.EndOfLineToken,
+            TableSyntaxBase table => table.EndOfLineToken,
+            _ => null,
+        };
+
+        if (endOfLine is not null)
+        {
+            tail.Append(endOfLine.Text ?? string.Empty);
+            AppendTriviaText(tail, endOfLine.TrailingTrivia);
+        }
+
+        AppendTriviaText(tail, node.TrailingTrivia);
+    }
+
+    private static void AppendTriviaText(StringBuilder tail, List<SyntaxTrivia>? trivia)
+    {
+        if (trivia is null)
+        {
+            return;
+        }
+
+        foreach (SyntaxTrivia piece in trivia)
+        {
+            if (!string.IsNullOrEmpty(piece.Text))
+            {
+                tail.Append(piece.Text);
+            }
+        }
     }
 
     private KeyValueSyntax CreateKeyValue(string[] path, object? value)

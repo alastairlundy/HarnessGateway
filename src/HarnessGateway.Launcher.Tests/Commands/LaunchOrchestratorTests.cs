@@ -215,7 +215,7 @@ public class LaunchOrchestratorTests
             // The parsed --persist tokens rode the request: the flow's model
             // persist ran after run and restore.
             string settingsDir = Path.Combine(tempDir, "settings");
-            LauncherSettings savedSettings = new SettingsStore(settingsDir).Load();
+            LauncherSettings savedSettings = (await new SettingsStore(settingsDir).LoadAsync());
             await Assert.That(savedSettings.Backends[0].DefaultModel).IsEqualTo("gpt-4");
         }
         finally

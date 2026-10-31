@@ -6,7 +6,7 @@ public sealed record LauncherSettings
 {
     /// <summary>
     /// The schema version this build reads and writes. Version 1 is the legacy
-    /// shape (plaintext keys); <see cref="SettingsStore.Load"/> migrates it
+    /// shape (plaintext keys); <see cref="SettingsStore.LoadAsync"/> migrates it
     /// forward on read, so a fresh object and every file this tool writes carry
     /// the current version.
     /// </summary>

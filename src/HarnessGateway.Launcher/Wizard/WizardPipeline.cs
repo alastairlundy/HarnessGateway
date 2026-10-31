@@ -31,7 +31,7 @@ public sealed class WizardPipeline
     {
         try
         {
-        LauncherSettings settings = _settingsStore.Load();
+        LauncherSettings settings = await _settingsStore.LoadAsync(cancellationToken).ConfigureAwait(true);
 
         // Strict default-pointer read: no first-entry fallback.
         // A dangling or absent pointer is user-rectifiable - surface the

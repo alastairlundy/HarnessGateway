@@ -57,7 +57,9 @@ internal sealed class BackendCommands : Command
             string? protocol = result.GetValue(protocolOption);
             string? key = result.GetValue(keyOption);
 
-            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }
@@ -155,9 +157,11 @@ internal sealed class BackendCommands : Command
     {
         Command cmd = new("list", "List saved backend entries with the default marked");
 
-        cmd.SetAction((result) =>
+        cmd.SetAction(async (result, cancellationToken) =>
         {
-            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }
@@ -210,7 +214,9 @@ internal sealed class BackendCommands : Command
         {
             string name = result.GetRequiredValue(nameArg);
 
-            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }
@@ -289,7 +295,9 @@ internal sealed class BackendCommands : Command
             string name = result.GetRequiredValue(nameArg);
             string? key = result.GetValue(keyOption);
 
-            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }
@@ -349,7 +357,9 @@ internal sealed class BackendCommands : Command
         {
             string name = result.GetRequiredValue(nameArg);
 
-            if (!ConfigCommand.TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }

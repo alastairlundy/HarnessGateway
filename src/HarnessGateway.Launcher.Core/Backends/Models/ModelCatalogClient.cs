@@ -38,10 +38,14 @@ public sealed class ModelCatalogClient
             request.Headers.Authorization = new("Bearer", backend.ApiKey);
         }
 
-        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        OpenAiModelsResponse? openAiResponse = await response.Content.ReadFromJsonAsync<OpenAiModelsResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
+        OpenAiModelsResponse? openAiResponse =
+            await response.Content.ReadFromJsonAsync<OpenAiModelsResponse>(
+                    ModelCatalogJsonContext.Default.OpenAiModelsResponse,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
         List<ModelCatalogEntry> models = openAiResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id)).ToList() ?? [];
 
@@ -58,35 +62,39 @@ public sealed class ModelCatalogClient
             request.Headers.Add("x-api-key", backend.ApiKey);
         }
 
-        HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        AnthropicModelsResponse? anthropicResponse = await response.Content.ReadFromJsonAsync<AnthropicModelsResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
+        AnthropicModelsResponse? anthropicResponse =
+            await response.Content.ReadFromJsonAsync<AnthropicModelsResponse>(
+                    ModelCatalogJsonContext.Default.AnthropicModelsResponse,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
         List<ModelCatalogEntry> models = anthropicResponse?.Data?.Select(m => new ModelCatalogEntry(m.Id)).ToList() ?? [];
 
         return new(models, DateTimeOffset.UtcNow);
     }
 
-    private sealed class OpenAiModelsResponse
+    internal sealed class OpenAiModelsResponse
     {
         [JsonPropertyName("data")]
         public List<OpenAiModel>? Data { get; set; }
     }
 
-    private sealed class OpenAiModel
+    internal sealed class OpenAiModel
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = "";
     }
 
-    private sealed class AnthropicModelsResponse
+    internal sealed class AnthropicModelsResponse
     {
         [JsonPropertyName("data")]
         public List<AnthropicModel>? Data { get; set; }
     }
 
-    private sealed class AnthropicModel
+    internal sealed class AnthropicModel
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = "";

@@ -5,11 +5,6 @@ namespace HarnessGateway.Launcher.Core.Configuration;
 
 public sealed class BackupService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = false,
-    };
-
     private readonly string _backupsDirectory;
     private readonly List<BackupRecord> _currentLaunchBackups = [];
 
@@ -38,7 +33,7 @@ public sealed class BackupService
         _currentLaunchBackups.Add(record);
 
         string backupPath = GetBackupPath(targetPath);
-        string json = JsonSerializer.Serialize(record, SerializerOptions);
+        string json = JsonSerializer.Serialize(record, BackupJsonContext.Default.BackupRecord);
         await File.WriteAllTextAsync(backupPath, json, cancellationToken).ConfigureAwait(false);
     }
 
@@ -79,7 +74,7 @@ public sealed class BackupService
         foreach (string backupFile in backupFiles)
         {
             string json = await File.ReadAllTextAsync(backupFile, cancellationToken).ConfigureAwait(false);
-            BackupRecord? record = JsonSerializer.Deserialize<BackupRecord>(json, SerializerOptions);
+            BackupRecord? record = JsonSerializer.Deserialize<BackupRecord>(json, BackupJsonContext.Default.BackupRecord);
             if (record is null)
             {
                 continue;
@@ -115,9 +110,9 @@ public sealed class BackupService
 
     private string GetBackupPath(string targetPath)
     {
-        string sanitized = Convert.ToHexString(Encoding.UTF8.GetBytes(targetPath))
-            .Replace('/', '_')
-            .Replace('\\', '_');
+        // Convert.ToHexString emits only [0-9A-F]: the output is already
+        // path-safe, so no character sanitization is needed here.
+        string sanitized = Convert.ToHexString(Encoding.UTF8.GetBytes(targetPath));
         return Path.Combine(_backupsDirectory, $"{sanitized}.json");
     }
 }

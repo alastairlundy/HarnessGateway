@@ -175,6 +175,41 @@ public class TomlDocumentEditorTests
     }
 
     [Test]
+    public async Task UpsertBlock_appends_after_a_document_without_a_trailing_newline()
+    {
+        const string noTrailingNewline = "model = \"gpt-5-codex\"";
+
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(noTrailingNewline);
+
+        editor.UpsertBlock("provider", new Dictionary<string, object?> { ["name"] = "Mine" });
+
+        await Assert.That(editor.ToToml()).IsEqualTo(noTrailingNewline + "\n\n[provider]\nname = \"Mine\"\n");
+    }
+
+    [Test]
+    public async Task UpsertBlock_successive_appends_keep_one_blank_line_between_blocks()
+    {
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(ConfigWithoutProviderBlock);
+
+        editor.UpsertBlock("model_providers.harnessgateway", ProviderBlockValues());
+        editor.UpsertBlock("providers.other", new Dictionary<string, object?> { ["name"] = "Other" });
+
+        string output = editor.ToToml();
+        await Assert.That(output).IsEqualTo(
+            ConfigWithoutProviderBlock
+            + "\n"
+            + "[model_providers.harnessgateway]\n"
+            + "name = \"HarnessGateway\"\n"
+            + "base_url = \"http://localhost:9999/v1\"\n"
+            + "env_key = \"HARNESSGATEWAY_API_KEY\"\n"
+            + "wire_api = \"responses\"\n"
+            + "\n"
+            + "[providers.other]\n"
+            + "name = \"Other\"\n");
+        await Assert.That(TomlDocumentEditor.Parse(output).ToToml()).IsEqualTo(output);
+    }
+
+    [Test]
     public async Task UpsertBlock_inserts_block_into_empty_document()
     {
         TomlDocumentEditor editor = TomlDocumentEditor.Parse(string.Empty);

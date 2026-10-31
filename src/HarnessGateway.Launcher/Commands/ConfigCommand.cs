@@ -35,9 +35,11 @@ public sealed class ConfigCommand : Command
         Add(setVerb);
         Add(new BackendCommands(settingsStore, keyStore, keyPrompt));
 
-        showVerb.SetAction((result) =>
+        showVerb.SetAction(async (result, cancellationToken) =>
         {
-            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }
@@ -81,11 +83,13 @@ public sealed class ConfigCommand : Command
 
         Command cmd = new("get", "Read a non-secret setting by its typed key") { keyArg };
 
-        cmd.SetAction((result) =>
+        cmd.SetAction(async (result, cancellationToken) =>
         {
             string key = result.GetRequiredValue(keyArg);
 
-            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }
@@ -119,12 +123,14 @@ public sealed class ConfigCommand : Command
 
         Command cmd = new("set", "Write a non-secret setting by its typed key") { keyArg, valueArg };
 
-        cmd.SetAction((result) =>
+        cmd.SetAction(async (result, cancellationToken) =>
         {
             string key = result.GetRequiredValue(keyArg);
             string value = result.GetRequiredValue(valueArg);
 
-            if (!TryLoadSettings(_settingsStore, out LauncherSettings settings, out int loadExitCode))
+            (LauncherSettings settings, int loadExitCode) =
+                await TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
             {
                 return loadExitCode;
             }
@@ -166,27 +172,24 @@ public sealed class ConfigCommand : Command
             ? (int)LaunchExitCode.UnknownBackendName
             : (int)LaunchExitCode.UsageError;
 
-    internal static bool TryLoadSettings(SettingsStore settingsStore, out LauncherSettings settings, out int exitCode)
+    internal static async Task<(LauncherSettings Settings, int ExitCode)> TryLoadSettingsAsync(
+        SettingsStore settingsStore,
+        CancellationToken cancellationToken)
     {
         try
         {
-            settings = settingsStore.Load();
-            exitCode = 0;
-            return true;
+            LauncherSettings settings = await settingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            return (settings, 0);
         }
         catch (UnsupportedSettingsSchemaException ex)
         {
             Console.Error.WriteLine(ex.Message);
-            settings = new LauncherSettings();
-            exitCode = (int)LaunchExitCode.UnsupportedSettingsSchema;
-            return false;
+            return (new LauncherSettings(), (int)LaunchExitCode.UnsupportedSettingsSchema);
         }
         catch (SecureKeyStoreException ex)
         {
             Console.Error.WriteLine(ex.Message);
-            settings = new LauncherSettings();
-            exitCode = (int)LaunchExitCode.ConfigRestoreFailure;
-            return false;
+            return (new LauncherSettings(), (int)LaunchExitCode.ConfigRestoreFailure);
         }
     }
 

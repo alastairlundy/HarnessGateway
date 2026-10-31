@@ -485,7 +485,7 @@ public class LaunchFlowTests
                 Path.Combine(settingsDir, "HarnessGateway-launcher.json"));
             await Assert.That(settingsBytes.Contains("sk-session")).IsFalse();
 
-            LauncherSettings saved = new SettingsStore(settingsDir).Load();
+            LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
             await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-5");
         }
         finally
@@ -798,7 +798,7 @@ public class LaunchFlowTests
             // Both post-conditions of one call: the restore put the original
             // config back, and the model landed in settings afterwards.
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(originalConfig);
-            LauncherSettings saved = new SettingsStore(settingsDir).Load();
+            LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
             await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-5");
         }
         finally
@@ -834,7 +834,7 @@ public class LaunchFlowTests
             // is exactly what places restore before persist.
             LaunchFailed failed = (LaunchFailed)outcome;
             await Assert.That(failed.Kind).IsEqualTo(LaunchFailureKind.Unexpected);
-            LauncherSettings saved = new SettingsStore(settingsDir).Load();
+            LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
             await Assert.That(saved.Backends[0].DefaultModel).IsNull();
         }
         finally
@@ -1515,7 +1515,7 @@ public class LaunchFlowTests
             // Persisting the model never re-points DefaultBackend: selecting
             // a backend per launch has no settings side effect beyond the
             // model.
-            LauncherSettings saved = new SettingsStore(settingsDir).Load();
+            LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
             await Assert.That(saved.DefaultBackend).IsEqualTo("primary");
             await Assert.That(saved.Backends.Single(b => b.Name == "secondary").DefaultModel)
                 .IsEqualTo("gpt-5");
@@ -1544,7 +1544,7 @@ public class LaunchFlowTests
 
             // No stored entry exists to persist onto, so nothing is written -
             // an ad-hoc override never becomes a settings entry.
-            LauncherSettings saved = new SettingsStore(settingsDir).Load();
+            LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
             await Assert.That(saved.Backends).IsEmpty();
             await Assert.That(saved.DefaultBackend).IsEqualTo(string.Empty);
         }

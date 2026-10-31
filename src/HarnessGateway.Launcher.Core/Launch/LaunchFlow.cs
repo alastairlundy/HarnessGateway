@@ -64,7 +64,7 @@ public sealed class LaunchFlow
 
         try
         {
-            LauncherSettings settings = _settingsStore.Load();
+            LauncherSettings settings = await _settingsStore.LoadAsync(ct).ConfigureAwait(false);
 
             BackendResolutionResult resolution = BackendResolution.Resolve(
                 settings,

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using HarnessGateway.Launcher.Core.Serialization;
 using HarnessGateway.Launcher.Core.Settings.Security;
 
 namespace HarnessGateway.Launcher.Core.Settings;
@@ -6,11 +7,6 @@ namespace HarnessGateway.Launcher.Core.Settings;
 public sealed class SettingsStore
 {
     private const string SchemaVersionPropertyName = "schemaVersion";
-
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-    };
 
     private readonly string _settingsDirectory;
     private readonly string _settingsFilePath;
@@ -28,25 +24,42 @@ public sealed class SettingsStore
 
     public string SettingsDirectory => _settingsDirectory;
 
-    public LauncherSettings Load()
+    public async Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
         if (!File.Exists(_settingsFilePath))
         {
             return new();
         }
 
-        string json = File.ReadAllText(_settingsFilePath);
-        int declaredVersion = ReadDeclaredVersion(json);
+        // One parse: the version probe and the body deserialization read the
+        // same document instead of hammering the file text twice.
+        string json = await File.ReadAllTextAsync(_settingsFilePath, cancellationToken).ConfigureAwait(false);
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement;
+
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty(SchemaVersionPropertyName, out JsonElement versionElement))
+        {
+            throw UnsupportedSettingsSchemaException.Missing(_settingsFilePath);
+        }
+
+        if (versionElement.ValueKind != JsonValueKind.Number
+            || !versionElement.TryGetInt32(out int declaredVersion))
+        {
+            throw UnsupportedSettingsSchemaException.Malformed(
+                _settingsFilePath,
+                versionElement.GetRawText());
+        }
 
         if (declaredVersion == LauncherSettings.CurrentSchemaVersion)
         {
-            return DeserializeSettings(json);
+            return DeserializeSettings(root);
         }
 
         if (declaredVersion == 1)
         {
-            LauncherSettings settings = DeserializeSettings(json);
-            SweepLegacyPlaintextKeys(settings);
+            LauncherSettings settings = DeserializeSettings(root);
+            await SweepLegacyPlaintextKeys(settings, cancellationToken).ConfigureAwait(false);
 
             LauncherSettings migrated = settings with
             {
@@ -81,32 +94,11 @@ public sealed class SettingsStore
         {
             SchemaVersion = LauncherSettings.CurrentSchemaVersion,
         };
-        string json = JsonSerializer.Serialize(stamped, SerializerOptions);
+        string json = JsonSerializer.Serialize(stamped, SettingsJsonContext.Default.LauncherSettings);
         File.WriteAllText(_settingsFilePath, json);
     }
 
-    private int ReadDeclaredVersion(string json)
-    {
-        using JsonDocument document = JsonDocument.Parse(json);
-
-        if (document.RootElement.ValueKind != JsonValueKind.Object
-            || !document.RootElement.TryGetProperty(SchemaVersionPropertyName, out JsonElement versionElement))
-        {
-            throw UnsupportedSettingsSchemaException.Missing(_settingsFilePath);
-        }
-
-        if (versionElement.ValueKind != JsonValueKind.Number
-            || !versionElement.TryGetInt32(out int declaredVersion))
-        {
-            throw UnsupportedSettingsSchemaException.Malformed(
-                _settingsFilePath,
-                versionElement.GetRawText());
-        }
-
-        return declaredVersion;
-    }
-
-    private void SweepLegacyPlaintextKeys(LauncherSettings settings)
+    private async Task SweepLegacyPlaintextKeys(LauncherSettings settings, CancellationToken cancellationToken)
     {
         for (int index = 0; index < settings.Backends.Count; index++)
         {
@@ -119,17 +111,14 @@ public sealed class SettingsStore
             string reference = KeyReference.ForBackend(backend.Name);
 
             ISecureKeyStore keyStore = _keyStore ??= SecureKeyStoreFactory.Create(_settingsDirectory);
-            keyStore
-                .StoreAsync(reference, backend.ApiKey, CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
+            await keyStore.StoreAsync(reference, backend.ApiKey, cancellationToken).ConfigureAwait(false);
 
             settings.Backends[index] = backend with { ApiKey = reference };
         }
     }
 
-    private static LauncherSettings DeserializeSettings(string json) =>
-        JsonSerializer.Deserialize<LauncherSettings>(json, SerializerOptions)
+    private static LauncherSettings DeserializeSettings(JsonElement root) =>
+        JsonSerializer.Deserialize<LauncherSettings>(root, SettingsJsonContext.Default.LauncherSettings)
         ?? new LauncherSettings();
 
     public static string GetPlatformConfigDirectory()

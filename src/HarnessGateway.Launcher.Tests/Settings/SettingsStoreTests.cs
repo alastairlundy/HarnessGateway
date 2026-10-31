@@ -64,7 +64,7 @@ public class SettingsStoreTests
             };
 
             store.Save(settings);
-            LauncherSettings loaded = store.Load();
+            LauncherSettings loaded = await store.LoadAsync();
 
             await Assert.That(loaded.DefaultBackend).IsEqualTo("test-backend");
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
@@ -92,7 +92,7 @@ public class SettingsStoreTests
         {
             SettingsStore store = new SettingsStore(tempDir);
 
-            LauncherSettings loaded = store.Load();
+            LauncherSettings loaded = await store.LoadAsync();
 
             await Assert.That(loaded.DefaultBackend).IsEmpty();
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
@@ -117,7 +117,7 @@ public class SettingsStoreTests
             SettingsStore store = new SettingsStore(tempDir, keyStore);
             WriteRawSettings(store, RawV1Json("sk-legacy-plaintext"));
 
-            LauncherSettings loaded = store.Load();
+            LauncherSettings loaded = await store.LoadAsync();
 
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
             await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:default");
@@ -150,7 +150,7 @@ public class SettingsStoreTests
             SettingsStore store = new SettingsStore(tempDir, keyStore);
             WriteRawSettings(store, RawV1Json("hgkey:default"));
 
-            LauncherSettings loaded = store.Load();
+            LauncherSettings loaded = await store.LoadAsync();
 
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
             await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:default");
@@ -183,7 +183,8 @@ public class SettingsStoreTests
             Exception? caught = null;
             try
             {
-                store.Load();
+                await store.LoadAsync();
+
             }
             catch (UnsupportedSettingsSchemaException ex)
             {
@@ -218,7 +219,8 @@ public class SettingsStoreTests
             Exception? caught = null;
             try
             {
-                store.Load();
+                await store.LoadAsync();
+
             }
             catch (UnsupportedSettingsSchemaException ex)
             {
@@ -254,7 +256,8 @@ public class SettingsStoreTests
             Exception? caught = null;
             try
             {
-                store.Load();
+                await store.LoadAsync();
+
             }
             catch (UnsupportedSettingsSchemaException ex)
             {
@@ -286,7 +289,8 @@ public class SettingsStoreTests
             Exception? caught = null;
             try
             {
-                store.Load();
+                await store.LoadAsync();
+
             }
             catch (UnsupportedSettingsSchemaException ex)
             {

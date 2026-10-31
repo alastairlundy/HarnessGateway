@@ -540,7 +540,7 @@ public class ConfigCommandTests
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("Default backend set to 'work'.");
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.DefaultBackend).IsEqualTo("work");
         }
         finally
@@ -601,7 +601,7 @@ public class ConfigCommandTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
             await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.DefaultBackend).IsEqualTo(string.Empty);
         }
         finally
@@ -701,7 +701,7 @@ public class ConfigCommandTests
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("backends.work.endpoint set to https://new.example.com/v1");
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
             // A field write never disturbs the sibling fields or the key reference.
             await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
@@ -739,7 +739,7 @@ public class ConfigCommandTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
         }
         finally
@@ -773,7 +773,7 @@ public class ConfigCommandTests
 
             await Assert.That(exitCode).IsEqualTo(0);
 
-            LauncherSettings saved = store.Load();
+            LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("claude-sonnet-5");
         }
         finally

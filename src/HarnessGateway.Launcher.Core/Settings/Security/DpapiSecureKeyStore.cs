@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using HarnessGateway.Launcher.Core.Serialization;
 
 namespace HarnessGateway.Launcher.Core.Settings.Security;
 
@@ -24,8 +25,6 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
     // Constant entropy binds the ciphertext to this application's purpose without
     // introducing a second secret the user has to manage.
     private static readonly byte[] Entropy = [.. "HarnessGateway.SecureKeyStore.v1"u8];
-
-    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
     private readonly string _keysFilePath;
 
@@ -121,7 +120,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         {
             string json = await File.ReadAllTextAsync(_keysFilePath).ConfigureAwait(false);
             
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(json, SerializerOptions)
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json, SettingsJsonContext.Default.DictionaryStringString)
                    ?? new Dictionary<string, string>(StringComparer.Ordinal);
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
@@ -141,7 +140,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
                 Directory.CreateDirectory(directory);
             }
 
-            await File.WriteAllTextAsync(_keysFilePath, JsonSerializer.Serialize(entries, SerializerOptions)).ConfigureAwait(false);
+            await File.WriteAllTextAsync(_keysFilePath, JsonSerializer.Serialize(entries, SettingsJsonContext.Default.DictionaryStringString)).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {

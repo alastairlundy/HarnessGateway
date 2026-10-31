@@ -3,3 +3,4 @@
 global using CliInvoke.Core;
 global using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 global using HarnessGateway.Launcher.Core.Backends;
+global using System.Text;

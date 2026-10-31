@@ -318,7 +318,7 @@ public class WizardPipelineTests
 
             WizardResult? result = await pipeline.RunAsync();
 
-            LauncherSettings savedSettings = store.Load();
+            LauncherSettings savedSettings = await store.LoadAsync();
             await Assert.That(savedSettings.Backends).IsEmpty();
             await Assert.That(savedSettings.DefaultBackend).IsEmpty();
         }
@@ -744,9 +744,9 @@ public class WizardPipelineTests
             console.EnqueueChoice("AnthropicCapable");
             console.EnqueueText("https://api.anthropic.example.com/v1");
 
-            LauncherSettings before = store.Load();
+            LauncherSettings before = await store.LoadAsync();
             WizardResult? result = await pipeline.RunAsync();
-            LauncherSettings after = store.Load();
+            LauncherSettings after = await store.LoadAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(
