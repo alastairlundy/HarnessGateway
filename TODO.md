@@ -7,6 +7,8 @@ Deferred decisions and future work. Standing "we deliberately don't do this" ref
 - [ ] OpenClaw adapter
 - [ ] Hermes adapter
 - [ ] Cline adapter
+- [ ] Claude Desktop app support — investigate viability
+- [ ] Codex Desktop app support — investigate viability
 
 Deferred out of the v1 scope; the pattern to follow is any shipped adapter (`Core/Adapters/*Adapter.cs`).
 

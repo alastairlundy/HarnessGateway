@@ -1,16 +1,16 @@
 # Glossary
 
-## Backend
-
-An API endpoint a harness is pointed at, identified by a base URL and a protocol: OpenAI Chat Completions, OpenAI Responses, or Anthropic-compatible.
-
 ## Configuration action
 
-A step the launcher performs to make a harness use a chosen backend: passing CLI flags or writing a harness config file. Harness environment variables are not configuration actions — they ride the spawned process plan and never mutate the launcher's own environment.
+A step the launcher performs to make a harness use a chosen provider: passing CLI flags or writing a harness config file. Harness environment variables are not configuration actions — they ride the spawned process plan and never mutate the launcher's own environment.
+
+## Configuration surface
+
+A mechanism a harness can be handed launcher configuration through: environment variables, command-line flags, or configuration files. The launcher only uses the ones a harness declares, and picks no surface of its own.
 
 ## Default endpoint
 
-The user-saved backend that `launch` uses when no per-launch endpoint override is given.
+The user-saved provider that `launch` uses when no per-launch endpoint override is given.
 
 ## Adapter
 
@@ -22,7 +22,7 @@ An agent tool the launcher can configure and start, which may be a CLI or a GUI 
 
 ## Launch flow
 
-The ordered pipeline the launcher runs to resolve a backend and keys, write or restore harness configuration, and start the harness, behind one deep module's interface.
+The ordered pipeline the launcher runs to resolve a provider and keys, write or restore harness configuration, and start the harness, behind one deep module's interface.
 
 ## Launch outcome
 
@@ -34,8 +34,12 @@ The invariant that every harness configuration change a launch makes is undone o
 
 ## Launch request
 
-The declarative decisions a caller submits to a launch flow: which Harness, which Backend, which model, how to persist.
+The declarative decisions a caller submits to a launch flow: which Harness, which Provider, which model, how to persist.
 
 ## Model catalog
 
-The set of models a Backend declares as available.
+The set of models a Provider declares as available.
+
+## Provider
+
+An API identity that owns one endpoint, one API key reference, and a set of models, where each model may use its own wire protocol.
