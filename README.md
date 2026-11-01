@@ -47,6 +47,24 @@ and it's why you should only download from the GitHub Releases page above.
 The plain archives install the same result on every platform and skip that
 warning entirely.
 
+macOS and Windows have their own checks, though. The build pipeline carries
+no Apple Developer ID and no Authenticode certificate, so nothing is signed
+or notarized.
+
+On macOS, Gatekeeper blocks the first launch of a binary that a browser
+downloaded and shows a "cannot verify" dialog instead. Open
+System Settings > Privacy & Security, find the blocked launch of
+`harnessgateway`, and click Open Anyway. After that, the binary launches
+normally. Downloading with `curl`, or unpacking in a terminal, skips the
+check, since only browsers mark files for quarantine.
+
+On Windows, SmartScreen shows "Windows protected your PC" on first launch.
+Click More info, then Run anyway.
+
+Neither prompt means anything is wrong with the binary. It is the same
+missing signature as above, and both systems ask again for each new release,
+since every build produces a new binary.
+
 ## Harnesses
 
 HarnessGateway launches seven agent harnesses, none of which come bundled
