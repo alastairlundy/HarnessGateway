@@ -14,10 +14,9 @@ namespace HarnessGateway.Launcher.Tests.Commands;
 /// <summary>
 /// Regression tests for the launch wiring: `harnessgateway launch <harness>`
 /// must reach the orchestrator through the real parse-and-invoke pipeline.
-/// The launch subcommand previously had no action of its own, and
-/// System.CommandLine's no-action fallback silently succeeded with exit 0 -
-/// while every orchestrator-level test kept passing, because they call
-/// RunAsync directly instead of parsing.
+/// System.CommandLine's no-action fallback silently succeeds with exit 0, and
+/// the orchestrator-level tests call RunAsync directly instead of parsing, so
+/// neither can catch missing wiring on its own.
 /// </summary>
 public class LaunchCommandInvocationTests
 {
@@ -49,7 +48,14 @@ public class LaunchCommandInvocationTests
         BackupService backupService = new BackupService(backupsDir);
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             new LaunchFlow(
-                settingsStore, backupService, new StubLaunchRunner(runnerExitCode), [adapter], new FakeSecureKeyStore()));
+                settingsStore,
+                backupService,
+                new StubLaunchRunner(runnerExitCode),
+                [adapter],
+                new FakeSecureKeyStore(),
+                new FakeGuiInstallDiscovery(),
+                new FakeRunningInstanceDetector(),
+                new FakeConfirmationPrompt()));
 
         LaunchCommand launchCommand = new LaunchCommand(orchestrator, wizardAction);
         return (new RootCommand { launchCommand }, adapter, tempDir);
@@ -131,6 +137,38 @@ public class LaunchCommandInvocationTests
     }
 
     [Test]
+    public async Task Invoke_launch_with_confirm_running_reaches_the_flow()
+    {
+        // The flag is parsed CLI-side and carried through the orchestrator
+        // into the LaunchRequest: a parse-only flag would leave this launch
+        // identical to one without it. The flow-side consumption on a
+        // Kind=Cli harness (the misuse refusal) is pinned here through its
+        // exit code; the GUI-side skip and prompt chain are pinned in
+        // LaunchFlowGuiTests.
+        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        (RootCommand root, _, string tempDir) = CreateRoot(adapter);
+        try
+        {
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                root.Parse("launch TestAgent --confirm-running " +
+                           "--endpoint https://api.example.com/v1 --protocol openai-chat")
+                    .InvokeAsync());
+
+            // The flag is consumed flow-side now: on a Kind=Cli harness it
+            // surfaces as the misuse refusal, and reaching that refusal is
+            // itself the proof the parsed flag rode into the LaunchRequest -
+            // without it this launch would have exited 0 and run the adapter.
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("--confirm-running");
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Invoke_unknown_agent_surfaces_exit_3_instead_of_silent_success()
     {
         FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
@@ -203,7 +241,9 @@ public class LaunchCommandInvocationTests
                     ProtocolKind.OpenAiChat,
                     ProtocolKind.OpenAiResponses,
                     ProtocolKind.Anthropic
-                });
+                },
+                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+                InstanceProcessNames: []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
@@ -229,6 +269,16 @@ public class LaunchCommandInvocationTests
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(exitCode);
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return exitCode;
         }
     }
 }

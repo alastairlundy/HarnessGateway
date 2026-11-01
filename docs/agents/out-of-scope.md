@@ -25,6 +25,7 @@ Proposed, considered, and deliberately rejected behaviors for the `harnessgatewa
 ## CLI surface
 
 - **More short flags beyond `-m`.** `-m` is the sole alias because model input is the highest-frequency repeat input on the launch hot path; the full core alias set (`-e`, `-b`, `-p`, …) was speculative weight.
+- **A second `--version` option on the root command.** `RootCommand` ships a standard `--version`; its built-in symbol wins the token, so a duplicate option silently never runs. The built-in option's action is re-pointed at the Launcher assembly instead, so the flag reports this build's identity whichever host parsed the command.
 - **Additional `--persist` value types** beyond `config` and `model`. The family is deliberately closed rather than left open; any future expansion is a new decision, not a silent enum extension.
 - **Backend-selection persistence.** A `--backend` launch persists nothing about its selection; changing the default backend is `config set defaultBackend`'s job, keeping one verb per settings mutation.
 - **A `backend switch` verb.** The default pointer has exactly one write path, `config set defaultBackend <name>` (name validation, confirmation output, exit 8 on an unresolvable name). `backend switch` duplicated that mutation and was removed before the first release. Re-adding a second pointer-write path is a new decision.

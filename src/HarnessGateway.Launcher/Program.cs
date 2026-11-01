@@ -1,3 +1,4 @@
+using CliInvoke;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Backends.Models;
@@ -9,6 +10,7 @@ using HarnessGateway.Launcher.Wizard;
 List<IHarnessAdapter> adapters =
 [
     new OpenCodeAdapter(),
+    new OpenCodeDesktopAdapter(),
     new KiloAdapter(),
     new CopilotCliAdapter(),
     new PiAdapter(),
@@ -24,14 +26,28 @@ Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
 LaunchRunner runner = new();
 
+// GUI collaborators, injected alongside the ones above: install discovery
+// (CliInvoke's default resolver first, then this OS's conventional roots),
+// the running-instance detector for the OS this binary runs on, and the
+// terminal confirmation prompt the flow asks its live-instance question
+// through. Detection and discovery read the OS only; nothing here starts a
+// process or writes a file.
+IGuiInstallDiscovery installDiscovery = new GuiInstallDiscovery(new FilePathResolver());
+IRunningInstanceDetector instanceDetector = CreateInstanceDetector();
+IConfirmationPrompt confirmationPrompt = new TerminalConfirmationPrompt();
+
 // One flow, both callers: the CLI-side orchestrator and the wizard
-// handoff below both submit a LaunchRequest through this single LaunchFlow,
-// so there is no second launch-order convention in the exe.
-LaunchFlow flow = new(settingsStore, backupService, runner, adapters, keyStore);
+// handoff below both submit through this instance.
+LaunchFlow flow = new(
+    settingsStore,
+    backupService,
+    runner,
+    adapters,
+    keyStore,
+    installDiscovery,
+    instanceDetector,
+    confirmationPrompt);
 LaunchOrchestrator orchestrator = new(flow);
-// The wizard is the no-args root action and, via LaunchCommand's own
-// action, also what a bare `launch` runs - one implementation, two entry
-// points, so the two can never drift in exception handling or exit codes.
 async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 {
     SpectreConsoleAbstraction console = new();
@@ -70,10 +86,6 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 
     WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
 
-    // The wizard handoff builds the LaunchRequest and submits it to the same
-    // flow the direct CLI path uses; the wizard pipeline itself stays
-    // write-free - the flow owns everything that follows.
-    //
     // The collected ApiKey must ride as SessionKey - without it the launch
     // proceeds with no credential at all on a first run, and the harness
     // fails auth downstream with no clue that the key the user typed was
@@ -92,6 +104,30 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)
         .ConfigureAwait(true);
     return await LaunchOrchestrator.MapOutcomeAsync(outcome).ConfigureAwait(true);
+}
+
+// Each detector is marked to the platform it serves, so the construction
+// sits behind that platform's own guard; an OS outside the three has no
+// detector implementation and says so instead of guessing.
+static IRunningInstanceDetector CreateInstanceDetector()
+{
+    if (OperatingSystem.IsWindows())
+    {
+        return new WindowsInstanceDetector();
+    }
+
+    if (OperatingSystem.IsMacOS())
+    {
+        return new MacOsInstanceDetector();
+    }
+
+    if (OperatingSystem.IsLinux())
+    {
+        return new LinuxInstanceDetector();
+    }
+
+    throw new PlatformNotSupportedException(
+        "Running-instance detection ships Windows, macOS, and Linux implementations only.");
 }
 
 // Root wiring (the --version action, launch/config registration, and the

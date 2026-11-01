@@ -11,9 +11,7 @@ public sealed class LaunchCommand : Command
         // harness are still rejected (see the validator below).
         //
         // The Description is set in the constructor from the adapter list, not
-        // here: a handwritten name list drifts from Program.cs's registry, and
-        // it already had to lie once (it advertised "copilot" while lookup
-        // matched "GitHub Copilot CLI").
+        // here: a handwritten name list would drift from Program.cs's registry.
         Arity = ArgumentArity.ZeroOrOne,
     };
 
@@ -43,6 +41,16 @@ public sealed class LaunchCommand : Command
         AllowMultipleArgumentsPerToken = true,
     };
 
+    public static readonly Option<bool> ConfirmRunningOption = new("--confirm-running")
+    {
+        // A flag, not a valued option: it carries a yes/no the terminal would
+        // otherwise collect, so the token is the whole spelling. Deliberately
+        // no harness-kind gate here either - whether the flag is misused
+        // against a Kind=Cli harness is the flow's refusal to make, not a
+        // parse error.
+        Description = "Confirm a running instance of the harness instead of being prompted (GUI harnesses)",
+    };
+
     public LaunchCommand() : this(orchestrator: null)
     {
     }
@@ -70,6 +78,7 @@ public sealed class LaunchCommand : Command
         Add(ProtocolOption);
         Add(ModelOption);
         Add(PersistOption);
+        Add(ConfirmRunningOption);
 
         Validators.Add(result =>
         {
@@ -114,7 +123,8 @@ public sealed class LaunchCommand : Command
                  || result.GetValue(EndpointOption) is not null
                  || result.GetValue(ProtocolOption) is not null
                  || result.GetValue(ModelOption) is not null
-                 || result.GetValue(PersistOption) is { Length: > 0 }))
+                 || result.GetValue(PersistOption) is { Length: > 0 }
+                 || result.GetValue(ConfirmRunningOption)))
             {
                 result.AddError(
                     "A harness identifier is required when launch options are specified: " +
@@ -157,6 +167,7 @@ public sealed class LaunchCommand : Command
             string? endpoint = result.GetValue(EndpointOption);
             string? protocol = result.GetValue(ProtocolOption);
             string? model = result.GetValue(ModelOption);
+            bool confirmRunning = result.GetValue(ConfirmRunningOption);
             string[]? persistValues = result.GetValue(PersistOption);
             IReadOnlyList<string> persist = persistValues is not null
                 ? ParsePersistValues(persistValues)
@@ -172,11 +183,6 @@ public sealed class LaunchCommand : Command
                     "wire one via the internal constructor before invoking 'launch <harness>'.");
             }
 
-            // The direct CLI path never carries a launch-time key: keys are a
-            // stored-entry concern here (set via 'config backend set-key'),
-            // which the flow's resolution already handles. The orchestrator
-            // builds the LaunchRequest from these parsed flags (SessionKey
-            // stays null) and submits it to the shared launch flow.
             return await orchestrator.RunAsync(
                 harness,
                 backendName,
@@ -184,6 +190,7 @@ public sealed class LaunchCommand : Command
                 protocol,
                 model,
                 persist,
+                confirmRunning,
                 cancellationToken).ConfigureAwait(true);
         });
     }

@@ -23,7 +23,9 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
         new HashSet<ProtocolKind>
         {
             ProtocolKind.Anthropic,
-        });
+        },
+        new HashSet<ConfigurationSurface>(),
+        []);
 
     private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
 

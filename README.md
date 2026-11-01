@@ -49,9 +49,10 @@ warning entirely.
 
 ## Harnesses
 
-HarnessGateway launches six agent harnesses, none of which come bundled with
-it. Install whichever ones you want from the table below and the launcher
-will find them on your `PATH`.
+HarnessGateway launches seven agent harnesses, none of which come bundled
+with it. Install whichever ones you want from the table below and the
+launcher will find them: CLI harnesses through a `PATH` lookup, GUI harnesses
+through that lookup plus your OS's conventional install locations.
 
 | Harness Identifier | Harness Name | Binary | Protocols | Model | Install |
 |-------|------|--------|-----------|-------|---------|
@@ -61,6 +62,7 @@ will find them on your `PATH`.
 | `pi` | Pi | `pi` | chat, responses, anthropic | optional | `npm install -g @earendil-works/pi-coding-agent` |
 | `codex` | Codex CLI | `codex` | responses | required | `npm install -g @openai/codex` |
 | `claude-code` | Claude Code (CLI) | `claude` | anthropic | optional | `npm install -g @anthropic-ai/claude-code` |
+| `opencode-desktop` | OpenCode Desktop (GUI app) | `OpenCode.exe` (Windows), `OpenCode.app` (macOS), `ai.opencode.desktop` (Linux) | chat, responses, anthropic | required | `brew install --cask opencode-desktop`, or download from https://opencode.ai/download |
 
 "chat" is shorthand for `openai-chat` and "responses" for `openai-responses`.
 If you request a protocol that the harness doesn't support, the launcher
@@ -70,19 +72,27 @@ The **Harness Identifier** column holds what you actually type:
 `harnessgateway launch copilot`. The **Harness Name** column is only a display
 label, used by the wizard and quoted in error messages; the launcher does not
 accept it as input. This distinction is easy to miss because the identifier
-and the name are identical for five of the six harnesses. It only bites with
-Copilot, whose name is "GitHub Copilot CLI" but whose identifier is `copilot`.
-Matching is case-insensitive, so `launch COPILOT` works too. Aliases are also
+and the name match for most harnesses. It bites with Copilot, whose name is
+"GitHub Copilot CLI" but whose identifier is `copilot`, and with OpenCode
+Desktop, whose identifier is `opencode-desktop`. Matching is
+case-insensitive, so `launch COPILOT` works too. Aliases are also
 accepted: `claude` for `claude-code` and `github-copilot-cli` for `copilot`.
 The `--help` output lists harness identifiers only.
 
-Detection is a simple `PATH` lookup, which means a harness that's installed
-but not on your `PATH` looks missing. Check with the binary's own name:
+Detection for CLI harnesses is a simple `PATH` lookup, which means a
+harness that's installed but not on your `PATH` looks missing. Check with
+the binary's own name:
 
 ```bash
 opencode --version
 copilot --version
 ```
+
+GUI harnesses are located differently: the launcher asks your operating
+system where the app is, checking your `PATH` first and then the
+conventional install locations for your platform (`Program Files` on
+Windows, `/Applications` on macOS, `/usr/bin` on Linux). A GUI app
+installed anywhere else - a portable install, say - looks missing.
 
 If you name a harness that isn't found, `launch` exits with exit code 4 and
 prints the install command for that harness. In the wizard, undetectable
@@ -98,6 +108,7 @@ setting in the table below is passed only to the process it starts:
 | `copilot` | `COPILOT_PROVIDER_BASE_URL`, `COPILOT_PROVIDER_API_KEY`, `COPILOT_PROVIDER_TYPE` |
 | `claude-code` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL` |
 | `codex` | a `model_providers.harnessgateway` block written to `config.toml` |
+| `opencode-desktop` | `OPENAI_*` or `ANTHROPIC_*` env vars plus `OPENCODE_CONFIG_CONTENT`, an inline session config the app's sidecar server reads. The launcher never writes the app's own config file |
 
 ## Usage
 
@@ -110,8 +121,9 @@ harnessgateway launch [HARNESS] [options]
 | `--backend NAME` | Launch against a saved backend entry instead of the default one |
 | `--endpoint URL --protocol PROTOCOL` | Override the endpoint and protocol of the selected entry |
 | `--model MODEL`, `-m MODEL` | Override the model for this launch only |
-| `--persist config` | Keep the codex `config.toml` edit instead of restoring the original on exit |
+| `--persist config` | Keep the codex `config.toml` edit instead of restoring the original on exit; for a GUI harness, also switches the launch to fire-and-forget mode |
 | `--persist model` | Save this launch's model as the entry's default for later launches |
+| `--confirm-running` | Assert that launching while the harness's app is already running was confirmed, skipping the prompt (GUI harnesses; see [Launching a GUI harness](#launching-a-gui-harness)) |
 
 `--endpoint` and `--protocol` only make sense together; either one alone is a
 parse error. `--persist` takes both values at once (`--persist config model`)
@@ -132,7 +144,12 @@ instead. The wizard
 prompts for the harness, endpoint, key, and model, in that order. For the model step it
 fetches the endpoint's model list to fill in your choices, and falls back to
 free text if that request fails. Nothing it collects gets saved. Options
-without a harness are a parse error, not a silently ignored flag.
+without a harness are a parse error, not a silently ignored flag. An aborted
+wizard run exits with the same code the direct `launch` path returns for the
+equivalent condition: 0 when you cancel, 3 when no installed harness speaks
+the chosen protocol, 4 when nothing is installed, 8 for a default-backend
+pointer problem, 7 for a credential-store failure. Exit status alone cannot
+tell you which entry point you ran.
 
 ### Choosing a backend
 
@@ -178,6 +195,42 @@ point `CODEX_HOME` elsewhere.
 `--persist model` saves the model this launch used as the entry's default.
 Note that choosing `--backend` never promotes an entry to default. Only
 `config set defaultBackend` does that.
+
+### Launching a GUI harness
+
+`opencode-desktop` is the first GUI harness. It launches like any other
+(`harnessgateway launch opencode-desktop`), with three differences.
+
+**`--persist config` also selects the launch mode.** With it, the launcher
+applies the configuration, starts the app, and returns immediately with
+exit code 0 while the app keeps running. Without it, the launcher blocks
+until you quit the app, and everything it wrote is restored on exit -
+exactly as a CLI launch restores the codex edit. The restore guarantee is
+the same in both modes; only the timing differs.
+
+**A running instance asks for confirmation.** If the app is already open,
+`launch` prints a `Proceed anyway? [y/N]` question, because configuration
+applied to an open application may be overwritten or ignored by the
+instance that is running. Declining - and a non-interactive launch, where
+stdin is piped and nothing can answer the question - stops the launch with
+exit code 4 and writes nothing. Pass `--confirm-running` to assert the
+answer yourself and skip the prompt in every context, interactive or not:
+
+```bash
+harnessgateway launch opencode-desktop --persist config --confirm-running
+```
+
+Using `--confirm-running` with a CLI harness is a usage error (exit code 2):
+CLI harnesses have no running instance to confirm.
+
+**Keys never touch disk.** A saved API key is handed to the app as an
+environment variable on the child process - only when the harness declares
+that surface - and the launcher never writes key material to a
+configuration file. A key-carrying backend pointed at a GUI harness that
+declares no environment surface refuses with exit code 4, as does a
+backend or model override against a harness that declares no configuration
+surface that could carry it. Keys still come only from saved backend
+entries; there is no per-launch key for GUI harnesses either.
 
 ## Configuration
 
@@ -293,10 +346,10 @@ leaves it untouched.
 
 | Code | Name | Meaning |
 |------|------|---------|
-| 0 | Ok | Command succeeded; for `launch`, the harness process itself exited 0 |
-| 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), or a `remove` that would break the default pointer or empty the entry list |
+| 0 | Ok | Command succeeded; for `launch`, the harness process itself exited 0 — or, for a detached GUI launch (`--persist config`), the app was handed off successfully and there is no exit status to wait for |
+| 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), a `remove` that would break the default pointer or empty the entry list, or `--confirm-running` against a CLI harness, which has no running instance to confirm (ConfirmUnsupportedForHarness) |
 | 3 | UnknownAgent | Unrecognized harness identifier, or a protocol the chosen harness doesn't support. A near miss prompts a suggestion of the correct identifier |
-| 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` |
+| 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` (for a GUI harness: not found on `PATH` or in the OS's conventional install locations), or a GUI launch stopped because an already-running instance was not confirmed (RunningInstanceUnconfirmed), or because the harness's declared configuration surfaces cannot carry the launch's key or overrides (GuiBackendUnsupported) |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
 | 6 | RequiredModelMissing | **Reserved.** Declared but never returned; the launcher prints a warning when a harness requires a model but has none, then launches it anyway |
 | 7 | ConfigRestoreFailure | Credential-store failure (absent key or store error), or an unexpected fault inside the launch flow — including a config restore that fails. Messages from the unexpected path start with `Launch failed:` |
@@ -309,6 +362,13 @@ keeps them so that a future build can claim those numbers without
 renumbering anything documented here. New exit codes are appended only. On a
 launch, the harness process's own exit status is passed through unchanged,
 so a number the harness itself returns can coincide with any code above.
+
+The three GUI refusals are producers of the existing numbers above, not new
+codes: RunningInstanceUnconfirmed and GuiBackendUnsupported exit 4 like
+every other unavailable-harness stop, and ConfirmUnsupportedForHarness
+exits 2 like every other usage error. Scripts that need to tell those
+stops apart should read the stderr message, which names the reason - the
+exit code alone cannot.
 
 ## License
 

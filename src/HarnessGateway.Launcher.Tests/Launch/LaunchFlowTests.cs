@@ -59,7 +59,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
             adapter is not null ? [adapter] : [],
-            effectiveKeyStore);
+            effectiveKeyStore,
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, settingsDir, backupsDir);
     }
 
@@ -84,7 +87,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runnerFactory?.Invoke(configFile) ?? new TestLaunchRunner(),
             [new ConfigWritingAdapter(configFile)],
-            new FakeSecureKeyStore());
+            new FakeSecureKeyStore(),
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, configFile, settingsDir);
     }
 
@@ -133,7 +139,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
             [adapter],
-            keyStore);
+            keyStore,
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, configPath, backupsDir);
     }
 
@@ -176,7 +185,10 @@ public class LaunchFlowTests
             new BackupService(backupsDir),
             runner ?? new TestLaunchRunner(),
             [adapter],
-            effectiveKeyStore);
+            effectiveKeyStore,
+            new FakeGuiInstallDiscovery(),
+            new FakeRunningInstanceDetector(),
+            new FakeConfirmationPrompt());
         return (flow, tempDir, backupsDir);
     }
 
@@ -209,6 +221,14 @@ public class LaunchFlowTests
         ],
         DefaultBackend = name,
     };
+
+    /// <summary>
+    /// The blocking-run payload these CLI-shaped tests assert on, read
+    /// through a cast that fails loudly if a completed outcome ever carries
+    /// the detached <see cref="CompletedPayload.HandedOff"/> variant instead.
+    /// </summary>
+    private static int ExitStatusOf(LaunchCompleted completed) =>
+        ((CompletedPayload.ExitStatus)completed.Payload).Value;
 
     // --- Restore guarantee: structural, on every exit path ---
 
@@ -262,7 +282,10 @@ public class LaunchFlowTests
                 new BackupService(backupsDir),
                 runner,
                 [new ConfigWritingAdapter(blockedTarget)],
-                new FakeSecureKeyStore());
+                new FakeSecureKeyStore(),
+                new FakeGuiInstallDiscovery(),
+                new FakeRunningInstanceDetector(),
+                new FakeConfirmationPrompt());
 
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
@@ -291,7 +314,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // Nothing was ever registered, so the restore was a clean no-op.
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
@@ -312,7 +335,7 @@ public class LaunchFlowTests
                 new LaunchRequest("ConfigWriter", null, null, null, null, ["config"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo("{\"modified\":true}");
         }
         finally
@@ -473,7 +496,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, "gpt-5", ["model"], "sk-session"));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             // The launch copy carries the secret...
             await Assert.That(adapter.LastRequest).IsNotNull();
@@ -794,7 +817,7 @@ public class LaunchFlowTests
                     "ConfigWriter", null, null, null, "gpt-5", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // Both post-conditions of one call: the restore put the original
             // config back, and the model landed in settings afterwards.
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(originalConfig);
@@ -843,9 +866,8 @@ public class LaunchFlowTests
         }
     }
 
-    // --- End-to-end scenarios migrated from the orchestrator suite:
-    //     same coverage, re-pointed onto the flow; assertions now speak the
-    //     outcome vocabulary, never exit codes. ---
+    // --- End-to-end scenarios: assertions speak the outcome vocabulary,
+    //     never exit codes. ---
 
     [Test]
     public async Task ExecuteAsync_endpoint_and_protocol_override_builds_an_ad_hoc_backend()
@@ -859,7 +881,7 @@ public class LaunchFlowTests
                     "TestAgent", null, "https://api.example.com/v1", "openai-chat", null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.BaseUri)
                 .IsEqualTo(new Uri("https://api.example.com/v1"));
@@ -884,7 +906,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("default");
         }
@@ -908,7 +930,7 @@ public class LaunchFlowTests
                     new LaunchRequest("TestAgent", null, null, null, null, [], null)));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(errorOutput).Contains("requires a model but none was specified");
             // The warning never blocks: planning still produced a request.
             await Assert.That(adapter.LastRequest).IsNotNull();
@@ -933,7 +955,7 @@ public class LaunchFlowTests
                     new LaunchRequest("TestAgent", null, null, null, "gpt-4", [], null)));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
             await Assert.That(adapter.LastRequest).IsNotNull();
         }
@@ -957,7 +979,7 @@ public class LaunchFlowTests
                     new LaunchRequest("TestAgent", null, null, null, null, [], null)));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
         }
         finally
@@ -1000,7 +1022,7 @@ public class LaunchFlowTests
                 new LaunchRequest("codex", null, null, null, "gpt-5", [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // The launch saw the launcher-owned provider block...
             await Assert.That(contentDuringLaunch).IsNotNull();
             await Assert.That(contentDuringLaunch!).Contains("[model_providers.harnessgateway]");
@@ -1033,12 +1055,11 @@ public class LaunchFlowTests
                 new LaunchRequest("CODEX", null, null, null, "gpt-5", ["config"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             string content = await File.ReadAllTextAsync(configPath);
             await Assert.That(content).Contains("[model_providers.harnessgateway]");
             await Assert.That(content).Contains("model_provider = \"harnessgateway\"");
-            // Persisting consumed the backup marker.
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }
         finally
@@ -1050,8 +1071,6 @@ public class LaunchFlowTests
     [Test]
     public async Task ExecuteAsync_restricted_protocol_adapter_launches_when_the_pairing_matches()
     {
-        // A restricted fake harness that only speaks openai-chat, pointed at
-        // a matching backend: compatible pairings launch.
         TestHarnessAdapter adapter = new(
             "TestAgent",
             supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
@@ -1078,7 +1097,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
@@ -1148,7 +1167,7 @@ public class LaunchFlowTests
                 new LaunchRequest("CLAUDE-CODE", null, null, null, "claude-sonnet-5", [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
             IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
@@ -1206,7 +1225,7 @@ public class LaunchFlowTests
                 new LaunchRequest("claude-code", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
             IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
@@ -1260,7 +1279,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, "gpt-4", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             string fileBytes = await File.ReadAllTextAsync(
                 Path.Combine(settingsDir, "HarnessGateway-launcher.json"));
@@ -1283,9 +1302,8 @@ public class LaunchFlowTests
     {
         // First-run wizard shape: no saved backend at all, so resolution
         // builds the ad-hoc override entry with no key. The key the wizard
-        // collected must ride the invocation - this is the regression the
-        // silent-fail bug shipped - and the ad-hoc launch must never create
-        // a settings file.
+        // collected must ride the invocation, and the ad-hoc launch must
+        // never create a settings file.
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(adapter: adapter);
         try
@@ -1301,7 +1319,7 @@ public class LaunchFlowTests
                     "sk-wizard-only"));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-wizard-only");
 
             // Launch-copy-only: an ad-hoc override against an empty settings
@@ -1347,7 +1365,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], "sk-explicit"));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-explicit");
 
             // The override is launch-copy-only: the stored entry keeps its
@@ -1402,7 +1420,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", "secondary", null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
             // The selection's stored key is the only credential source,
@@ -1461,7 +1479,7 @@ public class LaunchFlowTests
                     null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             await Assert.That(adapter.LastRequest!.Backend.BaseUri)
                 .IsEqualTo(new Uri("https://override.example/v1"));
@@ -1510,7 +1528,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", "secondary", null, null, "gpt-5", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             // Persisting the model never re-points DefaultBackend: selecting
             // a backend per launch has no settings side effect beyond the
@@ -1540,7 +1558,7 @@ public class LaunchFlowTests
                     "TestAgent", null, "https://raw.example/v1", "openai-chat", "gpt-5", ["model"], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
             // No stored entry exists to persist onto, so nothing is written -
             // an ad-hoc override never becomes a settings entry.
@@ -1614,7 +1632,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
-            await Assert.That(completed.ExitStatus).IsEqualTo(0);
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
             await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
 
@@ -1635,7 +1653,7 @@ public class LaunchFlowTests
     [Test]
     public async Task LaunchRequest_carries_no_resolved_secret_beyond_session_key()
     {
-        // The request is purely declarative: its seven fields are all
+        // The request is purely declarative: its fields are all
         // pre-resolution inputs. A Backend - the type that carries the
         // resolved secret - must not be reachable through any of them, and
         // SessionKey is the only secret-adjacent slot (a plain string the
@@ -1646,7 +1664,7 @@ public class LaunchFlowTests
             ",",
             properties.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal));
         await Assert.That(declaredNames).IsEqualTo(
-            "BackendName,Endpoint,Harness,Model,Persist,Protocol,SessionKey");
+            "BackendName,ConfirmRunning,Endpoint,Harness,Model,Persist,Protocol,SessionKey");
 
         await Assert.That(
             properties.Any(p => typeof(Backend).IsAssignableFrom(p.PropertyType))).IsFalse();
@@ -1663,11 +1681,31 @@ public class LaunchFlowTests
         {
             return Task.FromResult(0);
         }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return 0;
+        }
     }
 
     private sealed class FaultingLaunchRunner(Exception exception) : ILaunchRunner
     {
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            throw exception;
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public int Handoff(LaunchPlan plan)
         {
             throw exception;
         }
@@ -1679,16 +1717,39 @@ public class LaunchFlowTests
         {
             return onRun(plan);
         }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return onRun(plan).GetAwaiter().GetResult();
+        }
     }
 
     private sealed class CountingLaunchRunner : ILaunchRunner
     {
         public int RunCallCount { get; private set; }
 
+        public int HandoffCallCount { get; private set; }
+
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             RunCallCount++;
             return Task.FromResult(0);
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            HandoffCallCount++;
+            return HandoffCallCount;
         }
     }
 
@@ -1743,7 +1804,9 @@ public class LaunchFlowTests
                 installHint,
                 DetectionCommand: $"{name} --version",
                 [],
-                supportedProtocols ?? AllProtocols);
+                supportedProtocols ?? AllProtocols,
+                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+                InstanceProcessNames: []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
@@ -1775,7 +1838,9 @@ public class LaunchFlowTests
             InstallHint: "N/A",
             DetectionCommand: "ConfigWriter --version",
             [],
-            AllProtocols);
+            AllProtocols,
+            new HashSet<ConfigurationSurface>(),
+            []);
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
         {

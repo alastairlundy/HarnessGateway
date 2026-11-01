@@ -22,7 +22,9 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
             ProtocolKind.OpenAiChat,
             ProtocolKind.OpenAiResponses,
             ProtocolKind.Anthropic,
-        });
+        },
+        new HashSet<ConfigurationSurface>(),
+        []);
 
     private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
 

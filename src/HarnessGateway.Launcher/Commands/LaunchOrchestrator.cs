@@ -28,12 +28,16 @@ public sealed class LaunchOrchestrator
     /// The direct CLI path: parsed flags and nothing more. The direct path
     /// never carries a launch-time key - keys are a stored-entry concern here
     /// (set via <c>config backend set-key</c>) - so the request always builds
-    /// with a null <see cref="LaunchRequest.SessionKey"/>.
+    /// with a null <see cref="LaunchRequest.SessionKey"/>. The
+    /// <paramref name="confirmRunning"/> fact rides verbatim from the flag: the
+    /// request builder never inspects the harness kind, because the misuse
+    /// refusal (flag against a Kind=Cli harness) belongs to the flow.
     /// </summary>
     public async Task<int> RunAsync(
         string agentName, string? backendName,
         string? endpoint, string? protocol,
         string? model, IReadOnlyList<string> persistValues,
+        bool confirmRunning = false,
         CancellationToken cancellationToken = default)
     {
         LaunchRequest request = new(
@@ -43,7 +47,8 @@ public sealed class LaunchOrchestrator
             protocol,
             model,
             persistValues,
-            SessionKey: null);
+            SessionKey: null,
+            ConfirmRunning: confirmRunning);
 
         LaunchOutcome outcome = await _flow.ExecuteAsync(request, cancellationToken)
             .ConfigureAwait(true);
@@ -61,7 +66,17 @@ public sealed class LaunchOrchestrator
         switch (outcome)
         {
             case LaunchCompleted completed:
-                return completed.ExitStatus;
+                // The payload is mode-honest: a blocking run's exit status
+                // passes through untouched, and a detached start reports the
+                // handoff it already succeeded at as Ok - there is no exit
+                // code to wait for.
+                return completed.Payload switch
+                {
+                    CompletedPayload.ExitStatus exitStatus => exitStatus.Value,
+                    CompletedPayload.HandedOff => (int)LaunchExitCode.Ok,
+                    _ => throw new InvalidOperationException(
+                        $"unexpected completed payload variant '{completed.Payload?.GetType().Name}'"),
+                };
 
             case LaunchRefused refused:
                 // User-rectifiable: the message the flow composed Core-side
@@ -91,9 +106,11 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// Exhaustive over the twelve refusal kinds: every kind names its
+    /// Exhaustive over the fifteen refusal kinds: every kind names its
     /// exit code explicitly so a newly added kind cannot silently land on a
-    /// catch-all default. Codes are today's values, preserved byte-for-byte.
+    /// catch-all default. Codes are today's values, preserved byte-for-byte;
+    /// the three GUI kinds are producer additions to existing families, not
+    /// new numbers.
     /// </summary>
     private static int ExitCodeFor(LaunchRefusalKind kind) => kind switch
     {
@@ -102,11 +119,18 @@ public sealed class LaunchOrchestrator
         LaunchRefusalKind.HarnessUnavailable => (int)LaunchExitCode.HarnessUnavailable,
         LaunchRefusalKind.ProtocolNotSupported => (int)LaunchExitCode.UnknownAgent,
         LaunchRefusalKind.ProviderBlockConflict => (int)LaunchExitCode.ConfigConflict,
+        // GUI stops reuse the unavailable-harness family: a confirmation
+        // nothing confirmed and a surface nothing can carry both mean this
+        // launch cannot run as asked.
+        LaunchRefusalKind.RunningInstanceUnconfirmed
+            or LaunchRefusalKind.GuiBackendUnsupported => (int)LaunchExitCode.HarnessUnavailable,
+        // Flag misuse is a usage error, same as every other bad-flag stop.
+        LaunchRefusalKind.ConfirmUnsupportedForHarness => (int)LaunchExitCode.UsageError,
         LaunchRefusalKind.UnknownBackendName
             or LaunchRefusalKind.DanglingDefaultBackend
             or LaunchRefusalKind.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
         // Pair-rule and invalid-override refusals keep the resolution
-        // failure's historical default: usage error.
+        // failure's default: usage error.
         LaunchRefusalKind.ProtocolWithoutEndpoint
             or LaunchRefusalKind.EndpointWithoutProtocol
             or LaunchRefusalKind.InvalidEndpoint

@@ -8,6 +8,10 @@ A step the launcher performs to make a harness use a chosen provider: passing CL
 
 A mechanism a harness can be handed launcher configuration through: environment variables, command-line flags, or configuration files. The launcher only uses the ones a harness declares, and picks no surface of its own.
 
+## Configuration surface
+
+A mechanism a harness can be handed launcher configuration through: environment variables, command-line flags, or configuration files. The launcher only uses the ones a harness declares, and picks no surface of its own.
+
 ## Default endpoint
 
 The user-saved provider that `launch` uses when no per-launch endpoint override is given.

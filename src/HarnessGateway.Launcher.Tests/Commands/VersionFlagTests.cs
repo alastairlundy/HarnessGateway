@@ -34,7 +34,14 @@ public class VersionFlagTests
         BackupService backupService = new BackupService(backupsDir);
         LaunchOrchestrator orchestrator = new LaunchOrchestrator(
             new LaunchFlow(
-                settingsStore, backupService, new RefuseToLaunchRunner(), [], new FakeSecureKeyStore()));
+                settingsStore,
+                backupService,
+                new RefuseToLaunchRunner(),
+                [],
+                new FakeSecureKeyStore(),
+                new FakeGuiInstallDiscovery(),
+                new FakeRunningInstanceDetector(),
+                new FakeConfirmationPrompt()));
 
         bool wizardCalled = false;
         RootCommand root = RootCommandFactory.Create(
@@ -140,6 +147,16 @@ public class VersionFlagTests
     private sealed class RefuseToLaunchRunner : ILaunchRunner
     {
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("The version flag must never reach the launch runner.");
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public int Handoff(LaunchPlan plan)
         {
             throw new InvalidOperationException("The version flag must never reach the launch runner.");
         }

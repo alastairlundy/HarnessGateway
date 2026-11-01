@@ -23,6 +23,7 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// this flow executes their plans and interposes the guarantee. Refusals never
 /// cross this seam as exceptions; <see cref="LaunchRefusalException"/> from an
 /// adapter's planning step is caught here and folded into the outcome family.
+/// GUI refusals are composed here Core-side rather than in the exe.
 /// </remarks>
 public sealed class LaunchFlow
 {
@@ -36,27 +37,34 @@ public sealed class LaunchFlow
     private readonly ILaunchRunner _runner;
     private readonly IReadOnlyList<IHarnessAdapter> _adapters;
     private readonly ISecureKeyStore _keyStore;
+    private readonly IGuiInstallDiscovery _installDiscovery;
+    private readonly IRunningInstanceDetector _instanceDetector;
+    private readonly IConfirmationPrompt _confirmationPrompt;
 
     public LaunchFlow(
         SettingsStore settingsStore,
         BackupService backupService,
         ILaunchRunner runner,
         IReadOnlyList<IHarnessAdapter> adapters,
-        ISecureKeyStore keyStore)
+        ISecureKeyStore keyStore,
+        IGuiInstallDiscovery installDiscovery,
+        IRunningInstanceDetector instanceDetector,
+        IConfirmationPrompt confirmationPrompt)
     {
         _settingsStore = settingsStore;
         _backupService = backupService;
         _runner = runner;
         _adapters = adapters;
         _keyStore = keyStore;
+        _installDiscovery = installDiscovery;
+        _instanceDetector = instanceDetector;
+        _confirmationPrompt = confirmationPrompt;
     }
 
     /// <summary>
     /// Executes one launch submission and returns its terminal outcome. The
     /// working directory is captured from <see cref="Environment.CurrentDirectory"/>
-    /// at call time (decision I003): both callers used to pass
-    /// <c>Directory.GetCurrentDirectory()</c>, the same value for an in-process
-    /// CLI, so <see cref="LaunchRequest"/> stays purely declarative.
+    /// at call time so <see cref="LaunchRequest"/> stays purely declarative.
     /// </summary>
     public async Task<LaunchOutcome> ExecuteAsync(LaunchRequest request, CancellationToken ct = default)
     {
@@ -101,10 +109,28 @@ public sealed class LaunchFlow
 
             IHarnessAdapter adapter = adapterResult.Value;
 
-            bool isAvailable = await adapter.IsAvailableAsync(ct).ConfigureAwait(false);
+            // Availability takes the Kind's own mechanism: Kind=Cli keeps
+            // the detection-command probe, Kind=Gui asks the operating
+            // system through discovery. An exhausted search is an honest
+            // HarnessUnavailable refusal, never a crash.
+            bool isAvailable = adapter.Metadata.Kind == HarnessKind.Gui
+                ? _installDiscovery.Discover(adapter.Metadata.InstanceProcessNames).Found
+                : await adapter.IsAvailableAsync(ct).ConfigureAwait(false);
             if (!isAvailable)
             {
                 return new LaunchRefused(LaunchRefusalKind.HarnessUnavailable, adapter.Metadata.InstallHint);
+            }
+
+            // Misuse check, before anything is resolved for it:
+            // --confirm-running asserts the answer to a live-instance
+            // confirmation only a GUI harness has.
+            if (request.ConfirmRunning && adapter.Metadata.Kind == HarnessKind.Cli)
+            {
+                return new LaunchRefused(
+                    LaunchRefusalKind.ConfirmUnsupportedForHarness,
+                    $"Refusing to launch {request.Harness}: --confirm-running confirms an "
+                    + "already-running GUI application instance, and this harness runs as a "
+                    + "CLI. Re-run without --confirm-running.");
             }
 
             // A successful resolution can still carry no backend at all: empty
@@ -142,15 +168,35 @@ public sealed class LaunchFlow
             backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, ct).ConfigureAwait(false);
 
             // The wizard's collected key (and only that carry-over) overrides
-            // on this local copy, never on the stored entry: `settings` keeps
-            // carrying its reference, so a later Save (PersistDefaultModel)
-            // can never write the launch-time secret back out. The wizard
+            // on this local copy, never on the stored entry. The wizard
             // supplies a key only when the resolved entry had none or the user
             // typed one, so this layering can only fill a gap; it never masks
             // a stored key with a stale copy.
             if (!string.IsNullOrEmpty(request.SessionKey))
             {
                 backend = backend with { ApiKey = request.SessionKey };
+            }
+
+            if (adapter.Metadata.Kind == HarnessKind.Gui)
+            {
+                // The live-instance confirmation: a detected instance asks,
+                // the scripted override skips the prompt in every context,
+                // and a decline or an unanswerable prompt stops the launch
+                // before anything is written.
+                LaunchRefused? unconfirmed = await ConfirmRunningInstanceAsync(
+                    adapter, request, ct).ConfigureAwait(false);
+                if (unconfirmed is not null)
+                {
+                    return unconfirmed;
+                }
+
+                // Capability check, still before planning: what this launch
+                // asks to deliver must ride a surface the harness declares.
+                LaunchRefused? surfaceRefusal = DeclaredSurfaceRefusal(adapter, request, backend);
+                if (surfaceRefusal is not null)
+                {
+                    return surfaceRefusal;
+                }
             }
 
             ResolvedLaunch payload = new(backend, resolvedModel, workingDirectory);
@@ -167,14 +213,31 @@ public sealed class LaunchFlow
                 return new LaunchRefused(LaunchRefusalKind.ProviderBlockConflict, ex.Message);
             }
 
+            if (adapter.Metadata.Kind == HarnessKind.Gui)
+            {
+                // Configuration rides only the surfaces the harness declares:
+                // a file write needs Files and a flag action needs Flags.
+                // (Key material is already gated above - it only ever rides
+                // environment variables, and only when Environment is
+                // declared - and the launcher never writes keys to disk.)
+                plan = FilterToDeclaredSurfaces(plan, adapter.Metadata.SupportedSurfaces);
+            }
+
             bool persistConfig = request.Persist.Contains("config", StringComparer.OrdinalIgnoreCase);
+
+            // Mode dispatch: a Kind=Gui launch that persists its config
+            // applies the writes and returns at process handoff
+            // (fire-and-forget); every other launch blocks on the harness,
+            // and the finally below restores after the child exits exactly
+            // as a CLI launch does.
+            bool detached = adapter.Metadata.Kind == HarnessKind.Gui && persistConfig;
 
             // The restore guarantee, structural: whatever happens inside this
             // try - a config-write fault, a runner fault, a cancellation - the
             // finally attempts the restore. Nothing registered means the
             // restore is a no-op; --persist config opts out via the unchanged
             // parameter (the write is then durable by design).
-            int exitStatus;
+            CompletedPayload completed;
             try
             {
                 foreach (ConfigurationAction action in plan.ConfigurationActions)
@@ -182,7 +245,24 @@ public sealed class LaunchFlow
                     await ExecuteConfigurationActionAsync(action, ct).ConfigureAwait(false);
                 }
 
-                exitStatus = await _runner.RunAsync(plan, ct).ConfigureAwait(false);
+                if (detached)
+                {
+                    completed = new CompletedPayload.HandedOff(_runner.Handoff(plan));
+                }
+                else
+                {
+                    // The blocking wait is where the two kinds diverge: a GUI
+                    // launch waits on a human closing the application, so its
+                    // run carries no timeout - the process library's default
+                    // 2-minute bound would kill the app mid-session. A CLI
+                    // launch keeps the default bounded run it has always had.
+                    Task<int> blockingRun = adapter.Metadata.Kind == HarnessKind.Gui
+                        ? _runner.RunWithoutTimeoutAsync(plan, ct)
+                        : _runner.RunAsync(plan, ct);
+
+                    completed = new CompletedPayload.ExitStatus(
+                        await blockingRun.ConfigureAwait(false));
+                }
             }
             finally
             {
@@ -199,7 +279,7 @@ public sealed class LaunchFlow
                 PersistDefaultModel(settings, backend, resolvedModel);
             }
 
-            return new LaunchCompleted(exitStatus);
+            return new LaunchCompleted(completed);
         }
         catch (UnsupportedSettingsSchemaException ex)
         {
@@ -237,6 +317,118 @@ public sealed class LaunchFlow
         BackendResolutionFailure.InvalidProtocol => LaunchRefusalKind.InvalidProtocol,
         _ => throw new InvalidOperationException($"unexpected resolution failure '{failure}'"),
     };
+
+    /// <summary>
+    /// The live-instance confirmation chain for a Kind=Gui launch: a
+    /// detected instance asks through the injected prompt, the request's
+    /// scripted override skips that prompt in every context, and a decline -
+    /// or a prompt nothing could answer - stops as
+    /// <see cref="LaunchRefusalKind.RunningInstanceUnconfirmed"/> with its
+    /// message composed here.
+    /// </summary>
+    /// <returns>The refusal to stop with, or <c>null</c> to proceed.</returns>
+    private async Task<LaunchRefused?> ConfirmRunningInstanceAsync(
+        IHarnessAdapter adapter,
+        LaunchRequest request,
+        CancellationToken cancellationToken)
+    {
+        bool found = _instanceDetector.DetectRunningInstances(
+            adapter.Metadata.InstanceProcessNames).Found;
+        if (!found || request.ConfirmRunning)
+        {
+            // No live instance, or the caller already asserted the answer
+            // the prompt would have collected.
+            return null;
+        }
+
+        string prompt =
+            $"{adapter.Metadata.Name} is already running. Launching now applies configuration "
+            + "to an application that is open, which the running instance may overwrite or "
+            + "ignore. Proceed anyway? [y/N]";
+
+        bool confirmed = await _confirmationPrompt.ConfirmAsync(prompt, cancellationToken)
+            .ConfigureAwait(false);
+        if (confirmed)
+        {
+            return null;
+        }
+
+        return new LaunchRefused(
+            LaunchRefusalKind.RunningInstanceUnconfirmed,
+            $"Refusing to launch {adapter.Metadata.Name}: an instance is already running and "
+            + "the launch was not confirmed. Close the application first, or re-run with "
+            + "--confirm-running to launch while it is open.");
+    }
+
+    /// <summary>
+    /// The declared-surface capability gate for a Kind=Gui launch: what this
+    /// launch asks to deliver must ride a surface the harness declares.
+    /// Key material is delivered only as environment variables on the child
+    /// process - never written to disk - so a key against a harness without
+    /// that surface refuses, as does a backend or model override against a
+    /// harness declaring no surface at all. A launch that asks for neither
+    /// never produces this refusal.
+    /// </summary>
+    /// <returns>The refusal to stop with, or <c>null</c> to proceed.</returns>
+    private static LaunchRefused? DeclaredSurfaceRefusal(
+        IHarnessAdapter adapter,
+        LaunchRequest request,
+        Backend backend)
+    {
+        IReadOnlySet<ConfigurationSurface> surfaces = adapter.Metadata.SupportedSurfaces;
+        string name = adapter.Metadata.Name;
+
+        if (!string.IsNullOrEmpty(backend.ApiKey)
+            && !surfaces.Contains(ConfigurationSurface.Environment))
+        {
+            return new LaunchRefused(
+                LaunchRefusalKind.GuiBackendUnsupported,
+                $"Refusing to launch {name}: this launch carries a saved API key, but the "
+                + "harness declares no environment surface to receive it. Keys ride child "
+                + "process environment variables only, and the launcher never writes key "
+                + "material to a configuration file. Launch this harness with a key-free "
+                + "backend, or use a harness that accepts environment configuration.");
+        }
+
+        bool backendOverride = request.BackendName is not null
+            || request.Endpoint is not null
+            || request.Protocol is not null;
+        if ((backendOverride || request.Model is not null) && surfaces.Count == 0)
+        {
+            return new LaunchRefused(
+                LaunchRefusalKind.GuiBackendUnsupported,
+                $"Refusing to launch {name}: a backend or model override was requested, but "
+                + "the harness declares no configuration surface that could carry it, so "
+                + "the override could never reach the application. Launch this harness "
+                + "without backend or model overrides.");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Restricts a GUI plan's configuration actions to the surfaces the
+    /// harness declares: file writes need <see cref="ConfigurationSurface.Files"/>,
+    /// flag actions need <see cref="ConfigurationSurface.Flags"/>. An action
+    /// on an undeclared surface is dropped rather than executed, so a plan
+    /// can never configure through a mechanism the harness does not support.
+    /// </summary>
+    private static LaunchPlan FilterToDeclaredSurfaces(
+        LaunchPlan plan,
+        IReadOnlySet<ConfigurationSurface> surfaces)
+    {
+        IReadOnlyList<ConfigurationAction> actions = plan.ConfigurationActions
+            .Where(action => action switch
+            {
+                ConfigFileWriteAction => surfaces.Contains(ConfigurationSurface.Files),
+                CliArgumentAction => surfaces.Contains(ConfigurationSurface.Flags),
+                _ => throw new InvalidOperationException(
+                    $"unexpected configuration action variant '{action.GetType().Name}'"),
+            })
+            .ToArray();
+
+        return plan with { ConfigurationActions = actions };
+    }
 
     /// <summary>
     /// Picks the model for this launch: the explicit <c>--model</c> value, else
