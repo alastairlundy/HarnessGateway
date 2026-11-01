@@ -69,7 +69,7 @@ public sealed class CodexAdapter : IHarnessAdapter
         editor.UpsertBlock(ProviderBlockName, new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["name"] = "HarnessGateway",
-            ["base_url"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
+            ["base_url"] = request.Provider.BaseUri.ToString().TrimEnd('/'),
             ["env_key"] = EnvKeyName,
             ["wire_api"] = "responses",
         });
@@ -83,9 +83,9 @@ public sealed class CodexAdapter : IHarnessAdapter
         // key is scoped to the spawned codex process - codex reads it from
         // the environment variable named by the config block's env_key.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
-        if (request.Backend.ApiKey is { Length: > 0 })
+        if (request.Provider.ApiKey is { Length: > 0 })
         {
-            envVars[EnvKeyName] = request.Backend.ApiKey;
+            envVars[EnvKeyName] = request.Provider.ApiKey;
         }
 
         List<ConfigurationAction> actions =

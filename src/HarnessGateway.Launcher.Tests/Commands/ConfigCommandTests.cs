@@ -1,6 +1,6 @@
 using System.CommandLine;
 using HarnessGateway.Launcher.Commands;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 
@@ -72,7 +72,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Config_surface_is_show_get_set_and_backend()
+    public async Task Config_surface_is_show_get_set_and_provider()
     {
         ConfigCommand cmd = new ConfigCommand(
             CreateSettingsStore(CreateTempDir()),
@@ -89,29 +89,29 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task ResolveDefaultBackend_returns_default_backend_by_name()
+    public async Task ResolveDefaultProvider_returns_default_provider_by_name()
     {
         LauncherSettings settings = new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "other",
                     BaseUri = new Uri("https://other.example.com/v1"),
-                    Protocol = ProtocolKind.Anthropic
+                    DefaultProtocol = ProtocolKind.Anthropic
                 },
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat
+                    DefaultProtocol = ProtocolKind.OpenAiChat
                 }
             ],
-            DefaultBackend = "default"
+            DefaultProvider = "default"
         };
 
-        Backend? backend = ConfigCommand.ResolveDefaultBackend(settings);
+        Provider? backend = ConfigCommand.ResolveDefaultProvider(settings);
 
         await Assert.That(backend).IsNotNull();
         await Assert.That(backend!.Name).IsEqualTo("default");
@@ -119,89 +119,89 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task ResolveDefaultBackend_returns_first_when_no_default_set()
+    public async Task ResolveDefaultProvider_returns_first_when_no_default_set()
     {
         LauncherSettings settings = new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "first",
                     BaseUri = new Uri("https://first.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat
+                    DefaultProtocol = ProtocolKind.OpenAiChat
                 }
             ],
-            DefaultBackend = string.Empty
+            DefaultProvider = string.Empty
         };
 
-        Backend? backend = ConfigCommand.ResolveDefaultBackend(settings);
+        Provider? backend = ConfigCommand.ResolveDefaultProvider(settings);
 
         await Assert.That(backend).IsNotNull();
         await Assert.That(backend!.Name).IsEqualTo("first");
     }
 
     [Test]
-    public async Task ResolveDefaultBackend_returns_null_when_no_backends()
+    public async Task ResolveDefaultProvider_returns_null_when_no_providers()
     {
         LauncherSettings settings = new LauncherSettings();
 
-        Backend? backend = ConfigCommand.ResolveDefaultBackend(settings);
+        Provider? backend = ConfigCommand.ResolveDefaultProvider(settings);
 
         await Assert.That(backend).IsNull();
     }
 
     [Test]
-    public async Task UpdateBackend_updates_existing_backend()
+    public async Task UpdateProvider_updates_existing_provider()
     {
         LauncherSettings settings = new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri("https://old.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat
+                    DefaultProtocol = ProtocolKind.OpenAiChat
                 }
             ],
-            DefaultBackend = "default"
+            DefaultProvider = "default"
         };
 
-        Backend updated = new Backend
+        Provider updated = new Provider
         {
             Name = "default",
             BaseUri = new Uri("https://new.example.com/v1"),
-            Protocol = ProtocolKind.Anthropic
+            DefaultProtocol = ProtocolKind.Anthropic
         };
 
-        ConfigCommand.UpdateBackend(settings, updated);
+        ConfigCommand.UpdateProvider(settings, updated);
 
-        await Assert.That(settings.Backends).Count().IsEqualTo(1);
-        await Assert.That(settings.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
-        await Assert.That(settings.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(settings.Providers).Count().IsEqualTo(1);
+        await Assert.That(settings.Providers[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
+        await Assert.That(settings.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
     }
 
     [Test]
-    public async Task UpdateBackend_adds_new_backend_when_not_exists()
+    public async Task UpdateProvider_adds_new_provider_when_not_exists()
     {
         LauncherSettings settings = new LauncherSettings
         {
-            Backends = [],
-            DefaultBackend = "new"
+            Providers = [],
+            DefaultProvider = "new"
         };
 
-        Backend newBackend = new Backend
+        Provider newBackend = new Provider
         {
             Name = "new",
             BaseUri = new Uri("https://new.example.com/v1"),
-            Protocol = ProtocolKind.OpenAiChat
+            DefaultProtocol = ProtocolKind.OpenAiChat
         };
 
-        ConfigCommand.UpdateBackend(settings, newBackend);
+        ConfigCommand.UpdateProvider(settings, newBackend);
 
-        await Assert.That(settings.Backends).Count().IsEqualTo(1);
-        await Assert.That(settings.Backends[0].Name).IsEqualTo("new");
+        await Assert.That(settings.Providers).Count().IsEqualTo(1);
+        await Assert.That(settings.Providers[0].Name).IsEqualTo("new");
     }
 
     [Test]
@@ -213,18 +213,18 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             LauncherSettings settings = new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "default",
                         BaseUri = new Uri("https://api.example.com/v1"),
-                        Protocol = ProtocolKind.OpenAiChat,
+                        DefaultProtocol = ProtocolKind.OpenAiChat,
                         ApiKey = "hgkey:default",
                         DefaultModel = "gpt-4"
                     }
                 ],
-                DefaultBackend = "default"
+                DefaultProvider = "default"
             };
             store.Save(settings);
 
@@ -239,7 +239,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Show_verb_no_backend_returns_zero()
+    public async Task Show_verb_no_provider_returns_zero()
     {
         string tempDir = CreateTempDir();
         try
@@ -256,13 +256,13 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Show_no_backend_hint_points_at_new_verbs()
+    public async Task Show_no_provider_hint_points_at_new_verbs()
     {
         string tempDir = CreateTempDir();
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            // ResolveDefaultBackend falls back to the first entry when the
+            // ResolveDefaultProvider falls back to the first entry when the
             // pointer is empty, so the no-default hint only surfaces with a
             // genuinely empty backend list (or a dangling pointer).
             store.Save(new LauncherSettings());
@@ -289,16 +289,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "ghost"
+                DefaultProvider = "ghost"
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -323,16 +323,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -369,7 +369,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Get_backends_lists_names_only()
+    public async Task Get_providers_lists_names_only()
     {
         string tempDir = CreateTempDir();
         try
@@ -377,23 +377,23 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "default",
                         BaseUri = new Uri("https://api.example.com/v1"),
-                        Protocol = ProtocolKind.OpenAiChat,
+                        DefaultProtocol = ProtocolKind.OpenAiChat,
                         ApiKey = "hgkey:default"
                     },
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.Anthropic
+                        DefaultProtocol = ProtocolKind.Anthropic
                     }
                 ],
-                DefaultBackend = "default"
+                DefaultProvider = "default"
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -413,7 +413,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Get_backend_fields_reads_each_typed_shape()
+    public async Task Get_provider_fields_reads_each_typed_shape()
     {
         string tempDir = CreateTempDir();
         try
@@ -421,17 +421,17 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "default",
                         BaseUri = new Uri("https://api.example.com/v1"),
-                        Protocol = ProtocolKind.OpenAiChat,
+                        DefaultProtocol = ProtocolKind.OpenAiChat,
                         DefaultModel = "gpt-4"
                     }
                 ],
-                DefaultBackend = "default"
+                DefaultProvider = "default"
             });
 
             (int endpointExit, string endpointOutput) = await ConsoleOutputCapture.RunAsync(() =>
@@ -475,7 +475,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Get_unaddressable_backend_key_returns_usage_error()
+    public async Task Get_unaddressable_provider_key_returns_usage_error()
     {
         string tempDir = CreateTempDir();
         try
@@ -483,16 +483,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -516,22 +516,22 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     },
-                    new Backend
+                    new Provider
                     {
                         Name = "other",
                         BaseUri = new Uri("https://other.example.com/v1"),
-                        Protocol = ProtocolKind.Anthropic
+                        DefaultProtocol = ProtocolKind.Anthropic
                     }
                 ],
-                DefaultBackend = string.Empty
+                DefaultProvider = string.Empty
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -541,7 +541,7 @@ public class ConfigCommandTests
             await Assert.That(output).Contains("Default backend set to 'work'.");
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.DefaultBackend).IsEqualTo("work");
+            await Assert.That(saved.DefaultProvider).IsEqualTo("work");
         }
         finally
         {
@@ -583,26 +583,26 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = string.Empty
+                DefaultProvider = string.Empty
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config set defaultBackend nope")));
 
-            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
             await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.DefaultBackend).IsEqualTo(string.Empty);
+            await Assert.That(saved.DefaultProvider).IsEqualTo(string.Empty);
         }
         finally
         {
@@ -636,7 +636,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_backends_is_rejected_as_usage_error()
+    public async Task Set_providers_is_rejected_as_usage_error()
     {
         string tempDir = CreateTempDir();
         try
@@ -644,16 +644,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
             string before = Fingerprint(store);
 
@@ -671,7 +671,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_backend_endpoint_persists_and_confirms()
+    public async Task Set_provider_endpoint_persists_and_confirms()
     {
         string tempDir = CreateTempDir();
         try
@@ -679,18 +679,18 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://old.example.com/v1"),
-                        Protocol = ProtocolKind.OpenAiChat,
+                        DefaultProtocol = ProtocolKind.OpenAiChat,
                         ApiKey = "hgkey:work",
                         DefaultModel = "gpt-4"
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -702,11 +702,11 @@ public class ConfigCommandTests
             await Assert.That(output).Contains("backends.work.endpoint set to https://new.example.com/v1");
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
+            await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
             // A field write never disturbs the sibling fields or the key reference.
-            await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
-            await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-4");
-            await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
         }
         finally
         {
@@ -715,7 +715,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_backend_protocol_persists()
+    public async Task Set_provider_protocol_persists()
     {
         string tempDir = CreateTempDir();
         try
@@ -723,16 +723,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
 
             int exitCode = InvokeConfig(store, "config set backends.work.protocol anthropic");
@@ -740,7 +740,7 @@ public class ConfigCommandTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
         }
         finally
         {
@@ -749,7 +749,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_backend_defaultModel_persists()
+    public async Task Set_provider_defaultModel_persists()
     {
         string tempDir = CreateTempDir();
         try
@@ -757,16 +757,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
 
             int exitCode = InvokeConfig(store, "config set backends.work.defaultModel claude-sonnet-5");
@@ -774,7 +774,7 @@ public class ConfigCommandTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("claude-sonnet-5");
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("claude-sonnet-5");
         }
         finally
         {
@@ -817,16 +817,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
             string before = Fingerprint(store);
 
@@ -852,16 +852,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
             string before = Fingerprint(store);
 
@@ -879,7 +879,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_unaddressable_backend_key_returns_usage_error()
+    public async Task Set_unaddressable_provider_key_returns_usage_error()
     {
         string tempDir = CreateTempDir();
         try
@@ -887,16 +887,16 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "work",
                         BaseUri = new Uri("https://api.work.example/v1"),
-                        Protocol = ProtocolKind.OpenAiChat
+                        DefaultProtocol = ProtocolKind.OpenAiChat
                     }
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
             string before = Fingerprint(store);
 

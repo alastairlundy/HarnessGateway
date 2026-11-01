@@ -1,7 +1,7 @@
 using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -54,31 +54,31 @@ public class LaunchFlowGuiTests
 
     private static LauncherSettings DefaultSettings() => new()
     {
-        Backends =
+        Providers =
         [
-            new Backend
+            new Provider
             {
                 Name = "default",
                 BaseUri = new Uri("https://api.default.com/v1"),
-                Protocol = ProtocolKind.OpenAiChat,
+                DefaultProtocol = ProtocolKind.OpenAiChat,
             },
         ],
-        DefaultBackend = "default",
+        DefaultProvider = "default",
     };
 
     private static LauncherSettings KeyedSettings(string reference) => new()
     {
-        Backends =
+        Providers =
         [
-            new Backend
+            new Provider
             {
                 Name = "default",
                 BaseUri = new Uri("https://api.default.com/v1"),
-                Protocol = ProtocolKind.OpenAiChat,
+                DefaultProtocol = ProtocolKind.OpenAiChat,
                 ApiKey = reference,
             },
         ],
-        DefaultBackend = "default",
+        DefaultProvider = "default",
     };
 
     /// <summary>
@@ -342,7 +342,7 @@ public class LaunchFlowGuiTests
     // --- Declared-surface gating: keys and overrides ---
 
     [Test]
-    public async Task ExecuteAsync_key_with_only_file_surfaces_refuses_as_gui_backend_unsupported()
+    public async Task ExecuteAsync_key_with_only_file_surfaces_refuses_as_gui_provider_unsupported()
     {
         FakeSecureKeyStore keyStore = new();
         keyStore.Seed("hgkey:default", "sk-keyed");
@@ -358,7 +358,7 @@ public class LaunchFlowGuiTests
                 new LaunchRequest("gui-agent", null, null, null, null, [], null));
 
             LaunchRefused refused = (LaunchRefused)outcome;
-            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.GuiBackendUnsupported);
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.GuiProviderUnsupported);
             // The message says why and how to proceed; it never leaks the key.
             await Assert.That(refused.Message).Contains("environment");
             await Assert.That(refused.Message.Contains("sk-keyed")).IsFalse();
@@ -371,7 +371,7 @@ public class LaunchFlowGuiTests
     }
 
     [Test]
-    public async Task ExecuteAsync_model_override_with_no_declared_surface_refuses_as_gui_backend_unsupported()
+    public async Task ExecuteAsync_model_override_with_no_declared_surface_refuses_as_gui_provider_unsupported()
     {
         TestGuiHarnessAdapter adapter = new(
             supportedSurfaces: new HashSet<ConfigurationSurface>());
@@ -382,7 +382,7 @@ public class LaunchFlowGuiTests
                 new LaunchRequest("gui-agent", null, null, null, "gpt-5", [], null));
 
             LaunchRefused refused = (LaunchRefused)outcome;
-            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.GuiBackendUnsupported);
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.GuiProviderUnsupported);
             await Assert.That(refused.Message).Contains("override");
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
         }

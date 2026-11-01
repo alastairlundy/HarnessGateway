@@ -1,6 +1,6 @@
 using System.CommandLine;
 using HarnessGateway.Launcher.Commands;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 
 namespace HarnessGateway.Launcher.Tests.Commands;
 
@@ -105,7 +105,7 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Other_launch_options_have_no_short_aliases()
     {
-        await Assert.That(LaunchCommand.BackendOption.Aliases).IsEmpty();
+        await Assert.That(LaunchCommand.ProviderOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.EndpointOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.ProtocolOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.PersistOption.Aliases).IsEmpty();
@@ -189,17 +189,17 @@ public class LaunchCommandFlagParsingTests
     }
 
     [Test]
-    public async Task Parse_backend_option()
+    public async Task Parse_provider_option()
     {
         LaunchCommand command = new LaunchCommand();
         ParseResult result = command.Parse("launch opencode --backend production");
 
         await Assert.That(result.Errors).IsEmpty();
-        await Assert.That(result.GetValue(LaunchCommand.BackendOption)).IsEqualTo("production");
+        await Assert.That(result.GetValue(LaunchCommand.ProviderOption)).IsEqualTo("production");
     }
 
     [Test]
-    public async Task Parse_backend_without_value_fails()
+    public async Task Parse_provider_without_value_fails()
     {
         LaunchCommand command = new LaunchCommand();
         ParseResult result = command.Parse("launch opencode --backend");
@@ -218,7 +218,7 @@ public class LaunchCommandFlagParsingTests
     }
 
     [Test]
-    public async Task Parse_persist_backend_value_fails()
+    public async Task Parse_persist_provider_value_fails()
     {
         // The persist family stays closed at config|model: a --backend launch
         // cannot persist its selection.

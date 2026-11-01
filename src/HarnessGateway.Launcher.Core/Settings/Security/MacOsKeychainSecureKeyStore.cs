@@ -30,7 +30,7 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
 
     public async Task StoreAsync(string reference, string secret, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
+        string providerName = KeyReference.RequireProviderName(reference);
 
         // `-w` with no value keeps the secret off argv - a value on argv would be
         // visible to same-user `ps` and to shell history when invoked by hand.
@@ -47,8 +47,8 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
 
         BufferedProcessResult result = await SecureKeyStoreProcess.RunAsync(
             SecurityBinary,
-            ["add-generic-password", "-U", "-s", ServiceName, "-a", backendName, "-w"],
-            backendName,
+            ["add-generic-password", "-U", "-s", ServiceName, "-a", providerName, "-w"],
+            providerName,
             StoreOperation,
             SpawnFailure,
             writer,
@@ -57,7 +57,7 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
         if (result.ExitCode != 0)
         {
             throw SecureKeyStoreException.OperationFailed(
-                backendName,
+                providerName,
                 StoreOperation,
                 "the 'security' command rejected the item; unlock the login keychain and retry.");
         }
@@ -65,12 +65,12 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
 
     public async Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
+        string providerName = KeyReference.RequireProviderName(reference);
 
         BufferedProcessResult result = await SecureKeyStoreProcess.RunAsync(
             SecurityBinary,
-            ["find-generic-password", "-s", ServiceName, "-a", backendName, "-w"],
-            backendName,
+            ["find-generic-password", "-s", ServiceName, "-a", providerName, "-w"],
+            providerName,
             LoadOperation,
             SpawnFailure,
             standardInput: null,
@@ -100,14 +100,14 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
 
     public async Task DeleteAsync(string reference, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
+        string providerName = KeyReference.RequireProviderName(reference);
 
         // Best effort: a non-zero exit covers the already-absent item, which the
         // idempotent contract requires to succeed.
         await SecureKeyStoreProcess.RunAsync(
             SecurityBinary,
-            ["delete-generic-password", "-s", ServiceName, "-a", backendName],
-            backendName,
+            ["delete-generic-password", "-s", ServiceName, "-a", providerName],
+            providerName,
             DeleteOperation,
             SpawnFailure,
             standardInput: null,

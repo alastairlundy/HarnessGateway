@@ -34,7 +34,7 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
 
     public async Task StoreAsync(string reference, string secret, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
+        string providerName = KeyReference.RequireProviderName(reference);
 
         // The secret rides on stdin, never on argv.
         using MemoryStream payload = new(Encoding.UTF8.GetBytes(secret));
@@ -46,8 +46,8 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
 
         BufferedProcessResult result = await SecureKeyStoreProcess.RunAsync(
             SecretTool,
-            ["store", "--label", $"HarnessGateway {backendName}", "key", backendName],
-            backendName,
+            ["store", "--label", $"HarnessGateway {providerName}", "key", providerName],
+            providerName,
             StoreOperation,
             SpawnFailure,
             writer,
@@ -56,18 +56,18 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
         if (result.ExitCode != 0)
         {
             throw SecureKeyStoreException.OperationFailed(
-                backendName, StoreOperation, NoSessionFailure + ".");
+                providerName, StoreOperation, NoSessionFailure + ".");
         }
     }
 
     public async Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
+        string providerName = KeyReference.RequireProviderName(reference);
 
         BufferedProcessResult result = await SecureKeyStoreProcess.RunAsync(
             SecretTool,
-            ["lookup", "key", backendName],
-            backendName,
+            ["lookup", "key", providerName],
+            providerName,
             LoadOperation,
             SpawnFailure,
             standardInput: null,
@@ -97,14 +97,14 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
 
     public async Task DeleteAsync(string reference, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
+        string providerName = KeyReference.RequireProviderName(reference);
 
         // Best effort: `clear` on an entry that is not there must still succeed
         // for the idempotent contract, so a non-zero exit is swallowed here too.
         await SecureKeyStoreProcess.RunAsync(
             SecretTool,
-            ["clear", "key", backendName],
-            backendName,
+            ["clear", "key", providerName],
+            providerName,
             DeleteOperation,
             SpawnFailure,
             standardInput: null,

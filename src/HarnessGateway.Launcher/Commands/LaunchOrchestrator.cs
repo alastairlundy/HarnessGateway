@@ -34,7 +34,7 @@ public sealed class LaunchOrchestrator
     /// refusal (flag against a Kind=Cli harness) belongs to the flow.
     /// </summary>
     public async Task<int> RunAsync(
-        string agentName, string? backendName,
+        string agentName, string? providerName,
         string? endpoint, string? protocol,
         string? model, IReadOnlyList<string> persistValues,
         bool confirmRunning = false,
@@ -42,7 +42,7 @@ public sealed class LaunchOrchestrator
     {
         LaunchRequest request = new(
             agentName,
-            backendName,
+            providerName,
             endpoint,
             protocol,
             model,
@@ -114,7 +114,7 @@ public sealed class LaunchOrchestrator
     /// </summary>
     private static int ExitCodeFor(LaunchRefusalKind kind) => kind switch
     {
-        LaunchRefusalKind.NoBackend => (int)LaunchExitCode.UsageError,
+        LaunchRefusalKind.NoProvider => (int)LaunchExitCode.UsageError,
         LaunchRefusalKind.UnknownHarness => (int)LaunchExitCode.UnknownAgent,
         LaunchRefusalKind.HarnessUnavailable => (int)LaunchExitCode.HarnessUnavailable,
         LaunchRefusalKind.ProtocolNotSupported => (int)LaunchExitCode.UnknownAgent,
@@ -123,12 +123,12 @@ public sealed class LaunchOrchestrator
         // nothing confirmed and a surface nothing can carry both mean this
         // launch cannot run as asked.
         LaunchRefusalKind.RunningInstanceUnconfirmed
-            or LaunchRefusalKind.GuiBackendUnsupported => (int)LaunchExitCode.HarnessUnavailable,
+            or LaunchRefusalKind.GuiProviderUnsupported => (int)LaunchExitCode.HarnessUnavailable,
         // Flag misuse is a usage error, same as every other bad-flag stop.
         LaunchRefusalKind.ConfirmUnsupportedForHarness => (int)LaunchExitCode.UsageError,
-        LaunchRefusalKind.UnknownBackendName
-            or LaunchRefusalKind.DanglingDefaultBackend
-            or LaunchRefusalKind.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
+        LaunchRefusalKind.UnknownProviderName
+            or LaunchRefusalKind.DanglingDefaultProvider
+            or LaunchRefusalKind.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
         // Pair-rule and invalid-override refusals keep the resolution
         // failure's default: usage error.
         LaunchRefusalKind.ProtocolWithoutEndpoint

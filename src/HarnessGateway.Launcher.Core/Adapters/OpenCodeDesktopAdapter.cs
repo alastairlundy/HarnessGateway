@@ -145,26 +145,26 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
     {
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
 
-        string baseUrl = request.Backend.BaseUri.ToString().TrimEnd('/');
+        string baseUrl = request.Provider.BaseUri.ToString().TrimEnd('/');
 
-        string? providerId = request.Backend.Protocol switch
+        string? providerId = request.Provider.DefaultProtocol switch
         {
             ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => "openai",
             ProtocolKind.Anthropic => "anthropic",
             _ => null,
         };
 
-        switch (request.Backend.Protocol)
+        switch (request.Provider.DefaultProtocol)
         {
             case ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses:
                 envVars["OPENAI_BASE_URL"] = baseUrl;
-                if (request.Backend.ApiKey is { Length: > 0 })
-                    envVars["OPENAI_API_KEY"] = request.Backend.ApiKey;
+                if (request.Provider.ApiKey is { Length: > 0 })
+                    envVars["OPENAI_API_KEY"] = request.Provider.ApiKey;
                 break;
             case ProtocolKind.Anthropic:
                 envVars["ANTHROPIC_BASE_URL"] = baseUrl;
-                if (request.Backend.ApiKey is { Length: > 0 })
-                    envVars["ANTHROPIC_API_KEY"] = request.Backend.ApiKey;
+                if (request.Provider.ApiKey is { Length: > 0 })
+                    envVars["ANTHROPIC_API_KEY"] = request.Provider.ApiKey;
                 break;
         }
 

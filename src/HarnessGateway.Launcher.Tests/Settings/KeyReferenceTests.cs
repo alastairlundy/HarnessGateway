@@ -5,9 +5,9 @@ namespace HarnessGateway.Launcher.Tests.Settings;
 public class KeyReferenceTests
 {
     [Test]
-    public async Task ForBackend_produces_the_prefix_format()
+    public async Task ForProvider_produces_the_prefix_format()
     {
-        string reference = KeyReference.ForBackend("default");
+        string reference = KeyReference.ForProvider("default");
 
         await Assert.That(reference).IsEqualTo("hgkey:default");
     }
@@ -29,30 +29,30 @@ public class KeyReferenceTests
     }
 
     [Test]
-    public async Task BackendName_round_trips_through_ForBackend()
+    public async Task ProviderName_round_trips_through_ForProvider()
     {
-        string reference = KeyReference.ForBackend("secondary");
+        string reference = KeyReference.ForProvider("secondary");
 
-        string? backendName = KeyReference.BackendName(reference);
+        string? providerName = KeyReference.ProviderName(reference);
 
-        await Assert.That(backendName).IsEqualTo("secondary");
+        await Assert.That(providerName).IsEqualTo("secondary");
     }
 
     [Test]
-    public async Task BackendName_returns_null_for_a_legacy_plaintext_key()
+    public async Task ProviderName_returns_null_for_a_legacy_plaintext_key()
     {
-        string? backendName = KeyReference.BackendName("sk-legacy-key");
+        string? providerName = KeyReference.ProviderName("sk-legacy-key");
 
-        await Assert.That(backendName).IsNull();
+        await Assert.That(providerName).IsNull();
     }
 
     [Test]
-    public async Task RequireBackendName_throws_without_echoing_the_reference()
+    public async Task RequireProviderName_throws_without_echoing_the_reference()
     {
         Exception? caught = null;
         try
         {
-            KeyReference.RequireBackendName("not-a-reference");
+            KeyReference.RequireProviderName("not-a-reference");
         }
         catch (SecureKeyStoreException ex)
         {

@@ -33,7 +33,7 @@ public sealed class ConfigCommand : Command
         Add(showVerb);
         Add(getVerb);
         Add(setVerb);
-        Add(new BackendCommands(settingsStore, keyStore, keyPrompt));
+        Add(new ProviderCommands(settingsStore, keyStore, keyPrompt));
 
         showVerb.SetAction(async (result, cancellationToken) =>
         {
@@ -44,12 +44,12 @@ public sealed class ConfigCommand : Command
                 return loadExitCode;
             }
 
-            Backend? backend = ResolveDefaultBackend(settings);
+            Provider? backend = ResolveDefaultProvider(settings);
 
             if (backend is null)
             {
                 Console.WriteLine("No default backend configured.");
-                if (settings.Backends.Count > 0)
+                if (settings.Providers.Count > 0)
                 {
                     Console.WriteLine(
                         "Run 'harnessgateway config set defaultBackend <name>' to select one of the saved entries.");
@@ -65,7 +65,7 @@ public sealed class ConfigCommand : Command
             }
 
             Console.WriteLine($"Endpoint: {backend.BaseUri}");
-            Console.WriteLine($"Protocol: {FormatProtocol(backend.Protocol)}");
+            Console.WriteLine($"Protocol: {FormatProtocol(backend.DefaultProtocol)}");
             Console.WriteLine($"Saved key: {(string.IsNullOrEmpty(backend.ApiKey) ? "(not set)" : "(set)")}");
             Console.WriteLine($"Default model: {backend.DefaultModel ?? "(not set)"}");
             return 0;
@@ -168,8 +168,8 @@ public sealed class ConfigCommand : Command
     /// every other addressing failure is a usage error (2).
     /// </summary>
     internal static int ExitCodeFor(ConfigKeyFailure failure) =>
-        failure == ConfigKeyFailure.UnknownBackendName
-            ? (int)LaunchExitCode.UnknownBackendName
+        failure == ConfigKeyFailure.UnknownProviderName
+            ? (int)LaunchExitCode.UnknownProviderName
             : (int)LaunchExitCode.UsageError;
 
     internal static async Task<(LauncherSettings Settings, int ExitCode)> TryLoadSettingsAsync(
@@ -193,29 +193,29 @@ public sealed class ConfigCommand : Command
         }
     }
 
-    internal static Backend? ResolveDefaultBackend(LauncherSettings settings)
+    internal static Provider? ResolveDefaultProvider(LauncherSettings settings)
     {
-        if (!string.IsNullOrEmpty(settings.DefaultBackend))
+        if (!string.IsNullOrEmpty(settings.DefaultProvider))
         {
-            return settings.Backends.FirstOrDefault(b =>
-                string.Equals(b.Name, settings.DefaultBackend, StringComparison.OrdinalIgnoreCase));
+            return settings.Providers.FirstOrDefault(b =>
+                string.Equals(b.Name, settings.DefaultProvider, StringComparison.OrdinalIgnoreCase));
         }
 
-        return settings.Backends.FirstOrDefault();
+        return settings.Providers.FirstOrDefault();
     }
 
-    internal static void UpdateBackend(LauncherSettings settings, Backend updated)
+    internal static void UpdateProvider(LauncherSettings settings, Provider updated)
     {
-        int index = settings.Backends.FindIndex(b =>
+        int index = settings.Providers.FindIndex(b =>
             string.Equals(b.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
 
         if (index >= 0)
         {
-            settings.Backends[index] = updated;
+            settings.Providers[index] = updated;
         }
         else
         {
-            settings.Backends.Add(updated);
+            settings.Providers.Add(updated);
         }
     }
 

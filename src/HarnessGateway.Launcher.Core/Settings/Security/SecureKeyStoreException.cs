@@ -30,10 +30,10 @@ public sealed class SecureKeyStoreException : Exception
     /// secret for it - the entry was deleted, migrated away, or copied from
     /// another machine where it cannot be decrypted.
     /// </summary>
-    public static SecureKeyStoreException DanglingReference(string backendName) =>
+    public static SecureKeyStoreException DanglingReference(string providerName) =>
         new(
-            $"No stored API key found for backend '{backendName}'. " +
-            $"Re-save it with 'harnessgateway config backend set-key {backendName}'.");
+            $"No stored API key found for backend '{providerName}'. " +
+            $"Re-save it with 'harnessgateway config backend set-key {providerName}'.");
 
     /// <summary>
     /// The platform credential store refused or failed an operation. The detail is
@@ -41,13 +41,13 @@ public sealed class SecureKeyStoreException : Exception
     /// which could otherwise echo secret material.
     /// </summary>
     public static SecureKeyStoreException OperationFailed(
-        string backendName,
+        string providerName,
         string operation,
         string detail,
         Exception? innerException = null) =>
         new(
-            $"Could not {operation} for backend '{backendName}': {detail} " +
-            $"Re-save the key with 'harnessgateway config backend set-key {backendName}'.",
+            $"Could not {operation} for backend '{providerName}': {detail} " +
+            $"Re-save the key with 'harnessgateway config backend set-key {providerName}'.",
             innerException);
 
     /// <summary>

@@ -2,7 +2,7 @@ using System.CommandLine;
 using CliInvoke.Core;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -126,9 +126,9 @@ public class LaunchCommandInvocationTests
             // as a launch request. Any of these failing would re-expose the
             // silent no-op this suite guards against.
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.BaseUri)
+            await Assert.That(adapter.LastRequest!.Provider.BaseUri)
                 .IsEqualTo(new Uri("https://api.example.com/v1"));
-            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest!.Provider.DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
         }
         finally
         {
@@ -189,7 +189,7 @@ public class LaunchCommandInvocationTests
     }
 
     [Test]
-    public async Task Invoke_unknown_backend_name_surfaces_exit_8_through_the_cli()
+    public async Task Invoke_unknown_provider_name_surfaces_exit_8_through_the_cli()
     {
         FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
         (RootCommand root, _, string tempDir) = CreateRoot(adapter, settingsJson: """
@@ -210,7 +210,7 @@ public class LaunchCommandInvocationTests
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 root.Parse("launch TestAgent --backend nope").InvokeAsync());
 
-            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
             await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
             await Assert.That(adapter.LastRequest).IsNull();
         }

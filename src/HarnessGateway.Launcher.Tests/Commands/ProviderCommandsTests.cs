@@ -1,12 +1,12 @@
 using System.CommandLine;
 using HarnessGateway.Launcher.Commands;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Commands;
 
-public class BackendCommandsTests
+public class ProviderCommandsTests
 {
     private static string CreateTempDir()
     {
@@ -52,18 +52,18 @@ public class BackendCommandsTests
         }
     }
 
-    private static Backend CreateBackend(
+    private static Provider CreateProvider(
         string name,
         string url = "https://api.example.com/v1",
         ProtocolKind protocol = ProtocolKind.OpenAiChat,
         string? apiKey = null,
         string? defaultModel = null)
     {
-        return new Backend
+        return new Provider
         {
             Name = name,
             BaseUri = new Uri(url),
-            Protocol = protocol,
+            DefaultProtocol = protocol,
             ApiKey = apiKey,
             DefaultModel = defaultModel
         };
@@ -119,7 +119,7 @@ public class BackendCommandsTests
     }
 
     [Test]
-    public async Task Removed_backend_switch_verb_no_longer_parses()
+    public async Task Removed_provider_switch_verb_no_longer_parses()
     {
         string tempDir = CreateTempDir();
         try
@@ -127,8 +127,8 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends = [CreateBackend("work")],
-                DefaultBackend = string.Empty
+                Providers = [CreateProvider("work")],
+                DefaultProvider = string.Empty
             });
 
             (int exitCode, _) = await ConsoleErrorCapture.RunAsync(() =>
@@ -162,16 +162,16 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends.Count).IsEqualTo(1);
-            await Assert.That(saved.Backends[0].Name).IsEqualTo("work");
-            await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
-            await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(saved.Providers.Count).IsEqualTo(1);
+            await Assert.That(saved.Providers[0].Name).IsEqualTo("work");
+            await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
+            await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
 
             // add never moves the default pointer (config set defaultBackend
             // owns it), and a declined prompt yields a keyless entry with no
             // store call. The create hint names the pointer write path.
-            await Assert.That(saved.DefaultBackend).IsEqualTo(string.Empty);
-            await Assert.That(saved.Backends[0].ApiKey).IsNull();
+            await Assert.That(saved.DefaultProvider).IsEqualTo(string.Empty);
+            await Assert.That(saved.Providers[0].ApiKey).IsNull();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
             await Assert.That(prompt.CallCount).IsEqualTo(1);
             await Assert.That(output).Contains("config set defaultBackend work");
@@ -193,16 +193,16 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend(
+                    CreateProvider(
                         "work",
                         url: "https://old.example.com/v1",
                         protocol: ProtocolKind.OpenAiChat,
                         apiKey: "hgkey:work",
                         defaultModel: "gpt-4")
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
 
             ScriptedKeyPrompt prompt = new ScriptedKeyPrompt(null);
@@ -215,12 +215,12 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends.Count).IsEqualTo(1);
-            await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
-            await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-4");
-            await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
-            await Assert.That(saved.DefaultBackend).IsEqualTo("work");
+            await Assert.That(saved.Providers.Count).IsEqualTo(1);
+            await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
+            await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(saved.DefaultProvider).IsEqualTo("work");
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
             await Assert.That(prompt.CallCount).IsEqualTo(1);
         }
@@ -247,7 +247,7 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
 
@@ -304,7 +304,7 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(prompt.CallCount).IsEqualTo(1);
 
@@ -435,15 +435,15 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend(
+                    CreateProvider(
                         "work",
                         url: "https://api.work.example/v1",
                         protocol: ProtocolKind.Anthropic,
                         defaultModel: "gpt-4")
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
             string before = Fingerprint(store);
 
@@ -457,15 +457,15 @@ public class BackendCommandsTests
             await Assert.That(output).Contains("API key for backend 'work' saved.");
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
 
             // set-key touches only the credential record.
-            await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
-            await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-4");
-            await Assert.That(saved.DefaultBackend).IsEqualTo("work");
+            await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
+            await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(saved.DefaultProvider).IsEqualTo("work");
 
             string fileBytes = File.ReadAllText(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:work")).IsTrue();
@@ -487,8 +487,8 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends = [CreateBackend("work")],
-                DefaultBackend = "work"
+                Providers = [CreateProvider("work")],
+                DefaultProvider = "work"
             });
             ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompted-secret");
 
@@ -501,7 +501,7 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(prompt.CallCount).IsEqualTo(1);
             // Prompt path receives entryHasKey=false for a keyless backend.
@@ -522,8 +522,8 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends = [CreateBackend("work", apiKey: "hgkey:work")],
-                DefaultBackend = "work"
+                Providers = [CreateProvider("work", apiKey: "hgkey:work")],
+                DefaultProvider = "work"
             });
             keyStore.Seed("hgkey:work", "old-secret");
             ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("ignored-because-flag-wins");
@@ -553,8 +553,8 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends = [CreateBackend("work")],
-                DefaultBackend = "work"
+                Providers = [CreateProvider("work")],
+                DefaultProvider = "work"
             });
             string before = Fingerprint(store);
             ScriptedKeyPrompt prompt = new ScriptedKeyPrompt(null);
@@ -569,7 +569,7 @@ public class BackendCommandsTests
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsNull();
+            await Assert.That(saved.Providers[0].ApiKey).IsNull();
         }
         finally
         {
@@ -586,14 +586,14 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends = [CreateBackend("work")],
-                DefaultBackend = "work"
+                Providers = [CreateProvider("work")],
+                DefaultProvider = "work"
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend set-key nope --key sk-x")));
 
-            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
             await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
         }
         finally
@@ -626,7 +626,7 @@ public class BackendCommandsTests
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsNull();
+            await Assert.That(saved.Providers[0].ApiKey).IsNull();
         }
         finally
         {
@@ -645,16 +645,16 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend(
+                    CreateProvider(
                         "work",
                         url: "https://api.work.example/v1",
                         protocol: ProtocolKind.Anthropic,
                         apiKey: "hgkey:work",
                         defaultModel: "gpt-4")
                 ],
-                DefaultBackend = "work"
+                DefaultProvider = "work"
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -664,15 +664,15 @@ public class BackendCommandsTests
             await Assert.That(output).Contains("API key for backend 'work' cleared.");
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsNull();
+            await Assert.That(saved.Providers[0].ApiKey).IsNull();
             await Assert.That(keyStore.Contains("hgkey:work")).IsFalse();
             await Assert.That(keyStore.DeleteCallCount).IsEqualTo(1);
 
             // clear-key never alters endpoint, protocol, or default model.
-            await Assert.That(saved.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
-            await Assert.That(saved.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-4");
-            await Assert.That(saved.DefaultBackend).IsEqualTo("work");
+            await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
+            await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(saved.DefaultProvider).IsEqualTo("work");
         }
         finally
         {
@@ -681,7 +681,7 @@ public class BackendCommandsTests
     }
 
     [Test]
-    public async Task ClearKey_keyless_backend_is_idempotent()
+    public async Task ClearKey_keyless_provider_is_idempotent()
     {
         string tempDir = CreateTempDir();
         try
@@ -690,8 +690,8 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends = [CreateBackend("work")],
-                DefaultBackend = "work"
+                Providers = [CreateProvider("work")],
+                DefaultProvider = "work"
             });
             string before = Fingerprint(store);
 
@@ -718,14 +718,14 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends = [CreateBackend("work")],
-                DefaultBackend = "work"
+                Providers = [CreateProvider("work")],
+                DefaultProvider = "work"
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend clear-key nope")));
 
-            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
             await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
         }
         finally
@@ -757,7 +757,7 @@ public class BackendCommandsTests
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
         }
         finally
         {
@@ -776,12 +776,12 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend("alpha", url: "https://alpha.example.com/v1"),
-                    CreateBackend("beta", url: "https://beta.example.com/v1", apiKey: "hgkey:beta")
+                    CreateProvider("alpha", url: "https://alpha.example.com/v1"),
+                    CreateProvider("beta", url: "https://beta.example.com/v1", apiKey: "hgkey:beta")
                 ],
-                DefaultBackend = "alpha"
+                DefaultProvider = "alpha"
             });
 
             int exitCode = InvokeConfig(store, "config backend remove beta", keyStore);
@@ -789,8 +789,8 @@ public class BackendCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends.Count).IsEqualTo(1);
-            await Assert.That(saved.Backends[0].Name).IsEqualTo("alpha");
+            await Assert.That(saved.Providers.Count).IsEqualTo(1);
+            await Assert.That(saved.Providers[0].Name).IsEqualTo("alpha");
             await Assert.That(keyStore.Contains("hgkey:beta")).IsFalse();
             await Assert.That(keyStore.DeleteCallCount).IsEqualTo(1);
         }
@@ -867,18 +867,18 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend("alpha", url: "https://alpha.example.com/v1"),
-                    CreateBackend("beta", url: "https://beta.example.com/v1")
+                    CreateProvider("alpha", url: "https://alpha.example.com/v1"),
+                    CreateProvider("beta", url: "https://beta.example.com/v1")
                 ],
-                DefaultBackend = "alpha"
+                DefaultProvider = "alpha"
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config backend remove nope")));
 
-            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownBackendName);
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
             await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
         }
         finally
@@ -898,12 +898,12 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend("alpha", url: "https://alpha.example.com/v1"),
-                    CreateBackend("beta", url: "https://beta.example.com/v1", apiKey: "hgkey:beta")
+                    CreateProvider("alpha", url: "https://alpha.example.com/v1"),
+                    CreateProvider("beta", url: "https://beta.example.com/v1", apiKey: "hgkey:beta")
                 ],
-                DefaultBackend = "alpha"
+                DefaultProvider = "alpha"
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -913,7 +913,7 @@ public class BackendCommandsTests
             await Assert.That(errorOutput).Contains("backend 'beta'");
 
             LauncherSettings saved = await store.LoadAsync();
-            await Assert.That(saved.Backends.Count).IsEqualTo(2);
+            await Assert.That(saved.Providers.Count).IsEqualTo(2);
             await Assert.That(keyStore.Contains("hgkey:beta")).IsTrue();
         }
         finally
@@ -931,12 +931,12 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend("alpha", url: "https://alpha.example.com/v1"),
-                    CreateBackend("beta", url: "https://beta.example.com/v1", protocol: ProtocolKind.Anthropic)
+                    CreateProvider("alpha", url: "https://alpha.example.com/v1"),
+                    CreateProvider("beta", url: "https://beta.example.com/v1", protocol: ProtocolKind.Anthropic)
                 ],
-                DefaultBackend = "beta"
+                DefaultProvider = "beta"
             });
             string before = Fingerprint(store);
 
@@ -965,12 +965,12 @@ public class BackendCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             store.Save(new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    CreateBackend("alpha", url: "https://alpha.example.com/v1"),
-                    CreateBackend("beta", url: "https://beta.example.com/v1")
+                    CreateProvider("alpha", url: "https://alpha.example.com/v1"),
+                    CreateProvider("beta", url: "https://beta.example.com/v1")
                 ],
-                DefaultBackend = string.Empty
+                DefaultProvider = string.Empty
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>

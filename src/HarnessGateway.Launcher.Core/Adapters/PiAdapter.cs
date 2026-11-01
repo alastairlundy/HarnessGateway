@@ -42,19 +42,19 @@ public sealed class PiAdapter : IHarnessAdapter
     {
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
 
-        string baseUrl = request.Backend.BaseUri.ToString().TrimEnd('/');
+        string baseUrl = request.Provider.BaseUri.ToString().TrimEnd('/');
 
-        switch (request.Backend.Protocol)
+        switch (request.Provider.DefaultProtocol)
         {
             case ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses:
                 envVars["OPENAI_BASE_URL"] = baseUrl;
-                if (request.Backend.ApiKey is { Length: > 0 })
-                    envVars["OPENAI_API_KEY"] = request.Backend.ApiKey;
+                if (request.Provider.ApiKey is { Length: > 0 })
+                    envVars["OPENAI_API_KEY"] = request.Provider.ApiKey;
                 break;
             case ProtocolKind.Anthropic:
                 envVars["ANTHROPIC_BASE_URL"] = baseUrl;
-                if (request.Backend.ApiKey is { Length: > 0 })
-                    envVars["ANTHROPIC_API_KEY"] = request.Backend.ApiKey;
+                if (request.Provider.ApiKey is { Length: > 0 })
+                    envVars["ANTHROPIC_API_KEY"] = request.Provider.ApiKey;
                 break;
         }
 

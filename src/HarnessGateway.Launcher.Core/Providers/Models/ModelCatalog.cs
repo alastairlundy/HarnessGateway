@@ -1,4 +1,4 @@
-namespace HarnessGateway.Launcher.Core.Backends.Models;
+namespace HarnessGateway.Launcher.Core.Providers.Models;
 
 public sealed record ModelCatalogEntry(string Id);
 

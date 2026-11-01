@@ -1,12 +1,12 @@
 namespace HarnessGateway.Launcher.Commands;
 
-internal sealed class BackendCommands : Command
+internal sealed class ProviderCommands : Command
 {
     private readonly SettingsStore _settingsStore;
     private readonly ISecureKeyStore _keyStore;
     private readonly IKeyPrompt _keyPrompt;
 
-    internal BackendCommands(SettingsStore settingsStore, ISecureKeyStore keyStore,
+    internal ProviderCommands(SettingsStore settingsStore, ISecureKeyStore keyStore,
         IKeyPrompt keyPrompt)
         : base("backend", "Manage saved backend profiles")
     {
@@ -71,11 +71,11 @@ internal sealed class BackendCommands : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint, protocol, 
+            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint, protocol, 
                 model: null);
 
-            if (resolution is BackendResolutionResult.Failed failed
-                && failed.Failure != BackendResolutionFailure.UnknownBackendName)
+            if (resolution is ProviderResolutionResult.Failed failed
+                && failed.Failure != ProviderResolutionFailure.UnknownProviderName)
             {
                 await Console.Error.WriteLineAsync(failed.Message).ConfigureAwait(true);
                 return ExitCodeFor(failed.Failure);
@@ -85,7 +85,7 @@ internal sealed class BackendCommands : Command
             // both-flags guard above and Resolve's pairing and format checks
             // have already accepted both values; this single pattern is what
             // proves their non-nullness to the compiler.
-            (Uri BaseUri, ProtocolKind Protocol)? overridePair =
+            (Uri BaseUri, ProtocolKind DefaultProtocol)? overridePair =
                 endpoint is { } endpointValue && protocol is { } protocolValue
                     ? (LaunchCommand.ParseEndpoint(endpointValue), LaunchCommand.ParseProtocol(protocolValue))
                     : null;
@@ -93,19 +93,19 @@ internal sealed class BackendCommands : Command
             // Resolved updates the saved entry in place; an unknown name (or
             // the unreachable EmptySettings - both flags are required above,
             // so a complete override always resolves) creates a new entry.
-            bool isCreate = resolution is not BackendResolutionResult.Resolved;
-            Backend entry;
-            if (resolution is BackendResolutionResult.Resolved resolved)
+            bool isCreate = resolution is not ProviderResolutionResult.Resolved;
+            Provider entry;
+            if (resolution is ProviderResolutionResult.Resolved resolved)
             {
-                entry = resolved.Backend;
+                entry = resolved.Provider;
             }
             else if (overridePair is { } pair)
             {
-                entry = new Backend
+                entry = new Provider
                 {
                     Name = name,
                     BaseUri = pair.BaseUri,
-                    Protocol = pair.Protocol,
+                    DefaultProtocol = pair.DefaultProtocol,
                 };
             }
             else
@@ -122,7 +122,7 @@ internal sealed class BackendCommands : Command
 
             if (secret is not null)
             {
-                string reference = KeyReference.ForBackend(entry.Name);
+                string reference = KeyReference.ForProvider(entry.Name);
                 try
                 {
                     await _keyStore.StoreAsync(reference, secret, cancellationToken).ConfigureAwait(true);
@@ -136,7 +136,7 @@ internal sealed class BackendCommands : Command
                 entry = entry with { ApiKey = reference };
             }
 
-            ConfigCommand.UpdateBackend(settings, entry);
+            ConfigCommand.UpdateProvider(settings, entry);
             _settingsStore.Save(settings);
 
             Console.WriteLine($"Backend '{entry.Name}' {(isCreate ? "created" : "updated")}.");
@@ -165,7 +165,7 @@ internal sealed class BackendCommands : Command
                 return loadExitCode;
             }
 
-            if (settings.Backends.Count == 0)
+            if (settings.Providers.Count == 0)
             {
                 Console.WriteLine(
                     "No saved backends. " +
@@ -173,17 +173,17 @@ internal sealed class BackendCommands : Command
                 return 0;
             }
 
-            foreach (Backend entry in settings.Backends)
+            foreach (Provider entry in settings.Providers)
             {
-                bool isDefault = !string.IsNullOrEmpty(settings.DefaultBackend)
-                                 && string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase);
+                bool isDefault = !string.IsNullOrEmpty(settings.DefaultProvider)
+                                 && string.Equals(settings.DefaultProvider, entry.Name, StringComparison.OrdinalIgnoreCase);
 
                 string marker = isDefault ? "* " : "  ";
                 Console.WriteLine(
-                    $"{marker}{entry.Name}  {entry.BaseUri}  {BackendResolution.ProtocolName(entry.Protocol)}");
+                    $"{marker}{entry.Name}  {entry.BaseUri}  {ProviderResolution.ProtocolName(entry.DefaultProtocol)}");
             }
 
-            if (string.IsNullOrEmpty(settings.DefaultBackend))
+            if (string.IsNullOrEmpty(settings.DefaultProvider))
             {
                 Console.WriteLine(
                     "(no default backend is set; " +
@@ -220,16 +220,16 @@ internal sealed class BackendCommands : Command
                 return loadExitCode;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
+            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
 
-            (Backend? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+            (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
                 .ConfigureAwait(true);
             if (entry is null)
             {
                 return resolutionExitCode;
             }
 
-            if (settings.Backends.Count == 1)
+            if (settings.Providers.Count == 1)
             {
                 await Console.Error.WriteLineAsync(
                     $"Cannot remove '{entry.Name}': it is the last saved backend; " +
@@ -237,7 +237,7 @@ internal sealed class BackendCommands : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            if (string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(settings.DefaultProvider, entry.Name, StringComparison.OrdinalIgnoreCase))
             {
                 await Console.Error.WriteLineAsync(
                         $"Cannot remove '{entry.Name}': it is the current default backend. " +
@@ -250,7 +250,7 @@ internal sealed class BackendCommands : Command
             {
                 try
                 {
-                    await _keyStore.DeleteAsync(KeyReference.ForBackend(entry.Name), cancellationToken)
+                    await _keyStore.DeleteAsync(KeyReference.ForProvider(entry.Name), cancellationToken)
                         .ConfigureAwait(true);
                 }
                 catch (SecureKeyStoreException ex)
@@ -260,7 +260,7 @@ internal sealed class BackendCommands : Command
                 }
             }
 
-            settings.Backends.RemoveAll(b =>
+            settings.Providers.RemoveAll(b =>
                 string.Equals(b.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
             _settingsStore.Save(settings);
             Console.WriteLine($"Backend '{entry.Name}' removed.");
@@ -301,9 +301,9 @@ internal sealed class BackendCommands : Command
                 return loadExitCode;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
+            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
 
-            (Backend? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+            (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
                 .ConfigureAwait(true);
             if (entry is null)
             {
@@ -319,7 +319,7 @@ internal sealed class BackendCommands : Command
                 return 0;
             }
 
-            string reference = KeyReference.ForBackend(entry.Name);
+            string reference = KeyReference.ForProvider(entry.Name);
             try
             {
                 await _keyStore.StoreAsync(reference, secret, cancellationToken).ConfigureAwait(true);
@@ -332,8 +332,8 @@ internal sealed class BackendCommands : Command
 
             // Only the credential record changes here: endpoint, protocol, and
             // default model are never touched by set-key.
-            Backend updated = entry with { ApiKey = reference };
-            ConfigCommand.UpdateBackend(settings, updated);
+            Provider updated = entry with { ApiKey = reference };
+            ConfigCommand.UpdateProvider(settings, updated);
             _settingsStore.Save(settings);
 
             Console.WriteLine($"API key for backend '{entry.Name}' saved.");
@@ -363,9 +363,9 @@ internal sealed class BackendCommands : Command
                 return loadExitCode;
             }
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
+            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
 
-            (Backend? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+            (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
                 .ConfigureAwait(true);
             if (entry is null)
             {
@@ -385,7 +385,7 @@ internal sealed class BackendCommands : Command
             {
                 try
                 {
-                    await _keyStore.DeleteAsync(KeyReference.ForBackend(entry.Name), cancellationToken)
+                    await _keyStore.DeleteAsync(KeyReference.ForProvider(entry.Name), cancellationToken)
                         .ConfigureAwait(true);
                 }
                 catch (SecureKeyStoreException ex)
@@ -395,8 +395,8 @@ internal sealed class BackendCommands : Command
                 }
             }
 
-            Backend updated = entry with { ApiKey = null };
-            ConfigCommand.UpdateBackend(settings, updated);
+            Provider updated = entry with { ApiKey = null };
+            ConfigCommand.UpdateProvider(settings, updated);
             _settingsStore.Save(settings);
 
             Console.WriteLine($"API key for backend '{entry.Name}' cleared.");
@@ -414,15 +414,15 @@ internal sealed class BackendCommands : Command
     /// pass the required name argument, so resolution either finds the entry
     /// or fails with the unknown-name class.
     /// </summary>
-    private static async Task<(Backend? Entry, int ExitCode)> TryResolveEntryAsync(
-        BackendResolutionResult resolution)
+    private static async Task<(Provider? Entry, int ExitCode)> TryResolveEntryAsync(
+        ProviderResolutionResult resolution)
     {
         switch (resolution)
         {
-            case BackendResolutionResult.Resolved resolved:
-                return (resolved.Backend, 0);
+            case ProviderResolutionResult.Resolved resolved:
+                return (resolved.Provider, 0);
 
-            case BackendResolutionResult.Failed failed:
+            case ProviderResolutionResult.Failed failed:
                 await Console.Error.WriteLineAsync(failed.Message).ConfigureAwait(true);
                 return (null, ExitCodeFor(failed.Failure));
 
@@ -432,10 +432,10 @@ internal sealed class BackendCommands : Command
         }
     }
 
-    private static int ExitCodeFor(BackendResolutionFailure failure) =>
-        failure is BackendResolutionFailure.UnknownBackendName
-            or BackendResolutionFailure.DanglingDefaultBackend
-            or BackendResolutionFailure.AbsentDefaultBackend
-            ? (int)LaunchExitCode.UnknownBackendName
+    private static int ExitCodeFor(ProviderResolutionFailure failure) =>
+        failure is ProviderResolutionFailure.UnknownProviderName
+            or ProviderResolutionFailure.DanglingDefaultProvider
+            or ProviderResolutionFailure.AbsentDefaultProvider
+            ? (int)LaunchExitCode.UnknownProviderName
             : (int)LaunchExitCode.UsageError;
 }

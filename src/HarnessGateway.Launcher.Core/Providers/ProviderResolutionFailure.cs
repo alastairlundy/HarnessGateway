@@ -1,21 +1,21 @@
-namespace HarnessGateway.Launcher.Core.Backends;
+namespace HarnessGateway.Launcher.Core.Providers;
 
 /// <summary>
 /// Typed failure classes for backend resolution. Callers map these to their
 /// own exit codes; the resolver itself never exits.
 /// </summary>
-public enum BackendResolutionFailure
+public enum ProviderResolutionFailure
 {
     None = 0,
 
     /// <summary>--backend named no saved backend entry.</summary>
-    UnknownBackendName,
+    UnknownProviderName,
 
     /// <summary>The default-backend pointer is set but names no saved entry.</summary>
-    DanglingDefaultBackend,
+    DanglingDefaultProvider,
 
     /// <summary>The pointer is empty while saved entries exist — no first-entry fallback.</summary>
-    AbsentDefaultBackend,
+    AbsentDefaultProvider,
 
     /// <summary>--protocol was given without --endpoint.</summary>
     ProtocolWithoutEndpoint,

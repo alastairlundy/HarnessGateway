@@ -19,7 +19,7 @@ internal static class SecureKeyStoreProcess
     internal static async Task<BufferedProcessResult> RunAsync(
         string targetFilePath,
         IReadOnlyList<string> arguments,
-        string backendName,
+        string providerName,
         string operation,
         string failureDetail,
         StreamWriter? standardInput,
@@ -45,7 +45,7 @@ internal static class SecureKeyStoreProcess
         }
         catch (Exception ex)
         {
-            throw SecureKeyStoreException.OperationFailed(backendName, operation, failureDetail, ex);
+            throw SecureKeyStoreException.OperationFailed(providerName, operation, failureDetail, ex);
         }
     }
 }

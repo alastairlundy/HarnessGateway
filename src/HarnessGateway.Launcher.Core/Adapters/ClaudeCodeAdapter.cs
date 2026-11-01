@@ -51,16 +51,16 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
         List<ConfigurationAction> actions = [];
         Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
-            ["ANTHROPIC_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
+            ["ANTHROPIC_BASE_URL"] = request.Provider.BaseUri.ToString().TrimEnd('/'),
         };
 
         // Token choice: ANTHROPIC_AUTH_TOKEN, never ANTHROPIC_API_KEY - the
         // latter makes Claude Code raise an interactive approval prompt. Key
         // handling: inject the saved key only when the resolved backend entry
         // has one; with no key saved there is no token variable at all.
-        if (request.Backend.ApiKey is { Length: > 0 })
+        if (request.Provider.ApiKey is { Length: > 0 })
         {
-            envVars["ANTHROPIC_AUTH_TOKEN"] = request.Backend.ApiKey;
+            envVars["ANTHROPIC_AUTH_TOKEN"] = request.Provider.ApiKey;
         }
 
         // The model is optional for claude-code. When one is chosen it reaches

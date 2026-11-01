@@ -1,5 +1,5 @@
 using System.Text.Json;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 
@@ -48,32 +48,32 @@ public class SettingsStoreTests
 
             LauncherSettings settings = new LauncherSettings
             {
-                Backends =
+                Providers =
                 [
-                    new Backend
+                    new Provider
                     {
                         Name = "test-backend",
                         BaseUri = new Uri("https://api.example.com/v1"),
-                        Protocol = ProtocolKind.OpenAiChat,
+                        DefaultProtocol = ProtocolKind.OpenAiChat,
                         DefaultModel = "gpt-4",
                         ApiKey = "hgkey:test-backend"
                     }
                 ],
-                DefaultBackend = "test-backend",
+                DefaultProvider = "test-backend",
                 SchemaVersion = 1
             };
 
             store.Save(settings);
             LauncherSettings loaded = await store.LoadAsync();
 
-            await Assert.That(loaded.DefaultBackend).IsEqualTo("test-backend");
+            await Assert.That(loaded.DefaultProvider).IsEqualTo("test-backend");
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
-            await Assert.That(loaded.Backends).Count().IsEqualTo(1);
-            await Assert.That(loaded.Backends[0].Name).IsEqualTo("test-backend");
-            await Assert.That(loaded.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
-            await Assert.That(loaded.Backends[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
-            await Assert.That(loaded.Backends[0].DefaultModel).IsEqualTo("gpt-4");
-            await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:test-backend");
+            await Assert.That(loaded.Providers).Count().IsEqualTo(1);
+            await Assert.That(loaded.Providers[0].Name).IsEqualTo("test-backend");
+            await Assert.That(loaded.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
+            await Assert.That(loaded.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(loaded.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(loaded.Providers[0].ApiKey).IsEqualTo("hgkey:test-backend");
         }
         finally
         {
@@ -94,9 +94,9 @@ public class SettingsStoreTests
 
             LauncherSettings loaded = await store.LoadAsync();
 
-            await Assert.That(loaded.DefaultBackend).IsEmpty();
+            await Assert.That(loaded.DefaultProvider).IsEmpty();
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
-            await Assert.That(loaded.Backends).IsEmpty();
+            await Assert.That(loaded.Providers).IsEmpty();
         }
         finally
         {
@@ -120,7 +120,7 @@ public class SettingsStoreTests
             LauncherSettings loaded = await store.LoadAsync();
 
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
-            await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:default");
+            await Assert.That(loaded.Providers[0].ApiKey).IsEqualTo("hgkey:default");
 
             string stored = await keyStore.RetrieveAsync("hgkey:default");
             await Assert.That(stored).IsEqualTo("sk-legacy-plaintext");
@@ -153,7 +153,7 @@ public class SettingsStoreTests
             LauncherSettings loaded = await store.LoadAsync();
 
             await Assert.That(loaded.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
-            await Assert.That(loaded.Backends[0].ApiKey).IsEqualTo("hgkey:default");
+            await Assert.That(loaded.Providers[0].ApiKey).IsEqualTo("hgkey:default");
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
 
             string fileBytes = File.ReadAllText(store.SettingsFilePath);
@@ -318,7 +318,7 @@ public class SettingsStoreTests
             SettingsStore store = new SettingsStore(tempDir);
             LauncherSettings settings = new LauncherSettings
             {
-                DefaultBackend = string.Empty,
+                DefaultProvider = string.Empty,
                 SchemaVersion = 1
             };
 

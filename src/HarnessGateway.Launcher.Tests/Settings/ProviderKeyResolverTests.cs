@@ -1,16 +1,16 @@
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings.Security;
 using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Settings;
 
-public class BackendKeyResolverTests
+public class ProviderKeyResolverTests
 {
-    private static Backend Entry(string? apiKey) => new()
+    private static Provider Entry(string? apiKey) => new()
     {
         Name = "default",
         BaseUri = new Uri("https://api.example.com/v1"),
-        Protocol = ProtocolKind.OpenAiChat,
+        DefaultProtocol = ProtocolKind.OpenAiChat,
         ApiKey = apiKey
     };
 
@@ -19,7 +19,7 @@ public class BackendKeyResolverTests
     {
         FakeSecureKeyStore keyStore = new();
 
-        Backend resolved = await BackendKeyResolver.ResolveAsync(Entry(null), keyStore);
+        Provider resolved = await ProviderKeyResolver.ResolveAsync(Entry(null), keyStore);
 
         await Assert.That(resolved.ApiKey).IsNull();
         await Assert.That(keyStore.RetrieveCallCount).IsEqualTo(0);
@@ -30,9 +30,9 @@ public class BackendKeyResolverTests
     {
         FakeSecureKeyStore keyStore = new();
         keyStore.Seed("hgkey:default", "sk-stored");
-        Backend entry = Entry("hgkey:default");
+        Provider entry = Entry("hgkey:default");
 
-        Backend resolved = await BackendKeyResolver.ResolveAsync(entry, keyStore);
+        Provider resolved = await ProviderKeyResolver.ResolveAsync(entry, keyStore);
 
         await Assert.That(resolved.ApiKey).IsEqualTo("sk-stored");
         // The settings-owned record keeps the reference; only the returned copy
@@ -48,7 +48,7 @@ public class BackendKeyResolverTests
         Exception? caught = null;
         try
         {
-            await BackendKeyResolver.ResolveAsync(Entry("hgkey:default"), keyStore);
+            await ProviderKeyResolver.ResolveAsync(Entry("hgkey:default"), keyStore);
         }
         catch (SecureKeyStoreException ex)
         {
@@ -68,9 +68,9 @@ public class BackendKeyResolverTests
         // Only the reference-writing path migrates a key, so an older
         // plaintext value stays usable in memory as-is.
         FakeSecureKeyStore keyStore = new();
-        Backend entry = Entry("sk-legacy");
+        Provider entry = Entry("sk-legacy");
 
-        Backend resolved = await BackendKeyResolver.ResolveAsync(entry, keyStore);
+        Provider resolved = await ProviderKeyResolver.ResolveAsync(entry, keyStore);
 
         await Assert.That(resolved.ApiKey).IsEqualTo("sk-legacy");
         await Assert.That(keyStore.RetrieveCallCount).IsEqualTo(0);

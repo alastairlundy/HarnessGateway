@@ -27,7 +27,7 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// </remarks>
 public sealed class LaunchFlow
 {
-    private const string NoBackendMessage =
+    private const string NoProviderMessage =
         "No backend is configured. Run 'harnessgateway " +
         "config backend add <name> --endpoint <url> --protocol <protocol>' to save one, or pass " +
         "--endpoint <url> --protocol <protocol> for a one-off launch.";
@@ -74,14 +74,14 @@ public sealed class LaunchFlow
         {
             LauncherSettings settings = await _settingsStore.LoadAsync(ct).ConfigureAwait(false);
 
-            BackendResolutionResult resolution = BackendResolution.Resolve(
+            ProviderResolutionResult resolution = ProviderResolution.Resolve(
                 settings,
-                request.BackendName,
+                request.ProviderName,
                 request.Endpoint,
                 request.Protocol,
                 request.Model);
 
-            if (resolution is BackendResolutionResult.Failed failed)
+            if (resolution is ProviderResolutionResult.Failed failed)
             {
                 return new LaunchRefused(RefusalKindFor(failed.Failure), failed.Message);
             }
@@ -89,10 +89,10 @@ public sealed class LaunchFlow
             // Resolved carries its backend non-null; EmptySettings is the
             // success-without-a-backend variant and falls through to the
             // usage-error guard below.
-            Backend? backend = resolution switch
+            Provider? backend = resolution switch
             {
-                BackendResolutionResult.Resolved resolved => resolved.Backend,
-                BackendResolutionResult.EmptySettings => null,
+                ProviderResolutionResult.Resolved resolved => resolved.Provider,
+                ProviderResolutionResult.EmptySettings => null,
                 _ => throw new InvalidOperationException(
                     $"unexpected resolution variant '{resolution.GetType().Name}'"),
             };
@@ -140,20 +140,20 @@ public sealed class LaunchFlow
             // internal fault: nothing is corrupt and nothing threw.
             if (backend is null)
             {
-                return new LaunchRefused(LaunchRefusalKind.NoBackend, NoBackendMessage);
+                return new LaunchRefused(LaunchRefusalKind.NoProvider, NoProviderMessage);
             }
 
             // Fail before any configuration action when the resolved backend's
             // protocol is not supported by the chosen harness.
-            if (!adapter.Metadata.SupportedProtocols.Contains(backend.Protocol))
+            if (!adapter.Metadata.SupportedProtocols.Contains(backend.DefaultProtocol))
             {
                 string supported = string.Join(
                     ", ",
-                    adapter.Metadata.SupportedProtocols.Select(BackendResolution.ProtocolName));
+                    adapter.Metadata.SupportedProtocols.Select(ProviderResolution.ProtocolName));
                 return new LaunchRefused(
                     LaunchRefusalKind.ProtocolNotSupported,
                     $"Refusing to launch {request.Harness}: the selected backend's protocol " +
-                    $"({BackendResolution.ProtocolName(backend.Protocol)}) is not supported by " +
+                    $"({ProviderResolution.ProtocolName(backend.DefaultProtocol)}) is not supported by " +
                     $"{adapter.Metadata.Name}, which supports: {supported}. " +
                     "Override the launch with --endpoint <backend-url> --protocol <supported-protocol>, " +
                     "or re-point the default backend with 'harnessgateway config backend add " +
@@ -165,7 +165,7 @@ public sealed class LaunchFlow
             // Resolve the at-rest key reference into the secret on this local
             // copy only: `settings` keeps carrying the reference, so a later
             // Save (PersistDefaultModel) can never write a secret back out.
-            backend = await BackendKeyResolver.ResolveAsync(backend, _keyStore, ct).ConfigureAwait(false);
+            backend = await ProviderKeyResolver.ResolveAsync(backend, _keyStore, ct).ConfigureAwait(false);
 
             // The wizard's collected key (and only that carry-over) overrides
             // on this local copy, never on the stored entry. The wizard
@@ -306,15 +306,15 @@ public sealed class LaunchFlow
         }
     }
 
-    private static LaunchRefusalKind RefusalKindFor(BackendResolutionFailure failure) => failure switch
+    private static LaunchRefusalKind RefusalKindFor(ProviderResolutionFailure failure) => failure switch
     {
-        BackendResolutionFailure.UnknownBackendName => LaunchRefusalKind.UnknownBackendName,
-        BackendResolutionFailure.DanglingDefaultBackend => LaunchRefusalKind.DanglingDefaultBackend,
-        BackendResolutionFailure.AbsentDefaultBackend => LaunchRefusalKind.AbsentDefaultBackend,
-        BackendResolutionFailure.ProtocolWithoutEndpoint => LaunchRefusalKind.ProtocolWithoutEndpoint,
-        BackendResolutionFailure.EndpointWithoutProtocol => LaunchRefusalKind.EndpointWithoutProtocol,
-        BackendResolutionFailure.InvalidEndpoint => LaunchRefusalKind.InvalidEndpoint,
-        BackendResolutionFailure.InvalidProtocol => LaunchRefusalKind.InvalidProtocol,
+        ProviderResolutionFailure.UnknownProviderName => LaunchRefusalKind.UnknownProviderName,
+        ProviderResolutionFailure.DanglingDefaultProvider => LaunchRefusalKind.DanglingDefaultProvider,
+        ProviderResolutionFailure.AbsentDefaultProvider => LaunchRefusalKind.AbsentDefaultProvider,
+        ProviderResolutionFailure.ProtocolWithoutEndpoint => LaunchRefusalKind.ProtocolWithoutEndpoint,
+        ProviderResolutionFailure.EndpointWithoutProtocol => LaunchRefusalKind.EndpointWithoutProtocol,
+        ProviderResolutionFailure.InvalidEndpoint => LaunchRefusalKind.InvalidEndpoint,
+        ProviderResolutionFailure.InvalidProtocol => LaunchRefusalKind.InvalidProtocol,
         _ => throw new InvalidOperationException($"unexpected resolution failure '{failure}'"),
     };
 
@@ -373,7 +373,7 @@ public sealed class LaunchFlow
     private static LaunchRefused? DeclaredSurfaceRefusal(
         IHarnessAdapter adapter,
         LaunchRequest request,
-        Backend backend)
+        Provider backend)
     {
         IReadOnlySet<ConfigurationSurface> surfaces = adapter.Metadata.SupportedSurfaces;
         string name = adapter.Metadata.Name;
@@ -382,7 +382,7 @@ public sealed class LaunchFlow
             && !surfaces.Contains(ConfigurationSurface.Environment))
         {
             return new LaunchRefused(
-                LaunchRefusalKind.GuiBackendUnsupported,
+                LaunchRefusalKind.GuiProviderUnsupported,
                 $"Refusing to launch {name}: this launch carries a saved API key, but the "
                 + "harness declares no environment surface to receive it. Keys ride child "
                 + "process environment variables only, and the launcher never writes key "
@@ -390,13 +390,13 @@ public sealed class LaunchFlow
                 + "backend, or use a harness that accepts environment configuration.");
         }
 
-        bool backendOverride = request.BackendName is not null
+        bool backendOverride = request.ProviderName is not null
             || request.Endpoint is not null
             || request.Protocol is not null;
         if ((backendOverride || request.Model is not null) && surfaces.Count == 0)
         {
             return new LaunchRefused(
-                LaunchRefusalKind.GuiBackendUnsupported,
+                LaunchRefusalKind.GuiProviderUnsupported,
                 $"Refusing to launch {name}: a backend or model override was requested, but "
                 + "the harness declares no configuration surface that could carry it, so "
                 + "the override could never reach the application. Launch this harness "
@@ -440,7 +440,7 @@ public sealed class LaunchFlow
     /// model resolution actually needs. This is also where a missing required
     /// model is warned about - a warning, never a refusal.
     /// </remarks>
-    private string? ResolveModel(string? model, Backend? backend, IHarnessAdapter adapter)
+    private string? ResolveModel(string? model, Provider? backend, IHarnessAdapter adapter)
     {
         string? resolvedModel = model;
 
@@ -479,14 +479,14 @@ public sealed class LaunchFlow
         }
     }
 
-    private void PersistDefaultModel(LauncherSettings settings, Backend? backend, string model)
+    private void PersistDefaultModel(LauncherSettings settings, Provider? backend, string model)
     {
         if (backend is null) return;
 
         // Persist onto the stored entry by name only: per-launch field
         // overrides (--endpoint/--protocol/--model layering) never ride back
-        // into settings, and a --backend launch never re-points DefaultBackend.
-        int index = settings.Backends.FindIndex(b =>
+        // into settings, and a --backend launch never re-points DefaultProvider.
+        int index = settings.Providers.FindIndex(b =>
             string.Equals(b.Name, backend.Name, StringComparison.OrdinalIgnoreCase));
 
         if (index < 0)
@@ -496,7 +496,7 @@ public sealed class LaunchFlow
             return;
         }
 
-        settings.Backends[index] = settings.Backends[index] with { DefaultModel = model };
+        settings.Providers[index] = settings.Providers[index] with { DefaultModel = model };
         _settingsStore.Save(settings);
     }
 }

@@ -1,6 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Toml;
@@ -46,11 +46,11 @@ public class CodexAdapterTests
         string baseUri = "https://api.example.com/v1")
     {
         return new ResolvedLaunch(
-            new Backend
+            new Provider
             {
                 Name = "test",
                 BaseUri = new Uri(baseUri),
-                Protocol = protocol,
+                DefaultProtocol = protocol,
                 ApiKey = apiKey
             },
             Model: model,

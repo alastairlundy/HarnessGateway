@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using HarnessGateway.Launcher.Core.Backends;
 
 namespace HarnessGateway.Launcher.Core.Providers;
 
@@ -20,7 +19,7 @@ public sealed record Provider
     [JsonPropertyName("baseUri")]
     public required Uri BaseUri { get; init; }
 
-    [JsonPropertyName("defaultProtocol")]
+    [JsonPropertyName("protocol")]
     public required ProtocolKind DefaultProtocol { get; init; }
 
     [JsonPropertyName("defaultModel")]

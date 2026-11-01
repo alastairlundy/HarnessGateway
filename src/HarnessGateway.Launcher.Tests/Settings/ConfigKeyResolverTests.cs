@@ -1,4 +1,4 @@
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 
 namespace HarnessGateway.Launcher.Tests.Settings;
@@ -11,24 +11,24 @@ public class ConfigKeyResolverTests
         string? defaultModel = "gpt-4") =>
         new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                     ApiKey = apiKey,
                     DefaultModel = defaultModel
                 },
-                new Backend
+                new Provider
                 {
                     Name = "work",
                     BaseUri = new Uri("https://api.work.example/v1"),
-                    Protocol = ProtocolKind.Anthropic
+                    DefaultProtocol = ProtocolKind.Anthropic
                 }
             ],
-            DefaultBackend = defaultBackend
+            DefaultProvider = defaultBackend
         };
 
     [Test]
@@ -50,7 +50,7 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Get_backends_returns_names_only_never_endpoint_protocol_or_key_values()
+    public async Task Get_providers_returns_names_only_never_endpoint_protocol_or_key_values()
     {
         LauncherSettings settings = SettingsWith();
 
@@ -66,7 +66,7 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Get_backend_fields_round_trip_each_shape()
+    public async Task Get_provider_fields_round_trip_each_shape()
     {
         LauncherSettings settings = SettingsWith();
 
@@ -80,7 +80,7 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Get_backend_field_with_unset_model_reads_empty_not_null()
+    public async Task Get_provider_field_with_unset_model_reads_empty_not_null()
     {
         ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(defaultModel: null), "backends.default.defaultModel");
 
@@ -98,7 +98,7 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Get_unaddressable_backend_key_is_a_usage_error()
+    public async Task Get_unaddressable_provider_key_is_a_usage_error()
     {
         ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "backends.nope.endpoint");
 
@@ -125,7 +125,7 @@ public class ConfigKeyResolverTests
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.AlreadySatisfied).IsFalse();
         // The pointer stores the canonical entry name, not the typed casing.
-        await Assert.That(result.Settings!.DefaultBackend).IsEqualTo("work");
+        await Assert.That(result.Settings!.DefaultProvider).IsEqualTo("work");
         await Assert.That(result.Message).Contains("'work'");
     }
 
@@ -138,7 +138,7 @@ public class ConfigKeyResolverTests
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.AlreadySatisfied).IsTrue();
-        await Assert.That(result.Settings!.DefaultBackend).IsEqualTo("default");
+        await Assert.That(result.Settings!.DefaultProvider).IsEqualTo("default");
     }
 
     [Test]
@@ -149,7 +149,7 @@ public class ConfigKeyResolverTests
         ConfigKeyResult result = ConfigKeyResolver.Set(settings, "defaultBackend", "nope");
 
         await Assert.That(result.IsSuccess).IsFalse();
-        await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownBackendName);
+        await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownProviderName);
         // The contract message from backend resolution, not a bespoke string.
         await Assert.That(result.Message).Contains("unknown backend name 'nope'");
     }
@@ -166,7 +166,7 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Set_backends_is_read_only()
+    public async Task Set_providers_is_read_only()
     {
         LauncherSettings settings = SettingsWith();
 
@@ -177,7 +177,7 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Set_backend_endpoint_persists_and_leaves_other_fields_untouched()
+    public async Task Set_provider_endpoint_persists_and_leaves_other_fields_untouched()
     {
         LauncherSettings settings = SettingsWith();
 
@@ -185,36 +185,36 @@ public class ConfigKeyResolverTests
             settings, "backends.work.endpoint", "https://new.example.com/v1");
 
         await Assert.That(result.IsSuccess).IsTrue();
-        Backend updated = result.Settings!.Backends.Single(b => b.Name == "work");
+        Provider updated = result.Settings!.Providers.Single(b => b.Name == "work");
         await Assert.That(updated.BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
-        await Assert.That(updated.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(updated.DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
         await Assert.That(updated.DefaultModel).IsNull();
         await Assert.That(updated.ApiKey).IsNull();
         // The sibling default entry is untouched.
-        await Assert.That(result.Settings.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
+        await Assert.That(result.Settings.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
     }
 
     [Test]
-    public async Task Set_backend_protocol_persists()
+    public async Task Set_provider_protocol_persists()
     {
         LauncherSettings settings = SettingsWith();
 
         ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.protocol", "anthropic");
 
         await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Settings!.Backends[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
-        await Assert.That(result.Settings.Backends[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
+        await Assert.That(result.Settings!.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(result.Settings.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
     }
 
     [Test]
-    public async Task Set_backend_defaultModel_persists()
+    public async Task Set_provider_defaultModel_persists()
     {
         LauncherSettings settings = SettingsWith();
 
         ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.defaultModel", "claude-sonnet-5");
 
         await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Settings!.Backends[0].DefaultModel).IsEqualTo("claude-sonnet-5");
+        await Assert.That(result.Settings!.Providers[0].DefaultModel).IsEqualTo("claude-sonnet-5");
     }
 
     [Test]
@@ -249,11 +249,11 @@ public class ConfigKeyResolverTests
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownKey);
         // The hard boundary: no config set key can write secret material.
-        await Assert.That(settings.Backends[0].ApiKey).IsEqualTo("hgkey:default");
+        await Assert.That(settings.Providers[0].ApiKey).IsEqualTo("hgkey:default");
     }
 
     [Test]
-    public async Task Set_unaddressable_backend_key_is_a_usage_error()
+    public async Task Set_unaddressable_provider_key_is_a_usage_error()
     {
         LauncherSettings settings = SettingsWith();
 
@@ -261,18 +261,18 @@ public class ConfigKeyResolverTests
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnaddressableKey);
-        await Assert.That(settings.Backends).Count().IsEqualTo(2);
+        await Assert.That(settings.Providers).Count().IsEqualTo(2);
     }
 
     [Test]
-    public async Task Set_backend_field_never_mutates_on_failure()
+    public async Task Set_provider_field_never_mutates_on_failure()
     {
         LauncherSettings settings = SettingsWith();
-        string before = settings.Backends[0].BaseUri.ToString();
+        string before = settings.Providers[0].BaseUri.ToString();
 
         ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.endpoint", "not-a-url");
 
         await Assert.That(result.IsSuccess).IsFalse();
-        await Assert.That(settings.Backends[0].BaseUri.ToString()).IsEqualTo(before);
+        await Assert.That(settings.Providers[0].BaseUri.ToString()).IsEqualTo(before);
     }
 }

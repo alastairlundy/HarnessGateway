@@ -1,6 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 
@@ -20,11 +20,11 @@ public class ClaudeCodeAdapterTests
         string baseUri = "https://api.example.com/v1/")
     {
         return new ResolvedLaunch(
-            new Backend
+            new Provider
             {
                 Name = "test",
                 BaseUri = new Uri(baseUri),
-                Protocol = ProtocolKind.Anthropic,
+                DefaultProtocol = ProtocolKind.Anthropic,
                 ApiKey = apiKey
             },
             Model: model,

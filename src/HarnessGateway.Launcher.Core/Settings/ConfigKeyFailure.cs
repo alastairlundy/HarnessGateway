@@ -21,5 +21,5 @@ public enum ConfigKeyFailure
     InvalidValue,
 
     /// <summary>A defaultBackend write named no saved backend entry.</summary>
-    UnknownBackendName,
+    UnknownProviderName,
 }

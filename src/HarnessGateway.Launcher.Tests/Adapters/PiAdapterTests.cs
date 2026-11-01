@@ -1,6 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 
@@ -14,11 +14,11 @@ public class PiAdapterTests
         string? apiKey = "sk-test")
     {
         return new ResolvedLaunch(
-            new Backend
+            new Provider
             {
                 Name = "test",
                 BaseUri = new Uri("https://api.example.com/v1"),
-                Protocol = protocol,
+                DefaultProtocol = protocol,
                 ApiKey = apiKey
             },
             Model: model,

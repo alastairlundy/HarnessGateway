@@ -13,16 +13,16 @@ public enum LaunchRefusalKind
     HarnessUnavailable,
 
     /// <summary>No backend could be used: empty settings and no complete endpoint/protocol override.</summary>
-    NoBackend,
+    NoProvider,
 
     /// <summary>--backend named no saved backend entry.</summary>
-    UnknownBackendName,
+    UnknownProviderName,
 
-    /// <summary>The DefaultBackend pointer names no saved backend entry.</summary>
-    DanglingDefaultBackend,
+    /// <summary>The DefaultProvider pointer names no saved backend entry.</summary>
+    DanglingDefaultProvider,
 
-    /// <summary>The DefaultBackend pointer is empty while entries exist (no first-entry fallback).</summary>
-    AbsentDefaultBackend,
+    /// <summary>The DefaultProvider pointer is empty while entries exist (no first-entry fallback).</summary>
+    AbsentDefaultProvider,
 
     /// <summary>--protocol was given without --endpoint.</summary>
     ProtocolWithoutEndpoint,
@@ -59,5 +59,5 @@ public enum LaunchRefusalKind
     /// this launch asked to deliver: a backend or model override with no
     /// capable surface, or a key when only file surfaces are declared.
     /// </summary>
-    GuiBackendUnsupported,
+    GuiProviderUnsupported,
 }

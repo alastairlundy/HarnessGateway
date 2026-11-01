@@ -11,10 +11,10 @@ public enum WizardAbortReason
     Cancelled,
 
     /// <summary>The default-backend pointer is set but names no saved entry. Maps to exit 8.</summary>
-    DanglingDefaultBackend,
+    DanglingDefaultProvider,
 
     /// <summary>The default-backend pointer is empty while saved entries exist. Maps to exit 8.</summary>
-    AbsentDefaultBackend,
+    AbsentDefaultProvider,
 
     /// <summary>No agent harness is installed on this machine. Maps to exit 4.</summary>
     NoHarnessInstalled,

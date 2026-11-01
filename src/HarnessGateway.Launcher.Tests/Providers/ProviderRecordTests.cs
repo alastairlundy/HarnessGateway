@@ -1,5 +1,4 @@
 using System.Text.Json;
-using HarnessGateway.Launcher.Core.Backends;
 using HarnessGateway.Launcher.Core.Providers;
 
 namespace HarnessGateway.Launcher.Tests.Providers;
@@ -40,7 +39,7 @@ public class ProviderRecordTests
 
         string json = JsonSerializer.Serialize(provider);
 
-        await Assert.That(json).Contains("\"defaultProtocol\"");
+        await Assert.That(json).Contains("\"protocol\"");
         await Assert.That(json).Contains("\"models\"");
         await Assert.That(json).Contains("\"defaultModel\"");
         await Assert.That(json).Contains("\"apiKey\"");

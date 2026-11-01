@@ -1,38 +1,38 @@
-using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Core.Providers.Models;
 
 namespace HarnessGateway.Launcher.Wizard;
 
 public sealed class ModelStep
 {
     private readonly IConsoleAbstraction _console;
-    private readonly Func<Backend, CancellationToken, Task<ModelCatalog>>? _fetchModels;
-    private readonly Backend? _backend;
+    private readonly Func<Provider, CancellationToken, Task<ModelCatalog>>? _fetchModels;
+    private readonly Provider? _provider;
 
-    public ModelStep(IConsoleAbstraction console, Func<Backend, CancellationToken, Task<ModelCatalog>>? fetchModels, Backend? backend)
+    public ModelStep(IConsoleAbstraction console, Func<Provider, CancellationToken, Task<ModelCatalog>>? fetchModels, Provider? backend)
     {
         _console = console;
         _fetchModels = fetchModels;
-        _backend = backend;
+        _provider = backend;
     }
 
-    public ModelStep(IConsoleAbstraction console, ModelCatalogClient? catalogClient, Backend? backend)
+    public ModelStep(IConsoleAbstraction console, ModelCatalogClient? catalogClient, Provider? backend)
     {
         _console = console;
         _fetchModels = catalogClient is not null && backend is not null
             ? (b, ct) => catalogClient.FetchModelsAsync(b, ct)
             : null;
-        _backend = backend;
+        _provider = backend;
     }
 
     public async Task<string?> RunAsync(bool requiresModel, string? savedDefaultModel, CancellationToken cancellationToken = default)
     {
         ModelCatalog? catalog = null;
 
-        if (_fetchModels is not null && _backend is not null)
+        if (_fetchModels is not null && _provider is not null)
         {
             try
             {
-                catalog = await _fetchModels(_backend, cancellationToken).ConfigureAwait(true);
+                catalog = await _fetchModels(_provider, cancellationToken).ConfigureAwait(true);
             }
             catch
             {

@@ -100,20 +100,20 @@ public sealed class SettingsStore
 
     private async Task SweepLegacyPlaintextKeys(LauncherSettings settings, CancellationToken cancellationToken)
     {
-        for (int index = 0; index < settings.Backends.Count; index++)
+        for (int index = 0; index < settings.Providers.Count; index++)
         {
-            Backend backend = settings.Backends[index];
+            Provider backend = settings.Providers[index];
             if (backend.ApiKey is null || KeyReference.IsReference(backend.ApiKey))
             {
                 continue;
             }
 
-            string reference = KeyReference.ForBackend(backend.Name);
+            string reference = KeyReference.ForProvider(backend.Name);
 
             ISecureKeyStore keyStore = _keyStore ??= SecureKeyStoreFactory.Create(_settingsDirectory);
             await keyStore.StoreAsync(reference, backend.ApiKey, cancellationToken).ConfigureAwait(false);
 
-            settings.Backends[index] = backend with { ApiKey = reference };
+            settings.Providers[index] = backend with { ApiKey = reference };
         }
     }
 

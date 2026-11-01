@@ -18,7 +18,7 @@ public sealed class ScriptedKeyPrompt : IKeyPrompt
 
     public int CallCount { get; private set; }
 
-    public string? PromptForNewKey(string backendName, bool entryHasKey)
+    public string? PromptForNewKey(string providerName, bool entryHasKey)
     {
         CallCount++;
         return _key;

@@ -13,10 +13,10 @@ public sealed record LauncherSettings
     public const int CurrentSchemaVersion = 2;
 
     [JsonPropertyName("backends")]
-    public List<Backend> Backends { get; init; } = [];
+    public List<Provider> Providers { get; init; } = [];
 
     [JsonPropertyName("defaultBackend")]
-    public string DefaultBackend { get; init; } = string.Empty;
+    public string DefaultProvider { get; init; } = string.Empty;
 
     [JsonPropertyName("schemaVersion")]
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;

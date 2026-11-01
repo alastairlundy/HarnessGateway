@@ -29,7 +29,7 @@ public sealed class FakeSecureKeyStore : ISecureKeyStore
         if (FailStore)
         {
             throw SecureKeyStoreException.OperationFailed(
-                KeyReference.BackendName(reference) ?? "unknown",
+                KeyReference.ProviderName(reference) ?? "unknown",
                 "save to the platform credential store",
                 "the fake key store is configured to fail.");
         }
@@ -57,7 +57,7 @@ public sealed class FakeSecureKeyStore : ISecureKeyStore
         if (FailDelete)
         {
             throw SecureKeyStoreException.OperationFailed(
-                KeyReference.BackendName(reference) ?? "unknown",
+                KeyReference.ProviderName(reference) ?? "unknown",
                 "remove from the platform credential store",
                 "the fake key store is configured to fail.");
         }

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace HarnessGateway.Launcher.Core.Backends;
+namespace HarnessGateway.Launcher.Core.Providers;
 
 public enum ProtocolKind
 {

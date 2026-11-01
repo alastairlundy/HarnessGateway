@@ -2,7 +2,7 @@ namespace HarnessGateway.Launcher.Commands;
 
 internal sealed class TerminalKeyPrompt : IKeyPrompt
 {
-    public string? PromptForNewKey(string backendName, bool entryHasKey)
+    public string? PromptForNewKey(string providerName, bool entryHasKey)
     {
         if (Console.IsInputRedirected)
         {
@@ -10,7 +10,7 @@ internal sealed class TerminalKeyPrompt : IKeyPrompt
         }
 
         string verb = entryHasKey ? "Replace" : "Set";
-        Console.Write($"{verb} an API key for '{backendName}'? [y/N] ");
+        Console.Write($"{verb} an API key for '{providerName}'? [y/N] ");
         string? answer = Console.ReadLine();
 
         if (!string.Equals(answer?.Trim(), "y", StringComparison.OrdinalIgnoreCase))

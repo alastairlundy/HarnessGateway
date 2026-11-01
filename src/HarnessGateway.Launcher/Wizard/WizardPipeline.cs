@@ -1,7 +1,7 @@
 using HarnessGateway.Launcher.Core;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
-using HarnessGateway.Launcher.Core.Backends;
-using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 
 namespace HarnessGateway.Launcher.Wizard;
 
@@ -37,21 +37,21 @@ public sealed class WizardPipeline
         // A dangling or absent pointer is user-rectifiable - surface the
         // resolver's message (it names 'config set defaultBackend') and abort;
         // a first run resolves to null and prompts with no prefill.
-        BackendResolutionResult resolution = BackendResolution.Resolve(
+        ProviderResolutionResult resolution = ProviderResolution.Resolve(
             settings,
-            backendName: null,
+            providerName: null,
             endpoint: null,
             protocol: null,
             model: null);
 
-        if (resolution is BackendResolutionResult.Failed failed)
+        if (resolution is ProviderResolutionResult.Failed failed)
         {
             // Failed carries a non-null user-facing message - no fallback text.
             await Task.Run(() => _console.WriteError(failed.Message), cancellationToken).ConfigureAwait(false);
             WizardAbortReason abortReason = failed.Failure switch
             {
-                BackendResolutionFailure.DanglingDefaultBackend => WizardAbortReason.DanglingDefaultBackend,
-                BackendResolutionFailure.AbsentDefaultBackend => WizardAbortReason.AbsentDefaultBackend,
+                ProviderResolutionFailure.DanglingDefaultProvider => WizardAbortReason.DanglingDefaultProvider,
+                ProviderResolutionFailure.AbsentDefaultProvider => WizardAbortReason.AbsentDefaultProvider,
                 _ => WizardAbortReason.CredentialStoreError,
             };
             return new WizardAborted(abortReason);
@@ -59,14 +59,14 @@ public sealed class WizardPipeline
 
         // A first run (EmptySettings) resolves to no backend at all and
         // prompts with no prefill; Resolved carries its backend non-null.
-        Backend? defaultBackend = resolution is BackendResolutionResult.Resolved resolved
-            ? resolved.Backend
+        Provider? defaultProvider = resolution is ProviderResolutionResult.Resolved resolved
+            ? resolved.Provider
             : null;
 
         // Locked step order (harness, endpoint, key, model). The pairing
         // guard re-enters only the harness step: the endpoint step runs
         // exactly once and its typed endpoint/protocol survive a loop-back.
-        ProtocolKind? protocolToCheck = defaultBackend?.Protocol;
+        ProtocolKind? protocolToCheck = defaultProvider?.DefaultProtocol;
         bool annotateIncompatible = false;
         (string? endpoint, ProtocolKind protocol) endpointResult = (null, ProtocolKind.OpenAiChat);
         string? harnessName;
@@ -84,7 +84,7 @@ public sealed class WizardPipeline
 
             if (endpointResult.endpoint is null)
             {
-                endpointResult = await RunEndpointStepAsync(defaultBackend, cancellationToken).ConfigureAwait(true);
+                endpointResult = await RunEndpointStepAsync(defaultProvider, cancellationToken).ConfigureAwait(true);
                 if (endpointResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
             }
 
@@ -116,12 +116,12 @@ public sealed class WizardPipeline
         // Resolve the saved entry before the key and model steps so catalogue HTTP
         // auth and the key step both see the secret, never the at-rest
         // reference - and so a dangling reference names the saved backend.
-        Backend? resolvedBackend = defaultBackend;
-        if (resolvedBackend is not null)
+        Provider? resolvedProvider = defaultProvider;
+        if (resolvedProvider is not null)
         {
             try
             {
-                resolvedBackend = await BackendKeyResolver.ResolveAsync(resolvedBackend, _keyStore, cancellationToken).ConfigureAwait(true);
+                resolvedProvider = await ProviderKeyResolver.ResolveAsync(resolvedProvider, _keyStore, cancellationToken).ConfigureAwait(true);
             }
             catch (SecureKeyStoreException ex)
             {
@@ -130,19 +130,19 @@ public sealed class WizardPipeline
             }
         }
 
-        Backend effectiveBackend = new()
+        Provider effectiveProvider = new()
         {
             Name = "wizard",
             BaseUri = new Uri(endpointResult.endpoint),
-            Protocol = endpointResult.protocol,
-            ApiKey = resolvedBackend?.ApiKey,
+            DefaultProtocol = endpointResult.protocol,
+            ApiKey = resolvedProvider?.ApiKey,
         };
 
-        string? apiKey = await RunKeyStepAsync(effectiveBackend, cancellationToken).ConfigureAwait(true);
+        string? apiKey = await RunKeyStepAsync(effectiveProvider, cancellationToken).ConfigureAwait(true);
 
-        ModelStep modelStep = new(_console, _catalogClient, effectiveBackend);
+        ModelStep modelStep = new(_console, _catalogClient, effectiveProvider);
         bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
-        string? savedDefaultModel = defaultBackend?.DefaultModel;
+        string? savedDefaultModel = defaultProvider?.DefaultModel;
         string? model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
 
         return new WizardCompleted(new WizardResult(
@@ -273,7 +273,7 @@ public sealed class WizardPipeline
                 && protocolToCheck is not null
                 && !adapter.Metadata.SupportedProtocols.Contains(protocolToCheck.Value))
             {
-                incompatible = BackendResolution.ProtocolName(protocolToCheck.Value);
+                incompatible = ProviderResolution.ProtocolName(protocolToCheck.Value);
             }
 
             // Annotations are raw text: the presenter owns the parenthesised
@@ -306,7 +306,7 @@ public sealed class WizardPipeline
     private void WriteNoInstalledSupports(ProtocolKind protocol)
     {
         _console.WriteError(
-            $"No installed agent harness supports the {BackendResolution.ProtocolName(protocol)} " +
+            $"No installed agent harness supports the {ProviderResolution.ProtocolName(protocol)} " +
             "protocol. Install one and re-run:");
         foreach (IHarnessAdapter adapter in _adapters.Where(
                      a => a.Metadata.SupportedProtocols.Contains(protocol)))
@@ -328,7 +328,7 @@ public sealed class WizardPipeline
 
     private void WriteNoHarnessSupports(ProtocolKind protocol) =>
         _console.WriteError(
-            $"No agent harness supports the {BackendResolution.ProtocolName(protocol)} protocol.");
+            $"No agent harness supports the {ProviderResolution.ProtocolName(protocol)} protocol.");
 
     private static string BuildIncompatibleMessage(
         string harnessName,
@@ -340,18 +340,18 @@ public sealed class WizardPipeline
         // interactively - so the two reasons cannot drift in substance.
         string supported = string.Join(
             ", ",
-            supportedProtocols.Select(BackendResolution.ProtocolName));
+            supportedProtocols.Select(ProviderResolution.ProtocolName));
 
         return $"Refusing to launch {harnessName}: the selected backend's protocol " +
-               $"({BackendResolution.ProtocolName(protocol)}) is not supported by {harnessName}, " +
+               $"({ProviderResolution.ProtocolName(protocol)}) is not supported by {harnessName}, " +
                $"which supports: {supported}.";
     }
 
     private async Task<(string? endpoint, ProtocolKind protocol)> RunEndpointStepAsync(
-        Backend? defaultBackend,
+        Provider? defaultProvider,
         CancellationToken cancellationToken)
     {
-        string? defaultValue = defaultBackend?.BaseUri.ToString().TrimEnd('/');
+        string? defaultValue = defaultProvider?.BaseUri.ToString().TrimEnd('/');
 
         // A null endpoint aborts the whole wizard, and the caller maps that to
         // exit 0 with no output - an empty submission therefore looked like a
@@ -380,9 +380,9 @@ public sealed class WizardPipeline
 
         input = input.Trim();
 
-        ProtocolKind protocol = defaultBackend?.Protocol ?? ProtocolKind.OpenAiChat;
+        ProtocolKind protocol = defaultProvider?.DefaultProtocol ?? ProtocolKind.OpenAiChat;
 
-        if (defaultBackend is not null &&
+        if (defaultProvider is not null &&
             string.Equals(input, defaultValue, StringComparison.OrdinalIgnoreCase))
         {
             return (input, protocol);
@@ -409,15 +409,15 @@ public sealed class WizardPipeline
     }
 
     private async Task<string?> RunKeyStepAsync(
-        Backend effectiveBackend,
+        Provider effectiveProvider,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrEmpty(effectiveBackend.ApiKey))
+        if (!string.IsNullOrEmpty(effectiveProvider.ApiKey))
         {
-            return effectiveBackend.ApiKey;
+            return effectiveProvider.ApiKey;
         }
 
-        bool needsKey = effectiveBackend.Protocol switch
+        bool needsKey = effectiveProvider.DefaultProtocol switch
         {
             ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses =>
                 Environment.GetEnvironmentVariable("OPENAI_API_KEY") is null,

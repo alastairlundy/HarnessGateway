@@ -2,7 +2,7 @@ using System.Reflection;
 using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -117,17 +117,17 @@ public class LaunchFlowTests
         SettingsStore settingsStore = new(settingsDir, keyStore);
         settingsStore.Save(new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "codex-backend",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiResponses,
+                    DefaultProtocol = ProtocolKind.OpenAiResponses,
                     ApiKey = keyReference
                 },
             ],
-            DefaultBackend = "codex-backend",
+            DefaultProvider = "codex-backend",
         });
 
         CodexAdapter adapter = new(
@@ -164,17 +164,17 @@ public class LaunchFlowTests
         SettingsStore settingsStore = new(settingsDir, effectiveKeyStore);
         settingsStore.Save(new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "claude-backend",
                     BaseUri = new Uri("https://api.example.com"),
-                    Protocol = ProtocolKind.Anthropic,
+                    DefaultProtocol = ProtocolKind.Anthropic,
                     ApiKey = keyReference
                 },
             ],
-            DefaultBackend = "claude-backend",
+            DefaultProvider = "claude-backend",
         });
 
         // Fake detection delegate: availability never touches the real PATH.
@@ -196,30 +196,30 @@ public class LaunchFlowTests
     /// Settings fixtures only ever carry the reference; the secret itself is
     /// seeded into the fake store the way the real store would hold it.
     /// </summary>
-    private static string? SeedKey(FakeSecureKeyStore keyStore, string backendName, string? secret)
+    private static string? SeedKey(FakeSecureKeyStore keyStore, string providerName, string? secret)
     {
         if (secret is null)
         {
             return null;
         }
 
-        string reference = KeyReference.ForBackend(backendName);
+        string reference = KeyReference.ForProvider(providerName);
         keyStore.Seed(reference, secret);
         return reference;
     }
 
     private static LauncherSettings DefaultSettings(string name = "default") => new()
     {
-        Backends =
+        Providers =
         [
-            new Backend
+            new Provider
             {
                 Name = name,
                 BaseUri = new Uri("https://api.default.com/v1"),
-                Protocol = ProtocolKind.OpenAiChat,
+                DefaultProtocol = ProtocolKind.OpenAiChat,
             },
         ],
-        DefaultBackend = name,
+        DefaultProvider = name,
     };
 
     /// <summary>
@@ -409,17 +409,17 @@ public class LaunchFlowTests
     {
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                     ApiKey = "hgkey:default",
                 },
             ],
-            DefaultBackend = "default",
+            DefaultProvider = "default",
         };
 
         // Reference present, secret absent from the store.
@@ -448,17 +448,17 @@ public class LaunchFlowTests
     {
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                     ApiKey = "hgkey:default",
                 },
             ],
-            DefaultBackend = "default",
+            DefaultProvider = "default",
         };
 
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
@@ -500,7 +500,7 @@ public class LaunchFlowTests
 
             // The launch copy carries the secret...
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-session");
+            await Assert.That(adapter.LastRequest!.Provider.ApiKey).IsEqualTo("sk-session");
 
             // ...and the --persist model save never does: the settings file
             // keeps its reference/null key shape, never launch-time material.
@@ -509,7 +509,7 @@ public class LaunchFlowTests
             await Assert.That(settingsBytes.Contains("sk-session")).IsFalse();
 
             LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
-            await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-5");
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-5");
         }
         finally
         {
@@ -604,7 +604,7 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_unknown_backend_name_folds_to_refusal()
+    public async Task ExecuteAsync_unknown_provider_name_folds_to_refusal()
     {
         LauncherSettings settings = DefaultSettings("primary");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
@@ -616,7 +616,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", "nope", null, null, null, [], null));
 
             LaunchRefused refused = (LaunchRefused)outcome;
-            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.UnknownBackendName);
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.UnknownProviderName);
             await Assert.That(refused.Message).Contains("unknown backend name 'nope'");
         }
         finally
@@ -626,9 +626,9 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_dangling_default_backend_folds_to_refusal()
+    public async Task ExecuteAsync_dangling_default_provider_folds_to_refusal()
     {
-        LauncherSettings settings = DefaultSettings("primary") with { DefaultBackend = "ghost" };
+        LauncherSettings settings = DefaultSettings("primary") with { DefaultProvider = "ghost" };
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: new TestHarnessAdapter("TestAgent"),
             settings: settings);
@@ -638,7 +638,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchRefused refused = (LaunchRefused)outcome;
-            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.DanglingDefaultBackend);
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.DanglingDefaultProvider);
             await Assert.That(refused.Message).Contains("config set defaultBackend");
         }
         finally
@@ -648,25 +648,25 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_absent_default_backend_folds_to_refusal()
+    public async Task ExecuteAsync_absent_default_provider_folds_to_refusal()
     {
-        // DefaultBackend intentionally unset: multiple entries must not fall
+        // DefaultProvider intentionally unset: multiple entries must not fall
         // back to the first one - the pointer is the only read.
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "primary",
                     BaseUri = new Uri("https://primary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                 },
-                new Backend
+                new Provider
                 {
                     Name = "secondary",
                     BaseUri = new Uri("https://secondary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiResponses,
+                    DefaultProtocol = ProtocolKind.OpenAiResponses,
                 },
             ],
         };
@@ -680,7 +680,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchRefused refused = (LaunchRefused)outcome;
-            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.AbsentDefaultBackend);
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.AbsentDefaultProvider);
         }
         finally
         {
@@ -689,7 +689,7 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_empty_settings_folds_to_no_backend()
+    public async Task ExecuteAsync_empty_settings_folds_to_no_provider()
     {
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: new TestHarnessAdapter("TestAgent"));
@@ -699,7 +699,7 @@ public class LaunchFlowTests
                 new LaunchRequest("TestAgent", null, null, null, null, [], null));
 
             LaunchRefused refused = (LaunchRefused)outcome;
-            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.NoBackend);
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.NoProvider);
             // The usage-error wording is contractual; no "Launch failed:"
             // prefix may borrow the internal-fault marker.
             await Assert.That(refused.Message).Contains("No backend is configured");
@@ -769,16 +769,16 @@ public class LaunchFlowTests
             supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "anthropic-backend",
                     BaseUri = new Uri("https://api.anthropic.com"),
-                    Protocol = ProtocolKind.Anthropic,
+                    DefaultProtocol = ProtocolKind.Anthropic,
                 },
             ],
-            DefaultBackend = "anthropic-backend",
+            DefaultProvider = "anthropic-backend",
         };
 
         (LaunchFlow flow, string tempDir, _, string backupsDir) = CreateFlow(
@@ -822,7 +822,7 @@ public class LaunchFlowTests
             // config back, and the model landed in settings afterwards.
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(originalConfig);
             LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
-            await Assert.That(saved.Backends[0].DefaultModel).IsEqualTo("gpt-5");
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-5");
         }
         finally
         {
@@ -858,7 +858,7 @@ public class LaunchFlowTests
             LaunchFailed failed = (LaunchFailed)outcome;
             await Assert.That(failed.Kind).IsEqualTo(LaunchFailureKind.Unexpected);
             LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
-            await Assert.That(saved.Backends[0].DefaultModel).IsNull();
+            await Assert.That(saved.Providers[0].DefaultModel).IsNull();
         }
         finally
         {
@@ -870,7 +870,7 @@ public class LaunchFlowTests
     //     never exit codes. ---
 
     [Test]
-    public async Task ExecuteAsync_endpoint_and_protocol_override_builds_an_ad_hoc_backend()
+    public async Task ExecuteAsync_endpoint_and_protocol_override_builds_an_ad_hoc_provider()
     {
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(adapter: adapter);
@@ -883,9 +883,9 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.BaseUri)
+            await Assert.That(adapter.LastRequest!.Provider.BaseUri)
                 .IsEqualTo(new Uri("https://api.example.com/v1"));
-            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest!.Provider.DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
         }
         finally
         {
@@ -894,7 +894,7 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_without_overrides_uses_the_default_backend()
+    public async Task ExecuteAsync_without_overrides_uses_the_default_provider()
     {
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
@@ -908,7 +908,7 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("default");
+            await Assert.That(adapter.LastRequest!.Provider.Name).IsEqualTo("default");
         }
         finally
         {
@@ -1076,16 +1076,16 @@ public class LaunchFlowTests
             supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "openai-backend",
                     BaseUri = new Uri("https://api.openai.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                 },
             ],
-            DefaultBackend = "openai-backend",
+            DefaultProvider = "openai-backend",
         };
 
         (LaunchFlow flow, string tempDir, _, string backupsDir) = CreateFlow(
@@ -1099,7 +1099,7 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest!.Provider.DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
         }
         finally
@@ -1252,17 +1252,17 @@ public class LaunchFlowTests
     {
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "test-backend",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                     ApiKey = "hgkey:test-backend",
                 },
             ],
-            DefaultBackend = "test-backend",
+            DefaultProvider = "test-backend",
         };
 
         FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
@@ -1289,7 +1289,7 @@ public class LaunchFlowTests
             await Assert.That(fileBytes.Contains("sk-never-on-disk")).IsFalse();
 
             // And the harness saw the secret, never the reference.
-            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-never-on-disk");
+            await Assert.That(adapter.LastRequest!.Provider.ApiKey).IsEqualTo("sk-never-on-disk");
         }
         finally
         {
@@ -1320,7 +1320,7 @@ public class LaunchFlowTests
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
-            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-wizard-only");
+            await Assert.That(adapter.LastRequest!.Provider.ApiKey).IsEqualTo("sk-wizard-only");
 
             // Launch-copy-only: an ad-hoc override against an empty settings
             // dir never persists anything, secret or otherwise.
@@ -1338,17 +1338,17 @@ public class LaunchFlowTests
     {
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "test-backend",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                     ApiKey = "hgkey:test-backend",
                 },
             ],
-            DefaultBackend = "test-backend",
+            DefaultProvider = "test-backend",
         };
 
         FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
@@ -1366,7 +1366,7 @@ public class LaunchFlowTests
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
-            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-explicit");
+            await Assert.That(adapter.LastRequest!.Provider.ApiKey).IsEqualTo("sk-explicit");
 
             // The override is launch-copy-only: the stored entry keeps its
             // reference and the store keeps sk-stored under it.
@@ -1383,27 +1383,27 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_backend_name_launches_that_entry_with_its_resolved_key()
+    public async Task ExecuteAsync_provider_name_launches_that_entry_with_its_resolved_key()
     {
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "primary",
                     BaseUri = new Uri("https://primary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                 },
-                new Backend
+                new Provider
                 {
                     Name = "secondary",
                     BaseUri = new Uri("https://secondary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiResponses,
+                    DefaultProtocol = ProtocolKind.OpenAiResponses,
                     ApiKey = "hgkey:secondary",
                 },
             ],
-            DefaultBackend = "primary",
+            DefaultProvider = "primary",
         };
 
         FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
@@ -1422,10 +1422,10 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
+            await Assert.That(adapter.LastRequest!.Provider.Name).IsEqualTo("secondary");
             // The selection's stored key is the only credential source,
             // resolved through the store before the adapter ever sees it.
-            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-secondary");
+            await Assert.That(adapter.LastRequest!.Provider.ApiKey).IsEqualTo("sk-secondary");
         }
         finally
         {
@@ -1434,28 +1434,28 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_backend_with_endpoint_override_replaces_only_that_field()
+    public async Task ExecuteAsync_provider_with_endpoint_override_replaces_only_that_field()
     {
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "primary",
                     BaseUri = new Uri("https://primary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                 },
-                new Backend
+                new Provider
                 {
                     Name = "secondary",
                     BaseUri = new Uri("https://secondary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiResponses,
+                    DefaultProtocol = ProtocolKind.OpenAiResponses,
                     DefaultModel = "gpt-4o",
                     ApiKey = "hgkey:secondary",
                 },
             ],
-            DefaultBackend = "primary",
+            DefaultProvider = "primary",
         };
 
         FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
@@ -1481,13 +1481,13 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.BaseUri)
+            await Assert.That(adapter.LastRequest!.Provider.BaseUri)
                 .IsEqualTo(new Uri("https://override.example/v1"));
-            await Assert.That(adapter.LastRequest!.Backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest!.Provider.DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
             // The flag replaced only its own fields; the rest stays as saved.
-            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("secondary");
-            await Assert.That(adapter.LastRequest!.Backend.DefaultModel).IsEqualTo("gpt-4o");
-            await Assert.That(adapter.LastRequest!.Backend.ApiKey).IsEqualTo("sk-secondary");
+            await Assert.That(adapter.LastRequest!.Provider.Name).IsEqualTo("secondary");
+            await Assert.That(adapter.LastRequest!.Provider.DefaultModel).IsEqualTo("gpt-4o");
+            await Assert.That(adapter.LastRequest!.Provider.ApiKey).IsEqualTo("sk-secondary");
         }
         finally
         {
@@ -1496,26 +1496,26 @@ public class LaunchFlowTests
     }
 
     [Test]
-    public async Task ExecuteAsync_persist_model_on_a_named_backend_never_repoints_the_default()
+    public async Task ExecuteAsync_persist_model_on_a_named_provider_never_repoints_the_default()
     {
         LauncherSettings settings = new()
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "primary",
                     BaseUri = new Uri("https://primary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiChat,
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
                 },
-                new Backend
+                new Provider
                 {
                     Name = "secondary",
                     BaseUri = new Uri("https://secondary.example/v1"),
-                    Protocol = ProtocolKind.OpenAiResponses,
+                    DefaultProtocol = ProtocolKind.OpenAiResponses,
                 },
             ],
-            DefaultBackend = "primary",
+            DefaultProvider = "primary",
         };
 
         TestHarnessAdapter adapter = new("TestAgent");
@@ -1530,14 +1530,14 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
 
-            // Persisting the model never re-points DefaultBackend: selecting
+            // Persisting the model never re-points DefaultProvider: selecting
             // a backend per launch has no settings side effect beyond the
             // model.
             LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
-            await Assert.That(saved.DefaultBackend).IsEqualTo("primary");
-            await Assert.That(saved.Backends.Single(b => b.Name == "secondary").DefaultModel)
+            await Assert.That(saved.DefaultProvider).IsEqualTo("primary");
+            await Assert.That(saved.Providers.Single(b => b.Name == "secondary").DefaultModel)
                 .IsEqualTo("gpt-5");
-            await Assert.That(saved.Backends.Single(b => b.Name == "primary").DefaultModel)
+            await Assert.That(saved.Providers.Single(b => b.Name == "primary").DefaultModel)
                 .IsNull();
         }
         finally
@@ -1563,8 +1563,8 @@ public class LaunchFlowTests
             // No stored entry exists to persist onto, so nothing is written -
             // an ad-hoc override never becomes a settings entry.
             LauncherSettings saved = (await new SettingsStore(settingsDir).LoadAsync());
-            await Assert.That(saved.Backends).IsEmpty();
-            await Assert.That(saved.DefaultBackend).IsEqualTo(string.Empty);
+            await Assert.That(saved.Providers).IsEmpty();
+            await Assert.That(saved.DefaultProvider).IsEqualTo(string.Empty);
         }
         finally
         {
@@ -1654,7 +1654,7 @@ public class LaunchFlowTests
     public async Task LaunchRequest_carries_no_resolved_secret_beyond_session_key()
     {
         // The request is purely declarative: its fields are all
-        // pre-resolution inputs. A Backend - the type that carries the
+        // pre-resolution inputs. A Provider - the type that carries the
         // resolved secret - must not be reachable through any of them, and
         // SessionKey is the only secret-adjacent slot (a plain string the
         // flow layers onto the launch copy).
@@ -1664,10 +1664,10 @@ public class LaunchFlowTests
             ",",
             properties.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal));
         await Assert.That(declaredNames).IsEqualTo(
-            "BackendName,ConfirmRunning,Endpoint,Harness,Model,Persist,Protocol,SessionKey");
+            "ConfirmRunning,Endpoint,Harness,Model,Persist,Protocol,ProviderName,SessionKey");
 
         await Assert.That(
-            properties.Any(p => typeof(Backend).IsAssignableFrom(p.PropertyType))).IsFalse();
+            properties.Any(p => typeof(Provider).IsAssignableFrom(p.PropertyType))).IsFalse();
 
         PropertyInfo sessionKey = typeof(LaunchRequest).GetProperty("SessionKey")!;
         await Assert.That(sessionKey.PropertyType).IsEqualTo(typeof(string));

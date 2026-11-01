@@ -1,7 +1,7 @@
 using CliInvoke;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
-using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -75,8 +75,8 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         return aborted.Reason switch
         {
             WizardAbortReason.Cancelled => 0,
-            WizardAbortReason.DanglingDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
-            WizardAbortReason.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
+            WizardAbortReason.DanglingDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
+            WizardAbortReason.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
             WizardAbortReason.NoHarnessInstalled => (int)LaunchExitCode.HarnessUnavailable,
             WizardAbortReason.NoHarnessSupportsProtocol => (int)LaunchExitCode.UnknownAgent,
             WizardAbortReason.CredentialStoreError => (int)LaunchExitCode.ConfigRestoreFailure,
@@ -94,7 +94,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     // survive the launch, so the restore-on-exit default opts out.
     LaunchRequest request = new(
         wizardResult.AgentCommandName,
-        BackendName: null,
+        ProviderName: null,
         wizardResult.Endpoint,
         LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,

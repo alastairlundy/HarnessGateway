@@ -45,13 +45,13 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
     {
         Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
-            ["COPILOT_PROVIDER_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
+            ["COPILOT_PROVIDER_BASE_URL"] = request.Provider.BaseUri.ToString().TrimEnd('/'),
         };
 
-        if (request.Backend.ApiKey is { Length: > 0 })
-            envVars["COPILOT_PROVIDER_API_KEY"] = request.Backend.ApiKey;
+        if (request.Provider.ApiKey is { Length: > 0 })
+            envVars["COPILOT_PROVIDER_API_KEY"] = request.Provider.ApiKey;
 
-        envVars["COPILOT_PROVIDER_TYPE"] = request.Backend.Protocol switch
+        envVars["COPILOT_PROVIDER_TYPE"] = request.Provider.DefaultProtocol switch
         {
             ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => "openai",
             ProtocolKind.Anthropic => "anthropic",

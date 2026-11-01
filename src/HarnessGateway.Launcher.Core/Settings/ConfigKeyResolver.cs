@@ -12,7 +12,7 @@ namespace HarnessGateway.Launcher.Core.Settings;
 /// </summary>
 public static class ConfigKeyResolver
 {
-    private static readonly string[] WritableBackendFields =
+    private static readonly string[] WritableProviderFields =
         ["endpoint", "protocol", "defaultModel"];
 
     /// <summary>Reads a typed key. Fails with <see cref="ConfigKeyFailure.UnknownKey"/> for anything outside the set.</summary>
@@ -20,7 +20,7 @@ public static class ConfigKeyResolver
     {
         if (string.Equals(key, "defaultBackend", StringComparison.Ordinal))
         {
-            return Ok(settings.DefaultBackend);
+            return Ok(settings.DefaultProvider);
         }
 
         if (string.Equals(key, "schemaVersion", StringComparison.Ordinal))
@@ -31,27 +31,27 @@ public static class ConfigKeyResolver
         if (string.Equals(key, "backends", StringComparison.Ordinal))
         {
             // Names only - never endpoint, protocol, or key values.
-            return Ok(string.Join(Environment.NewLine, settings.Backends.Select(b => b.Name)));
+            return Ok(string.Join(Environment.NewLine, settings.Providers.Select(b => b.Name)));
         }
 
-        if (TryParseBackendFieldKey(key, out string name, out string field))
+        if (TryParseProviderFieldKey(key, out string name, out string field))
         {
-            if (!WritableBackendFields.Contains(field, StringComparer.Ordinal))
+            if (!WritableProviderFields.Contains(field, StringComparer.Ordinal))
             {
                 return Fail(ConfigKeyFailure.UnknownKey, UnknownKeyMessage(key));
             }
 
-            Result<Backend> found = FindBackend(settings, name);
+            Result<Provider> found = FindProvider(settings, name);
             if (!found.Success)
             {
                 return Fail(ConfigKeyFailure.UnaddressableKey, UnaddressableMessage(key, name));
             }
 
-            Backend entry = found.Value;
+            Provider entry = found.Value;
             return field switch
             {
                 "endpoint" => Ok(entry.BaseUri.ToString()),
-                "protocol" => Ok(BackendResolution.ProtocolName(entry.Protocol)),
+                "protocol" => Ok(ProviderResolution.ProtocolName(entry.DefaultProtocol)),
                 _ => Ok(entry.DefaultModel ?? string.Empty),
             };
         }
@@ -68,7 +68,7 @@ public static class ConfigKeyResolver
     {
         if (string.Equals(key, "defaultBackend", StringComparison.Ordinal))
         {
-            return SetDefaultBackend(settings, value);
+            return SetDefaultProvider(settings, value);
         }
 
         if (string.Equals(key, "schemaVersion", StringComparison.Ordinal))
@@ -86,27 +86,27 @@ public static class ConfigKeyResolver
                 "use 'harnessgateway config backend add' and 'harnessgateway config backend remove'.");
         }
 
-        if (TryParseBackendFieldKey(key, out string name, out string field))
+        if (TryParseProviderFieldKey(key, out string name, out string field))
         {
-            if (!WritableBackendFields.Contains(field, StringComparer.Ordinal))
+            if (!WritableProviderFields.Contains(field, StringComparer.Ordinal))
             {
                 return Fail(ConfigKeyFailure.UnknownKey, UnknownKeyMessage(key));
             }
 
-            Result<Backend> found = FindBackend(settings, name);
+            Result<Provider> found = FindProvider(settings, name);
             if (!found.Success)
             {
                 return Fail(ConfigKeyFailure.UnaddressableKey, UnaddressableMessage(key, name));
             }
 
-            return SetBackendField(settings, found.Value, key, field, value);
+            return SetProviderField(settings, found.Value, key, field, value);
         }
 
         return Fail(ConfigKeyFailure.UnknownKey, UnknownKeyMessage(key));
     }
 
-    private static ConfigKeyResult SetBackendField(
-        LauncherSettings settings, Backend entry, string key, string field, string value)
+    private static ConfigKeyResult SetProviderField(
+        LauncherSettings settings, Provider entry, string key, string field, string value)
     {
         switch (field)
         {
@@ -121,7 +121,7 @@ public static class ConfigKeyResolver
                 return ApplyField(settings, entry, key, entry with { BaseUri = uri });
 
             case "protocol":
-                ProtocolKind? kind = BackendResolution.TryParseProtocol(value);
+                ProtocolKind? kind = ProviderResolution.TryParseProtocol(value);
                 if (kind is null)
                 {
                     return Fail(
@@ -129,7 +129,7 @@ public static class ConfigKeyResolver
                         $"Invalid protocol '{value}'. Must be one of: openai-chat, openai-responses, anthropic");
                 }
 
-                return ApplyField(settings, entry, key, entry with { Protocol = kind.Value });
+                return ApplyField(settings, entry, key, entry with { DefaultProtocol = kind.Value });
 
             default:
                 return ApplyField(settings, entry, key, entry with { DefaultModel = value });
@@ -139,31 +139,31 @@ public static class ConfigKeyResolver
     /// <summary>
     /// The sole write path for the default pointer: validates the name against
     /// the saved entries (exit-8 class on failure, via the caller's mapping of
-    /// <see cref="ConfigKeyFailure.UnknownBackendName"/>), succeeds idempotently
+    /// <see cref="ConfigKeyFailure.UnknownProviderName"/>), succeeds idempotently
     /// when already default, and stores the canonical entry name.
     /// </summary>
-    private static ConfigKeyResult SetDefaultBackend(LauncherSettings settings, string value)
+    private static ConfigKeyResult SetDefaultProvider(LauncherSettings settings, string value)
     {
-        BackendResolutionResult resolution = BackendResolution.Resolve(settings, value, endpoint: null, protocol: null, model: null);
+        ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, value, endpoint: null, protocol: null, model: null);
 
-        Backend entry;
+        Provider entry;
         switch (resolution)
         {
-            case BackendResolutionResult.Resolved resolved:
-                entry = resolved.Backend;
+            case ProviderResolutionResult.Resolved resolved:
+                entry = resolved.Provider;
                 break;
 
-            case BackendResolutionResult.Failed failed:
+            case ProviderResolutionResult.Failed failed:
                 // With no overrides supplied this failure is always the unknown-name class.
-                return Fail(ConfigKeyFailure.UnknownBackendName, failed.Message);
+                return Fail(ConfigKeyFailure.UnknownProviderName, failed.Message);
 
             default:
                 // EmptySettings is unreachable: the written value is a required
                 // name, so resolution either finds the entry or fails.
-                return Fail(ConfigKeyFailure.UnknownBackendName, $"unknown backend name '{value}'.");
+                return Fail(ConfigKeyFailure.UnknownProviderName, $"unknown backend name '{value}'.");
         }
 
-        if (string.Equals(settings.DefaultBackend, entry.Name, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(settings.DefaultProvider, entry.Name, StringComparison.OrdinalIgnoreCase))
         {
             return new ConfigKeyResult
             {
@@ -175,25 +175,25 @@ public static class ConfigKeyResolver
 
         return new ConfigKeyResult
         {
-            Settings = settings with { DefaultBackend = entry.Name },
+            Settings = settings with { DefaultProvider = entry.Name },
             Message = $"Default backend set to '{entry.Name}'.",
         };
     }
 
-    private static ConfigKeyResult ApplyField(LauncherSettings settings, Backend entry, string key, Backend updated)
+    private static ConfigKeyResult ApplyField(LauncherSettings settings, Provider entry, string key, Provider updated)
     {
         // Field writes never create entries and never touch ApiKey: only the
         // addressed endpoint/protocol/defaultModel changes.
-        int index = settings.Backends.FindIndex(b =>
+        int index = settings.Providers.FindIndex(b =>
             string.Equals(b.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
 
         if (index >= 0)
         {
-            settings.Backends[index] = updated;
+            settings.Providers[index] = updated;
         }
         else
         {
-            settings.Backends.Add(updated);
+            settings.Providers.Add(updated);
         }
 
         return new ConfigKeyResult
@@ -203,11 +203,11 @@ public static class ConfigKeyResolver
         };
     }
 
-    private static string DescribeField(string key, Backend updated) =>
+    private static string DescribeField(string key, Provider updated) =>
         key.EndsWith(".endpoint", StringComparison.Ordinal)
             ? updated.BaseUri.ToString()
             : key.EndsWith(".protocol", StringComparison.Ordinal)
-                ? BackendResolution.ProtocolName(updated.Protocol)
+                ? ProviderResolution.ProtocolName(updated.DefaultProtocol)
                 : updated.DefaultModel ?? string.Empty;
 
     /// <summary>
@@ -215,7 +215,7 @@ public static class ConfigKeyResolver
     /// segments. False for anything else, including keys with extra dots or a
     /// missing field segment.
     /// </summary>
-    private static bool TryParseBackendFieldKey(string key, out string name, out string field)
+    private static bool TryParseProviderFieldKey(string key, out string name, out string field)
     {
         name = string.Empty;
         field = string.Empty;
@@ -238,11 +238,11 @@ public static class ConfigKeyResolver
         return !field.Contains('.', StringComparison.OrdinalIgnoreCase);
     }
 
-    private static Result<Backend> FindBackend(LauncherSettings settings, string name) =>
-        settings.Backends.FirstOrDefault(b =>
+    private static Result<Provider> FindProvider(LauncherSettings settings, string name) =>
+        settings.Providers.FirstOrDefault(b =>
             string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase)) is { } match
             ? Result.Ok(match)
-            : Result.Fail<Backend>("");
+            : Result.Fail<Provider>("");
 
     private static ConfigKeyResult Ok(string value) =>
         new() { Value = value, Message = value };

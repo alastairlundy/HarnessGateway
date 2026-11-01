@@ -1,6 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 using HarnessGateway.Launcher.Wizard;
@@ -317,8 +317,8 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             LauncherSettings savedSettings = await store.LoadAsync();
-            await Assert.That(savedSettings.Backends).IsEmpty();
-            await Assert.That(savedSettings.DefaultBackend).IsEmpty();
+            await Assert.That(savedSettings.Providers).IsEmpty();
+            await Assert.That(savedSettings.DefaultProvider).IsEmpty();
         }
         finally
         {
@@ -414,7 +414,7 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_absent_default_pointer_writes_error_and_returns_null()
     {
-        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "" };
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultProvider = "" };
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
@@ -438,7 +438,7 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_dangling_default_pointer_writes_error_and_returns_null()
     {
-        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "ghost" };
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultProvider = "ghost" };
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
@@ -749,9 +749,9 @@ public class WizardPipelineTests
             await Assert.That(result).IsNotNull();
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(2);
-            await Assert.That(after.Backends.Count).IsEqualTo(before.Backends.Count);
-            await Assert.That(after.Backends[0].Name).IsEqualTo(before.Backends[0].Name);
-            await Assert.That(after.DefaultBackend).IsEqualTo(before.DefaultBackend);
+            await Assert.That(after.Providers.Count).IsEqualTo(before.Providers.Count);
+            await Assert.That(after.Providers[0].Name).IsEqualTo(before.Providers[0].Name);
+            await Assert.That(after.DefaultProvider).IsEqualTo(before.DefaultProvider);
         }
         finally
         {

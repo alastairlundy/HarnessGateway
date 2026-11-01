@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using HarnessGateway.Launcher.Core.Backends;
-using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 
 namespace HarnessGateway.Launcher.Tests.Models;
 
@@ -23,11 +23,11 @@ public class ModelCatalogClientTests
         HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com") };
         ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "openai",
             BaseUri = new Uri("https://api.openai.com"),
-            Protocol = ProtocolKind.OpenAiChat,
+            DefaultProtocol = ProtocolKind.OpenAiChat,
             ApiKey = "sk-test"
         };
 
@@ -55,11 +55,11 @@ public class ModelCatalogClientTests
         HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.anthropic.com") };
         ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "anthropic",
             BaseUri = new Uri("https://api.anthropic.com"),
-            Protocol = ProtocolKind.Anthropic,
+            DefaultProtocol = ProtocolKind.Anthropic,
             ApiKey = "sk-ant-test"
         };
 
@@ -77,11 +77,11 @@ public class ModelCatalogClientTests
         HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://unreachable.example.com") };
         ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "unreachable",
             BaseUri = new Uri("https://unreachable.example.com"),
-            Protocol = ProtocolKind.OpenAiChat
+            DefaultProtocol = ProtocolKind.OpenAiChat
         };
 
         ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
@@ -97,11 +97,11 @@ public class ModelCatalogClientTests
         HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example.com") };
         ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "malformed",
             BaseUri = new Uri("https://api.example.com"),
-            Protocol = ProtocolKind.OpenAiChat
+            DefaultProtocol = ProtocolKind.OpenAiChat
         };
 
         ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
@@ -124,11 +124,11 @@ public class ModelCatalogClientTests
         HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com") };
         ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "openai-responses",
             BaseUri = new Uri("https://api.openai.com"),
-            Protocol = ProtocolKind.OpenAiResponses,
+            DefaultProtocol = ProtocolKind.OpenAiResponses,
             ApiKey = "sk-test"
         };
 
@@ -153,11 +153,11 @@ public class ModelCatalogClientTests
         HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://localhost:11434") };
         ModelCatalogClient catalogClient = new ModelCatalogClient(client);
 
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "local",
             BaseUri = new Uri("https://localhost:11434"),
-            Protocol = ProtocolKind.OpenAiChat
+            DefaultProtocol = ProtocolKind.OpenAiChat
         };
 
         ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);

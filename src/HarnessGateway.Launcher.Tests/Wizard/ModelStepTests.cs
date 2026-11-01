@@ -1,24 +1,24 @@
-using HarnessGateway.Launcher.Core.Backends;
-using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Wizard;
 
 namespace HarnessGateway.Launcher.Tests.Wizard;
 
 public class ModelStepTests
 {
-    private static Backend CreateBackend(
+    private static Provider CreateProvider(
         string endpoint = "https://api.example.com/v1",
         ProtocolKind protocol = ProtocolKind.OpenAiChat)
     {
-        return new Backend
+        return new Provider
         {
             Name = "test",
             BaseUri = new Uri(endpoint),
-            Protocol = protocol
+            DefaultProtocol = protocol
         };
     }
 
-    private static Func<Backend, CancellationToken, Task<ModelCatalog>> CreateCatalogFetcher(ModelCatalog catalog)
+    private static Func<Provider, CancellationToken, Task<ModelCatalog>> CreateCatalogFetcher(ModelCatalog catalog)
     {
         return (_, _) => Task.FromResult(catalog);
     }
@@ -27,7 +27,7 @@ public class ModelStepTests
     public async Task RunAsync_with_catalog_allows_skip_when_not_required()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
         ModelCatalog catalog = new ModelCatalog(
         [
             new ModelCatalogEntry("gpt-4"),
@@ -46,7 +46,7 @@ public class ModelStepTests
     public async Task RunAsync_with_catalog_blocks_skip_when_required()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
         ModelCatalog catalog = new ModelCatalog(
         [
             new ModelCatalogEntry("gpt-4"),
@@ -65,7 +65,7 @@ public class ModelStepTests
     public async Task RunAsync_with_catalog_prefills_saved_default()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
         ModelCatalog catalog = new ModelCatalog(
         [
             new ModelCatalogEntry("gpt-4"),
@@ -84,7 +84,7 @@ public class ModelStepTests
     public async Task RunAsync_degraded_with_saved_default_returns_saved()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
 
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
 
@@ -98,7 +98,7 @@ public class ModelStepTests
     public async Task RunAsync_degraded_requires_model_asks_for_input()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
 
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
         console.EnqueueText("manual-model");
@@ -112,7 +112,7 @@ public class ModelStepTests
     public async Task RunAsync_degraded_no_model_required_offers_skip()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
 
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
         console.EnqueueChoice("[skip]");
@@ -126,7 +126,7 @@ public class ModelStepTests
     public async Task RunAsync_degraded_manual_entry_returns_model()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
 
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
         console.EnqueueChoice("[manual]");
@@ -141,7 +141,7 @@ public class ModelStepTests
     public async Task RunAsync_null_fetchModels_degrades_gracefully()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
+        Provider backend = CreateProvider();
 
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
         console.EnqueueChoice("[skip]");
@@ -155,8 +155,8 @@ public class ModelStepTests
     public async Task RunAsync_fetch_failure_degrades_gracefully()
     {
         TestConsole console = new TestConsole();
-        Backend backend = CreateBackend();
-        Func<Backend, CancellationToken, Task<ModelCatalog>> failingFetcher = (_, _) =>
+        Provider backend = CreateProvider();
+        Func<Provider, CancellationToken, Task<ModelCatalog>> failingFetcher = (_, _) =>
             throw new HttpRequestException("Connection refused");
 
         ModelStep step = new ModelStep(console, failingFetcher, backend);
