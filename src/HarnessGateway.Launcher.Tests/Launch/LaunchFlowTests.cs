@@ -741,7 +741,7 @@ public class LaunchFlowTests
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.NoProvider);
             // The usage-error wording is contractual; no "Launch failed:"
             // prefix may borrow the internal-fault marker.
-            await Assert.That(refused.Message).Contains("No backend is configured");
+            await Assert.That(refused.Message).Contains("No provider is configured");
             await Assert.That(refused.Message).DoesNotContain("Launch failed:");
         }
         finally

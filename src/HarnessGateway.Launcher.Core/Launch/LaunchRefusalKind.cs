@@ -18,7 +18,7 @@ public enum LaunchRefusalKind
     /// <summary>--provider named no saved provider entry.</summary>
     UnknownProviderName,
 
-    /// <summary>The DefaultProvider pointer names no saved backend entry.</summary>
+    /// <summary>The DefaultProvider pointer names no saved provider entry.</summary>
     DanglingDefaultProvider,
 
     /// <summary>The DefaultProvider pointer is empty while entries exist (no first-entry fallback).</summary>

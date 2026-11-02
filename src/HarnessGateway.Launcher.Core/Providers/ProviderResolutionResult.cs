@@ -29,7 +29,7 @@ public abstract record ProviderResolutionResult
     /// Resolution failed with a typed failure and a user-facing message. The
     /// two default-pointer failures are distinct:
     /// <see cref="ProviderResolutionFailure.DanglingDefaultProvider"/> (the
-    /// default-backend pointer is set but names no saved entry) versus
+    /// default-provider pointer is set but names no saved entry) versus
     /// <see cref="ProviderResolutionFailure.AbsentDefaultProvider"/> (the
     /// pointer is empty while saved entries exist — no first-entry fallback).
     /// </summary>

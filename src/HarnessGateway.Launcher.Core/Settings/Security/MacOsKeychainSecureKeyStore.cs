@@ -4,7 +4,7 @@ namespace HarnessGateway.Launcher.Core.Settings.Security;
 
 /// <summary>
 /// macOS implementation: generic password items in the login keychain, keyed by
-/// service <c>HarnessGateway</c> and account = backend name, driven through the
+/// service <c>HarnessGateway</c> and account = provider name, driven through the
 /// <c>/usr/bin/security</c> command line tool.
 /// </summary>
 public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore

@@ -1,9 +1,9 @@
 namespace HarnessGateway.Launcher.Core.Settings.Security;
 
 /// <summary>
-/// Failure raised by a secure-key-store operation. Messages name the backend and
+/// Failure raised by a secure-key-store operation. Messages name the provider and
 /// the re-save instruction, and never carry secret or reference material beyond
-/// the backend name. Callers map this to exit code 7 (<c>ConfigRestoreFailure</c>).
+/// the provider name. Callers map this to exit code 7 (<c>ConfigRestoreFailure</c>).
 /// </summary>
 public sealed class SecureKeyStoreException : Exception
 {
@@ -32,8 +32,8 @@ public sealed class SecureKeyStoreException : Exception
     /// </summary>
     public static SecureKeyStoreException DanglingReference(string providerName) =>
         new(
-            $"No stored API key found for backend '{providerName}'. " +
-            $"Re-save it with 'harnessgateway config backend set-key {providerName}'.");
+            $"No stored API key found for provider '{providerName}'. " +
+            $"Re-save it with 'harnessgateway provider set-key {providerName}'.");
 
     /// <summary>
     /// The platform credential store refused or failed an operation. The detail is
@@ -46,8 +46,8 @@ public sealed class SecureKeyStoreException : Exception
         string detail,
         Exception? innerException = null) =>
         new(
-            $"Could not {operation} for backend '{providerName}': {detail} " +
-            $"Re-save the key with 'harnessgateway config backend set-key {providerName}'.",
+            $"Could not {operation} for provider '{providerName}': {detail} " +
+            $"Re-save the key with 'harnessgateway provider set-key {providerName}'.",
             innerException);
 
     /// <summary>

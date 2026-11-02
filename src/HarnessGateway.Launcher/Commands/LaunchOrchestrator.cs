@@ -27,7 +27,7 @@ public sealed class LaunchOrchestrator
     /// <summary>
     /// The direct CLI path: parsed flags and nothing more. The direct path
     /// never carries a launch-time key - keys are a stored-entry concern here
-    /// (set via <c>config backend set-key</c>) - so the request always builds
+    /// (set via <c>provider set-key</c>) - so the request always builds
     /// with a null <see cref="LaunchRequest.SessionKey"/>. The
     /// <paramref name="confirmRunning"/> fact rides verbatim from the flag: the
     /// request builder never inspects the harness kind, because the misuse

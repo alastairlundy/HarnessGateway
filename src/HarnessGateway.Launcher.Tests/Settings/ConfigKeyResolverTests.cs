@@ -6,7 +6,7 @@ namespace HarnessGateway.Launcher.Tests.Settings;
 public class ConfigKeyResolverTests
 {
     private static LauncherSettings SettingsWith(
-        string defaultBackend = "default",
+        string defaultProvider = "default",
         string? apiKey = "hgkey:default",
         string? defaultModel = "gpt-4") =>
         new()
@@ -28,13 +28,13 @@ public class ConfigKeyResolverTests
                     DefaultProtocol = ProtocolKind.Anthropic
                 }
             ],
-            DefaultProvider = defaultBackend
+            DefaultProvider = defaultProvider
         };
 
     [Test]
-    public async Task Get_defaultBackend_returns_the_pointer()
+    public async Task Get_defaultProvider_returns_the_pointer()
     {
-        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "defaultBackend");
+        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "defaultProvider");
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).IsEqualTo("default");
@@ -54,7 +54,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Get(settings, "backends");
+        ConfigKeyResult result = ConfigKeyResolver.Get(settings, "providers");
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).Contains("default");
@@ -70,9 +70,9 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult endpoint = ConfigKeyResolver.Get(settings, "backends.default.endpoint");
-        ConfigKeyResult protocol = ConfigKeyResolver.Get(settings, "backends.default.protocol");
-        ConfigKeyResult model = ConfigKeyResolver.Get(settings, "backends.default.defaultModel");
+        ConfigKeyResult endpoint = ConfigKeyResolver.Get(settings, "providers.default.endpoint");
+        ConfigKeyResult protocol = ConfigKeyResolver.Get(settings, "providers.default.protocol");
+        ConfigKeyResult model = ConfigKeyResolver.Get(settings, "providers.default.defaultModel");
 
         await Assert.That(endpoint.Value).IsEqualTo("https://api.example.com/v1");
         await Assert.That(protocol.Value).IsEqualTo("openai-chat");
@@ -82,7 +82,7 @@ public class ConfigKeyResolverTests
     [Test]
     public async Task Get_provider_field_with_unset_model_reads_empty_not_null()
     {
-        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(defaultModel: null), "backends.default.defaultModel");
+        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(defaultModel: null), "providers.default.defaultModel");
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).IsEqualTo(string.Empty);
@@ -91,7 +91,7 @@ public class ConfigKeyResolverTests
     [Test]
     public async Task Get_unknown_key_is_a_usage_error()
     {
-        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "backends.default.apiKey");
+        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "providers.default.apiKey");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownKey);
@@ -100,7 +100,7 @@ public class ConfigKeyResolverTests
     [Test]
     public async Task Get_unaddressable_provider_key_is_a_usage_error()
     {
-        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "backends.nope.endpoint");
+        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "providers.nope.endpoint");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnaddressableKey);
@@ -109,18 +109,18 @@ public class ConfigKeyResolverTests
     [Test]
     public async Task Get_malformed_dotted_key_is_unknown()
     {
-        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "backends.default");
+        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "providers.default");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownKey);
     }
 
     [Test]
-    public async Task Set_defaultBackend_persists_the_canonical_entry_name()
+    public async Task Set_defaultProvider_persists_the_canonical_entry_name()
     {
-        LauncherSettings settings = SettingsWith(defaultBackend: string.Empty);
+        LauncherSettings settings = SettingsWith(defaultProvider: string.Empty);
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "defaultBackend", "WORK");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "defaultProvider", "WORK");
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.AlreadySatisfied).IsFalse();
@@ -130,11 +130,11 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Set_defaultBackend_already_default_is_idempotent()
+    public async Task Set_defaultProvider_already_default_is_idempotent()
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "defaultBackend", "default");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "defaultProvider", "default");
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.AlreadySatisfied).IsTrue();
@@ -142,15 +142,15 @@ public class ConfigKeyResolverTests
     }
 
     [Test]
-    public async Task Set_defaultBackend_unknown_name_is_the_exit_8_failure_class()
+    public async Task Set_defaultProvider_unknown_name_is_the_exit_8_failure_class()
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "defaultBackend", "nope");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "defaultProvider", "nope");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownProviderName);
-        // The contract message from backend resolution, not a bespoke string.
+        // The contract message from provider resolution, not a bespoke string.
         await Assert.That(result.Message).Contains("unknown provider name 'nope'");
     }
 
@@ -170,7 +170,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends", "default");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers", "default");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.ReadOnlyKey);
@@ -182,7 +182,7 @@ public class ConfigKeyResolverTests
         LauncherSettings settings = SettingsWith();
 
         ConfigKeyResult result = ConfigKeyResolver.Set(
-            settings, "backends.work.endpoint", "https://new.example.com/v1");
+            settings, "providers.work.endpoint", "https://new.example.com/v1");
 
         await Assert.That(result.IsSuccess).IsTrue();
         Provider updated = result.Settings!.Providers.Single(b => b.Name == "work");
@@ -199,7 +199,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.protocol", "anthropic");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.protocol", "anthropic");
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Settings!.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
@@ -211,7 +211,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.defaultModel", "claude-sonnet-5");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.defaultModel", "claude-sonnet-5");
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Settings!.Providers[0].DefaultModel).IsEqualTo("claude-sonnet-5");
@@ -222,7 +222,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.endpoint", "not-a-url");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.endpoint", "not-a-url");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.InvalidValue);
@@ -233,7 +233,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.protocol", "grpc");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.protocol", "grpc");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.InvalidValue);
@@ -244,7 +244,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.apiKey", "sk-secret");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.apiKey", "sk-secret");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownKey);
@@ -257,7 +257,7 @@ public class ConfigKeyResolverTests
     {
         LauncherSettings settings = SettingsWith();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.nope.endpoint", "https://x.example/v1");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.nope.endpoint", "https://x.example/v1");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnaddressableKey);
@@ -270,9 +270,32 @@ public class ConfigKeyResolverTests
         LauncherSettings settings = SettingsWith();
         string before = settings.Providers[0].BaseUri.ToString();
 
-        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "backends.default.endpoint", "not-a-url");
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.endpoint", "not-a-url");
 
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(settings.Providers[0].BaseUri.ToString()).IsEqualTo(before);
+    }
+
+    [Test]
+    public async Task Get_model_level_key_is_outside_the_closed_set()
+    {
+        // Models are deliberately not scriptable through config (T004): the
+        // model catalog is owned by the `provider model` verbs.
+        ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "providers.default.models");
+
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownKey);
+    }
+
+    [Test]
+    public async Task Set_model_level_key_is_outside_the_closed_set()
+    {
+        LauncherSettings settings = SettingsWith();
+
+        ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.models", "gpt-5");
+
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownKey);
+        await Assert.That(settings.Providers[0].Models).IsEmpty();
     }
 }

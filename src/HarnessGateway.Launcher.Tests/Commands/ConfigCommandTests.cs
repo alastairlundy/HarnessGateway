@@ -22,9 +22,9 @@ public class ConfigCommandTests
         return new SettingsStore(settingsDir, keyStore);
     }
 
-    private static int InvokeConfig(SettingsStore store, string args, FakeSecureKeyStore? keyStore = null)
+    private static int InvokeConfig(SettingsStore store, string args)
     {
-        ConfigCommand cmd = new ConfigCommand(store, keyStore ?? new FakeSecureKeyStore());
+        ConfigCommand cmd = new ConfigCommand(store);
         RootCommand rootCmd = new RootCommand { cmd };
         ParseResult result = rootCmd.Parse(args);
         int previous = ConsoleErrorCapture.Depth.Value;
@@ -72,20 +72,19 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Config_surface_is_show_get_set_and_provider()
+    public async Task Config_surface_is_show_get_set_only_with_no_backend_subcommand()
     {
-        ConfigCommand cmd = new ConfigCommand(
-            CreateSettingsStore(CreateTempDir()),
-            new FakeSecureKeyStore(),
-            new ScriptedKeyPrompt(null));
+        ConfigCommand cmd = new ConfigCommand(CreateSettingsStore(CreateTempDir()));
 
         List<string> verbs = cmd.Subcommands.Select(c => c.Name).ToList();
 
         await Assert.That(verbs).Contains("show");
         await Assert.That(verbs).Contains("get");
         await Assert.That(verbs).Contains("set");
-        await Assert.That(verbs).Contains("backend");
-        await Assert.That(verbs.Count).IsEqualTo(4);
+        // The provider surface moved to the top level (D004): config carries
+        // no backend subcommand and no deprecated alias.
+        await Assert.That(verbs).DoesNotContain("backend");
+        await Assert.That(verbs.Count).IsEqualTo(3);
     }
 
     [Test]
@@ -271,8 +270,8 @@ public class ConfigCommandTests
                 Task.FromResult(InvokeConfig(store, "config show")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output).Contains("No default backend configured.");
-            await Assert.That(output).Contains("config backend add");
+            await Assert.That(output).Contains("No default provider configured.");
+            await Assert.That(output).Contains("provider add");
         }
         finally
         {
@@ -281,7 +280,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Show_dangling_pointer_hint_points_at_defaultBackend_write()
+    public async Task Show_dangling_pointer_hint_points_at_defaultProvider_write()
     {
         string tempDir = CreateTempDir();
         try
@@ -305,8 +304,8 @@ public class ConfigCommandTests
                 Task.FromResult(InvokeConfig(store, "config show")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output).Contains("No default backend configured.");
-            await Assert.That(output).Contains("config set defaultBackend");
+            await Assert.That(output).Contains("No default provider configured.");
+            await Assert.That(output).Contains("config set defaultProvider");
         }
         finally
         {
@@ -315,7 +314,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Get_defaultBackend_reads_the_pointer()
+    public async Task Get_defaultProvider_reads_the_pointer()
     {
         string tempDir = CreateTempDir();
         try
@@ -336,7 +335,7 @@ public class ConfigCommandTests
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get defaultBackend")));
+                Task.FromResult(InvokeConfig(store, "config get defaultProvider")));
 
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("work");
@@ -397,7 +396,7 @@ public class ConfigCommandTests
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get backends")));
+                Task.FromResult(InvokeConfig(store, "config get providers")));
 
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("default");
@@ -435,11 +434,11 @@ public class ConfigCommandTests
             });
 
             (int endpointExit, string endpointOutput) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get backends.default.endpoint")));
+                Task.FromResult(InvokeConfig(store, "config get providers.default.endpoint")));
             (int protocolExit, string protocolOutput) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get backends.default.protocol")));
+                Task.FromResult(InvokeConfig(store, "config get providers.default.protocol")));
             (int modelExit, string modelOutput) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get backends.default.defaultModel")));
+                Task.FromResult(InvokeConfig(store, "config get providers.default.defaultModel")));
 
             await Assert.That(endpointExit).IsEqualTo(0);
             await Assert.That(endpointOutput).Contains("https://api.example.com/v1");
@@ -463,7 +462,7 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get backends.default.apiKey")));
+                Task.FromResult(InvokeConfig(store, "config get providers.default.apiKey")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("Unknown settings key");
@@ -496,10 +495,10 @@ public class ConfigCommandTests
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get backends.nope.endpoint")));
+                Task.FromResult(InvokeConfig(store, "config get providers.nope.endpoint")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
-            await Assert.That(errorOutput).Contains("no backend entry named 'nope'");
+            await Assert.That(errorOutput).Contains("no provider entry named 'nope'");
         }
         finally
         {
@@ -508,7 +507,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_defaultBackend_persists_canonical_name_and_confirms()
+    public async Task Set_defaultProvider_persists_canonical_name_and_confirms()
     {
         string tempDir = CreateTempDir();
         try
@@ -535,10 +534,10 @@ public class ConfigCommandTests
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config set defaultBackend WORK")));
+                Task.FromResult(InvokeConfig(store, "config set defaultProvider WORK")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output).Contains("Default backend set to 'work'.");
+            await Assert.That(output).Contains("Default provider set to 'work'.");
 
             LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.DefaultProvider).IsEqualTo("work");
@@ -550,7 +549,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_defaultBackend_already_default_is_idempotent_and_leaves_file_unchanged()
+    public async Task Set_defaultProvider_already_default_is_idempotent_and_leaves_file_unchanged()
     {
         string tempDir = CreateTempDir();
         try
@@ -562,10 +561,10 @@ public class ConfigCommandTests
             string before = Fingerprint(store);
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config set defaultBackend work")));
+                Task.FromResult(InvokeConfig(store, "config set defaultProvider work")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output).Contains("Default backend set to 'work'.");
+            await Assert.That(output).Contains("Default provider set to 'work'.");
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
         }
         finally
@@ -575,7 +574,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Set_defaultBackend_unknown_name_returns_exit_8_with_contract_message()
+    public async Task Set_defaultProvider_unknown_name_returns_exit_8_with_contract_message()
     {
         string tempDir = CreateTempDir();
         try
@@ -596,7 +595,7 @@ public class ConfigCommandTests
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config set defaultBackend nope")));
+                Task.FromResult(InvokeConfig(store, "config set defaultProvider nope")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
             await Assert.That(errorOutput).Contains("unknown provider name 'nope'");
@@ -658,7 +657,7 @@ public class ConfigCommandTests
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config set backends work")));
+                Task.FromResult(InvokeConfig(store, "config set providers work")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("read-only");
@@ -696,10 +695,10 @@ public class ConfigCommandTests
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
                     store,
-                    "config set backends.work.endpoint https://new.example.com/v1")));
+                    "config set providers.work.endpoint https://new.example.com/v1")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output).Contains("backends.work.endpoint set to https://new.example.com/v1");
+            await Assert.That(output).Contains("providers.work.endpoint set to https://new.example.com/v1");
 
             LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
@@ -735,7 +734,7 @@ public class ConfigCommandTests
                 DefaultProvider = "work"
             });
 
-            int exitCode = InvokeConfig(store, "config set backends.work.protocol anthropic");
+            int exitCode = InvokeConfig(store, "config set providers.work.protocol anthropic");
 
             await Assert.That(exitCode).IsEqualTo(0);
 
@@ -769,7 +768,7 @@ public class ConfigCommandTests
                 DefaultProvider = "work"
             });
 
-            int exitCode = InvokeConfig(store, "config set backends.work.defaultModel claude-sonnet-5");
+            int exitCode = InvokeConfig(store, "config set providers.work.defaultModel claude-sonnet-5");
 
             await Assert.That(exitCode).IsEqualTo(0);
 
@@ -795,7 +794,7 @@ public class ConfigCommandTests
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config set backends.default.apiKey sk-evil")));
+                Task.FromResult(InvokeConfig(store, "config set providers.default.apiKey sk-evil")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("Unknown settings key");
@@ -831,7 +830,7 @@ public class ConfigCommandTests
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config set backends.work.protocol grpc")));
+                Task.FromResult(InvokeConfig(store, "config set providers.work.protocol grpc")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("Invalid protocol 'grpc'");
@@ -866,7 +865,7 @@ public class ConfigCommandTests
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config set backends.work.endpoint not-a-url")));
+                Task.FromResult(InvokeConfig(store, "config set providers.work.endpoint not-a-url")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("Invalid endpoint 'not-a-url'");
@@ -903,10 +902,10 @@ public class ConfigCommandTests
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
                     store,
-                    "config set backends.nope.endpoint https://x.example/v1")));
+                    "config set providers.nope.endpoint https://x.example/v1")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
-            await Assert.That(errorOutput).Contains("no backend entry named 'nope'");
+            await Assert.That(errorOutput).Contains("no provider entry named 'nope'");
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
         }
         finally
@@ -957,7 +956,7 @@ public class ConfigCommandTests
             string before = File.ReadAllText(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeConfig(store, "config get defaultBackend")));
+                Task.FromResult(InvokeConfig(store, "config get defaultProvider")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
             await Assert.That(errorOutput).Contains("unsupported settings schema version");
@@ -984,7 +983,7 @@ public class ConfigCommandTests
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
                     store,
-                    "config set backends.work.endpoint https://api.example.com/v1")));
+                    "config set providers.work.endpoint https://api.example.com/v1")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
             await Assert.That(errorOutput).Contains("unsupported settings schema version");
@@ -1075,8 +1074,7 @@ public class ConfigCommandTests
                 }
                 """);
 
-            int exitCode = InvokeConfig(store, "config show", keyStore);
-
+            int exitCode = InvokeConfig(store, "config show");
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
             await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();

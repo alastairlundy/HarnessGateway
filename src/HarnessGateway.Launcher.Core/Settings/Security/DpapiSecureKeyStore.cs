@@ -87,7 +87,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
             throw SecureKeyStoreException.SecureOperationFailed(
                 "DPAPI",
                 $"the stored entry could not be decrypted on this machine; " +
-                $"re-save it with 'harnessgateway config backend set-key {providerName}'.");
+                $"re-save it with 'harnessgateway provider set-key {providerName}'.");
         }
     }
 

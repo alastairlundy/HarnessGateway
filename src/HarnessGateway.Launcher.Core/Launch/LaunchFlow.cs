@@ -28,8 +28,8 @@ namespace HarnessGateway.Launcher.Core.Launch;
 public sealed class LaunchFlow
 {
     private const string NoProviderMessage =
-        "No backend is configured. Run 'harnessgateway " +
-        "config backend add <name> --endpoint <url> --protocol <protocol>' to save one, or pass " +
+        "No provider is configured. Run 'harnessgateway " +
+        "provider add <name> --endpoint <url> --protocol <protocol>' to save one, or pass " +
         "--endpoint <url> --protocol <protocol> for a one-off launch.";
 
     private readonly SettingsStore _settingsStore;
@@ -155,11 +155,11 @@ public sealed class LaunchFlow
                     adapter.Metadata.SupportedProtocols.Select(ProviderResolution.ProtocolName));
                 return new LaunchRefused(
                     LaunchRefusalKind.ProtocolNotSupported,
-                    $"Refusing to launch {request.Harness}: the selected backend's protocol " +
+                    $"Refusing to launch {request.Harness}: the selected provider's protocol " +
                     $"({ProviderResolution.ProtocolName(backend.DefaultProtocol)}) is not supported by " +
                     $"{adapter.Metadata.Name}, which supports: {supported}. " +
-                    "Override the launch with --endpoint <backend-url> --protocol <supported-protocol>, " +
-                    "or re-point the default backend with 'harnessgateway config backend add " +
+                    "Override the launch with --endpoint <provider-url> --protocol <supported-protocol>, " +
+                    "or re-point the default provider with 'harnessgateway provider add " +
                     $"{backend.Name} --endpoint <url> --protocol <supported-protocol>'.");
             }
 
@@ -413,7 +413,7 @@ public sealed class LaunchFlow
                 + "harness declares no environment surface to receive it. Keys ride child "
                 + "process environment variables only, and the launcher never writes key "
                 + "material to a configuration file. Launch this harness with a key-free "
-                + "backend, or use a harness that accepts environment configuration.");
+                + "provider, or use a harness that accepts environment configuration.");
         }
 
         bool backendOverride = request.ProviderName is not null
@@ -423,10 +423,10 @@ public sealed class LaunchFlow
         {
             return new LaunchRefused(
                 LaunchRefusalKind.GuiProviderUnsupported,
-                $"Refusing to launch {name}: a backend or model override was requested, but "
+                $"Refusing to launch {name}: a provider or model override was requested, but "
                 + "the harness declares no configuration surface that could carry it, so "
                 + "the override could never reach the application. Launch this harness "
-                + "without backend or model overrides.");
+                + "without provider or model overrides.");
         }
 
         return null;

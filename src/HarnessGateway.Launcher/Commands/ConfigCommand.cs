@@ -10,30 +10,17 @@ public sealed class ConfigCommand : Command
     }
 
     internal ConfigCommand(SettingsStore settingsStore)
-        : this(
-            settingsStore,
-            SecureKeyStoreFactory.Create(settingsStore.SettingsDirectory))
-    {
-    }
-
-    internal ConfigCommand(SettingsStore settingsStore, ISecureKeyStore keyStore)
-        : this(settingsStore, keyStore, new TerminalKeyPrompt())
-    {
-    }
-
-    internal ConfigCommand(SettingsStore settingsStore, ISecureKeyStore keyStore, IKeyPrompt keyPrompt)
         : base("config", "Show and manage saved default configuration")
     {
         _settingsStore = settingsStore;
 
-        Command showVerb = new("show", "Display the current default backend configuration");
+        Command showVerb = new("show", "Display the current default provider configuration");
         Command getVerb = CreateGetCommand();
         Command setVerb = CreateSetCommand();
 
         Add(showVerb);
         Add(getVerb);
         Add(setVerb);
-        Add(new ProviderCommands(settingsStore, keyStore, keyPrompt));
 
         showVerb.SetAction(async (result, cancellationToken) =>
         {
@@ -48,16 +35,16 @@ public sealed class ConfigCommand : Command
 
             if (backend is null)
             {
-                Console.WriteLine("No default backend configured.");
+                Console.WriteLine("No default provider configured.");
                 if (settings.Providers.Count > 0)
                 {
                     Console.WriteLine(
-                        "Run 'harnessgateway config set defaultBackend <name>' to select one of the saved entries.");
+                        "Run 'harnessgateway config set defaultProvider <name>' to select one of the saved entries.");
                 }
                 else
                 {
                     Console.WriteLine(
-                        "Run 'harnessgateway config backend add <name> --endpoint <url> --protocol <protocol>' " +
+                        "Run 'harnessgateway provider add <name> --endpoint <url> --protocol <protocol>' " +
                         "to create one.");
                 }
 
@@ -77,8 +64,8 @@ public sealed class ConfigCommand : Command
         Argument<string> keyArg = new("key")
         {
             Description =
-                "The typed settings key: defaultBackend, schemaVersion, backends, " +
-                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel",
+                "The typed settings key: defaultProvider, schemaVersion, providers, " +
+                "providers.<name>.endpoint, providers.<name>.protocol, or providers.<name>.defaultModel",
         };
 
         Command cmd = new("get", "Read a non-secret setting by its typed key") { keyArg };
@@ -113,8 +100,8 @@ public sealed class ConfigCommand : Command
         Argument<string> keyArg = new("key")
         {
             Description =
-                "The typed settings key: defaultBackend, " +
-                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel",
+                "The typed settings key: defaultProvider, " +
+                "providers.<name>.endpoint, providers.<name>.protocol, or providers.<name>.defaultModel",
         };
         Argument<string> valueArg = new("value")
         {
@@ -164,7 +151,7 @@ public sealed class ConfigCommand : Command
 
     /// <summary>
     /// Maps typed key failures to the documented exit-code contract: only the
-    /// default-pointer write has its own class (unknown backend name = 8);
+    /// default-pointer write has its own class (unknown provider name = 8);
     /// every other addressing failure is a usage error (2).
     /// </summary>
     internal static int ExitCodeFor(ConfigKeyFailure failure) =>

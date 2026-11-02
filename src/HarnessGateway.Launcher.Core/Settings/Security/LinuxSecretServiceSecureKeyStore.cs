@@ -4,7 +4,7 @@ namespace HarnessGateway.Launcher.Core.Settings.Security;
 
 /// <summary>
 /// Linux implementation: Secret Service entries via the <c>secret-tool</c>
-/// (libsecret) command line tool, carrying the backend name as a custom
+/// (libsecret) command line tool, carrying the provider name as a custom
 /// <c>key</c> attribute.
 /// </summary>
 public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore

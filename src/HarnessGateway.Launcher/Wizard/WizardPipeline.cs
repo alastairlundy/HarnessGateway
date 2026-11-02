@@ -117,7 +117,7 @@ public sealed class WizardPipeline
 
         // Resolve the saved entry before the key and model steps so catalogue HTTP
         // auth and the key step both see the secret, never the at-rest
-        // reference - and so a dangling reference names the saved backend.
+        // reference - and so a dangling reference names the saved provider.
         Provider? resolvedProvider = defaultProvider;
         if (resolvedProvider is not null)
         {
@@ -344,7 +344,7 @@ public sealed class WizardPipeline
             ", ",
             supportedProtocols.Select(ProviderResolution.ProtocolName));
 
-        return $"Refusing to launch {harnessName}: the selected backend's protocol " +
+        return $"Refusing to launch {harnessName}: the selected provider's protocol " +
                $"({ProviderResolution.ProtocolName(protocol)}) is not supported by {harnessName}, " +
                $"which supports: {supported}.";
     }

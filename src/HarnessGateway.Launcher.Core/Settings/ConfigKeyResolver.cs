@@ -2,13 +2,14 @@ namespace HarnessGateway.Launcher.Core.Settings;
 
 /// <summary>
 /// The closed typed key set over <see cref="LauncherSettings"/>: exactly
-/// <c>defaultBackend</c>, read-only <c>schemaVersion</c> and <c>backends</c>
+/// <c>defaultProvider</c>, read-only <c>schemaVersion</c> and <c>providers</c>
 /// (names only), and the per-entry fields
-/// <c>backends.&lt;name&gt;.endpoint</c>,
-/// <c>backends.&lt;name&gt;.protocol</c>,
-/// <c>backends.&lt;name&gt;.defaultModel</c>. Nothing here addresses secret
-/// material, backend creation/deletion, or raw JSON paths - unknown or
-/// unaddressable keys are usage errors.
+/// <c>providers.&lt;name&gt;.endpoint</c>,
+/// <c>providers.&lt;name&gt;.protocol</c>,
+/// <c>providers.&lt;name&gt;.defaultModel</c>. Nothing here addresses secret
+/// material, provider creation/deletion, or raw JSON paths - unknown or
+/// unaddressable keys are usage errors. Model entries are deliberately not
+/// scriptable: the catalog belongs to the <c>provider model</c> verbs (T004).
 /// </summary>
 public static class ConfigKeyResolver
 {
@@ -18,7 +19,7 @@ public static class ConfigKeyResolver
     /// <summary>Reads a typed key. Fails with <see cref="ConfigKeyFailure.UnknownKey"/> for anything outside the set.</summary>
     public static ConfigKeyResult Get(LauncherSettings settings, string key)
     {
-        if (string.Equals(key, "defaultBackend", StringComparison.Ordinal))
+        if (string.Equals(key, "defaultProvider", StringComparison.Ordinal))
         {
             return Ok(settings.DefaultProvider);
         }
@@ -28,7 +29,7 @@ public static class ConfigKeyResolver
             return Ok(settings.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
-        if (string.Equals(key, "backends", StringComparison.Ordinal))
+        if (string.Equals(key, "providers", StringComparison.Ordinal))
         {
             // Names only - never endpoint, protocol, or key values.
             return Ok(string.Join(Environment.NewLine, settings.Providers.Select(b => b.Name)));
@@ -66,7 +67,7 @@ public static class ConfigKeyResolver
     /// </summary>
     public static ConfigKeyResult Set(LauncherSettings settings, string key, string value)
     {
-        if (string.Equals(key, "defaultBackend", StringComparison.Ordinal))
+        if (string.Equals(key, "defaultProvider", StringComparison.Ordinal))
         {
             return SetDefaultProvider(settings, value);
         }
@@ -78,12 +79,12 @@ public static class ConfigKeyResolver
                 "'schemaVersion' is read-only; it is stamped by the settings loader.");
         }
 
-        if (string.Equals(key, "backends", StringComparison.Ordinal))
+        if (string.Equals(key, "providers", StringComparison.Ordinal))
         {
             return Fail(
                 ConfigKeyFailure.ReadOnlyKey,
-                "'backends' is read-only; backend creation and deletion are not key-addressable - " +
-                "use 'harnessgateway config backend add' and 'harnessgateway config backend remove'.");
+                "'providers' is read-only; provider creation and deletion are not key-addressable - " +
+                "use 'harnessgateway provider add' and 'harnessgateway provider remove'.");
         }
 
         if (TryParseProviderFieldKey(key, out string name, out string field))
@@ -160,7 +161,7 @@ public static class ConfigKeyResolver
             default:
                 // EmptySettings is unreachable: the written value is a required
                 // name, so resolution either finds the entry or fails.
-                return Fail(ConfigKeyFailure.UnknownProviderName, $"unknown backend name '{value}'.");
+                return Fail(ConfigKeyFailure.UnknownProviderName, $"unknown provider name '{value}'.");
         }
 
         if (string.Equals(settings.DefaultProvider, entry.Name, StringComparison.OrdinalIgnoreCase))
@@ -169,14 +170,14 @@ public static class ConfigKeyResolver
             {
                 AlreadySatisfied = true,
                 Settings = settings,
-                Message = $"Default backend set to '{entry.Name}'.",
+                Message = $"Default provider set to '{entry.Name}'.",
             };
         }
 
         return new ConfigKeyResult
         {
             Settings = settings with { DefaultProvider = entry.Name },
-            Message = $"Default backend set to '{entry.Name}'.",
+            Message = $"Default provider set to '{entry.Name}'.",
         };
     }
 
@@ -211,7 +212,7 @@ public static class ConfigKeyResolver
                 : updated.DefaultModel ?? string.Empty;
 
     /// <summary>
-    /// Splits <c>backends.&lt;name&gt;.&lt;field&gt;</c> into its two trailing
+    /// Splits <c>providers.&lt;name&gt;.&lt;field&gt;</c> into its two trailing
     /// segments. False for anything else, including keys with extra dots or a
     /// missing field segment.
     /// </summary>
@@ -220,7 +221,7 @@ public static class ConfigKeyResolver
         name = string.Empty;
         field = string.Empty;
 
-        const string prefix = "backends.";
+        const string prefix = "providers.";
         if (!key.StartsWith(prefix, StringComparison.Ordinal))
         {
             return false;
@@ -251,10 +252,10 @@ public static class ConfigKeyResolver
         new() { Failure = failure, Message = message };
 
     private static string UnknownKeyMessage(string key) =>
-        $"Unknown settings key '{key}'. Valid keys: defaultBackend, schemaVersion, backends, " +
-        "backends.<name>.endpoint, backends.<name>.protocol, backends.<name>.defaultModel.";
+        $"Unknown settings key '{key}'. Valid keys: defaultProvider, schemaVersion, providers, " +
+        "providers.<name>.endpoint, providers.<name>.protocol, providers.<name>.defaultModel.";
 
     private static string UnaddressableMessage(string key, string name) =>
-        $"Unknown settings key '{key}': no backend entry named '{name}'. " +
-        "Backend creation is not key-addressable; use 'harnessgateway config backend add'.";
+        $"Unknown settings key '{key}': no provider entry named '{name}'. " +
+        "Provider creation is not key-addressable; use 'harnessgateway provider add'.";
 }

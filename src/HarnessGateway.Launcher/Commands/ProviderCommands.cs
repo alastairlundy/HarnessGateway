@@ -8,7 +8,7 @@ internal sealed class ProviderCommands : Command
 
     internal ProviderCommands(SettingsStore settingsStore, ISecureKeyStore keyStore,
         IKeyPrompt keyPrompt)
-        : base("backend", "Manage saved backend profiles")
+        : base("provider", "Manage saved providers")
     {
         _settingsStore = settingsStore;
         _keyStore = keyStore;
@@ -19,17 +19,18 @@ internal sealed class ProviderCommands : Command
         Add(CreateRemoveCommand());
         Add(CreateSetKeyCommand());
         Add(CreateClearKeyCommand());
+        Add(CreateModelCommand());
     }
 
     private Command CreateAddCommand()
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The backend entry name; an existing entry with the same name is replaced",
+            Description = "The provider entry name; an existing entry with the same name is replaced",
         };
         Option<string?> endpointOption = new("--endpoint")
         {
-            Description = "The backend endpoint URL (required)",
+            Description = "The provider endpoint URL (required)",
         };
         Option<string?> protocolOption = new("--protocol")
         {
@@ -42,7 +43,7 @@ internal sealed class ProviderCommands : Command
                 "Warning: the value is visible in your shell history - prefer the interactive prompt",
         };
 
-        Command cmd = new("add", "Create or replace a saved backend entry")
+        Command cmd = new("add", "Create or replace a saved provider entry")
         {
             nameArg,
             endpointOption,
@@ -66,12 +67,12 @@ internal sealed class ProviderCommands : Command
 
             if (endpoint is null && protocol is null)
             {
-                await Console.Error.WriteLineAsync("config backend add requires --endpoint and --protocol")
+                await Console.Error.WriteLineAsync("provider add requires --endpoint and --protocol")
                     .ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
-            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint, protocol, 
+            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint, protocol,
                 model: null);
 
             if (resolution is ProviderResolutionResult.Failed failed
@@ -105,7 +106,7 @@ internal sealed class ProviderCommands : Command
                 {
                     LaunchResolution.ProviderCase providerCase => providerCase.Provider,
                     _ => throw new InvalidOperationException(
-                        "config backend add resolved an ad-hoc launch for a named entry."),
+                        "provider add resolved an ad-hoc launch for a named entry."),
                 };
             }
             else if (overridePair is { } pair)
@@ -123,7 +124,7 @@ internal sealed class ProviderCommands : Command
                 // carries a parsed pair. Thrown instead of suppressed so the
                 // compiler can verify the construction locally.
                 throw new InvalidOperationException(
-                    "config backend add reached the create path without --endpoint and --protocol.");
+                    "provider add reached the create path without --endpoint and --protocol.");
             }
 
             string? secret = key ??
@@ -148,11 +149,11 @@ internal sealed class ProviderCommands : Command
             ConfigCommand.UpdateProvider(settings, entry);
             _settingsStore.Save(settings);
 
-            Console.WriteLine($"Backend '{entry.Name}' {(isCreate ? "created" : "updated")}.");
+            Console.WriteLine($"Provider '{entry.Name}' {(isCreate ? "created" : "updated")}.");
             if (isCreate)
             {
                 Console.WriteLine(
-                    $"Run 'harnessgateway config set defaultBackend {entry.Name}' to make it the default.");
+                    $"Run 'harnessgateway config set defaultProvider {entry.Name}' to make it the default.");
             }
 
             return 0;
@@ -163,7 +164,7 @@ internal sealed class ProviderCommands : Command
 
     private Command CreateListCommand()
     {
-        Command cmd = new("list", "List saved backend entries with the default marked");
+        Command cmd = new("list", "List saved provider entries with the default marked");
 
         cmd.SetAction(async (result, cancellationToken) =>
         {
@@ -177,8 +178,8 @@ internal sealed class ProviderCommands : Command
             if (settings.Providers.Count == 0)
             {
                 Console.WriteLine(
-                    "No saved backends. " +
-                    "Run 'harnessgateway config backend add <name> --endpoint <url> --protocol <protocol>' to add one.");
+                    "No saved providers. " +
+                    "Run 'harnessgateway provider add <name> --endpoint <url> --protocol <protocol>' to add one.");
                 return 0;
             }
 
@@ -195,12 +196,12 @@ internal sealed class ProviderCommands : Command
             if (string.IsNullOrEmpty(settings.DefaultProvider))
             {
                 Console.WriteLine(
-                    "(no default backend is set; " +
-                    "run 'harnessgateway config set defaultBackend <name>' to choose one)");
+                    "(no default provider is set; " +
+                    "run 'harnessgateway config set defaultProvider <name>' to choose one)");
             }
             else
             {
-                Console.WriteLine("(* = default backend)");
+                Console.WriteLine("(* = default provider)");
             }
 
             return 0;
@@ -213,10 +214,10 @@ internal sealed class ProviderCommands : Command
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The saved backend entry to remove",
+            Description = "The saved provider entry to remove",
         };
 
-        Command cmd = new("remove", "Delete a saved backend entry") { nameArg };
+        Command cmd = new("remove", "Delete a saved provider entry and its stored key") { nameArg };
 
         cmd.SetAction(async (result, cancellationToken) =>
         {
@@ -241,20 +242,24 @@ internal sealed class ProviderCommands : Command
             if (settings.Providers.Count == 1)
             {
                 await Console.Error.WriteLineAsync(
-                    $"Cannot remove '{entry.Name}': it is the last saved backend; " +
-                    "settings must always keep at least one backend.").ConfigureAwait(true);
+                    $"Cannot remove '{entry.Name}': it is the last saved provider; " +
+                    "settings must always keep at least one provider.").ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
             if (string.Equals(settings.DefaultProvider, entry.Name, StringComparison.OrdinalIgnoreCase))
             {
                 await Console.Error.WriteLineAsync(
-                        $"Cannot remove '{entry.Name}': it is the current default backend. " +
-                        "Run 'harnessgateway config set defaultBackend <name>' to choose a new default first.")
+                        $"Cannot remove '{entry.Name}': it is the current default provider. " +
+                        "Run 'harnessgateway config set defaultProvider <name>' to choose a new default first.")
                     .ConfigureAwait(true);
                 return (int)LaunchExitCode.UsageError;
             }
 
+            // T005: the key-deletion failure is reported but must never block
+            // entry removal - a removed identity leaves the list either way,
+            // with the orphaned store record called out for the user.
+            string? keyFailure = null;
             if (KeyReference.IsReference(entry.ApiKey))
             {
                 try
@@ -264,15 +269,22 @@ internal sealed class ProviderCommands : Command
                 }
                 catch (SecureKeyStoreException ex)
                 {
-                    await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
-                    return (int)LaunchExitCode.ConfigRestoreFailure;
+                    keyFailure = ex.Message;
                 }
             }
 
             settings.Providers.RemoveAll(b =>
                 string.Equals(b.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
             _settingsStore.Save(settings);
-            Console.WriteLine($"Backend '{entry.Name}' removed.");
+
+            if (keyFailure is not null)
+            {
+                await Console.Error.WriteLineAsync(keyFailure).ConfigureAwait(true);
+                Console.WriteLine($"Provider '{entry.Name}' removed.");
+                return (int)LaunchExitCode.ConfigRestoreFailure;
+            }
+
+            Console.WriteLine($"Provider '{entry.Name}' removed.");
             return 0;
         });
 
@@ -283,7 +295,7 @@ internal sealed class ProviderCommands : Command
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The saved backend entry whose key to set or replace",
+            Description = "The saved provider entry whose key to set or replace",
         };
         Option<string?> keyOption = new("--key")
         {
@@ -292,7 +304,7 @@ internal sealed class ProviderCommands : Command
                 "Warning: the value is visible in your shell history - prefer the interactive prompt",
         };
 
-        Command cmd = new("set-key", "Set or replace the saved API key for a backend entry")
+        Command cmd = new("set-key", "Set or replace the saved API key for a provider entry")
         {
             nameArg,
             keyOption,
@@ -324,7 +336,7 @@ internal sealed class ProviderCommands : Command
 
             if (secret is null)
             {
-                Console.WriteLine($"No API key entered; backend '{entry.Name}' was left unchanged.");
+                Console.WriteLine($"No API key entered; provider '{entry.Name}' was left unchanged.");
                 return 0;
             }
 
@@ -345,7 +357,7 @@ internal sealed class ProviderCommands : Command
             ConfigCommand.UpdateProvider(settings, updated);
             _settingsStore.Save(settings);
 
-            Console.WriteLine($"API key for backend '{entry.Name}' saved.");
+            Console.WriteLine($"API key for provider '{entry.Name}' saved.");
             return 0;
         });
 
@@ -356,10 +368,10 @@ internal sealed class ProviderCommands : Command
     {
         Argument<string> nameArg = new("name")
         {
-            Description = "The saved backend entry whose key to clear",
+            Description = "The saved provider entry whose key to clear",
         };
 
-        Command cmd = new("clear-key", "Remove the saved API key from a backend entry") { nameArg };
+        Command cmd = new("clear-key", "Remove the saved API key from a provider entry") { nameArg };
 
         cmd.SetAction(async (result, cancellationToken) =>
         {
@@ -383,8 +395,8 @@ internal sealed class ProviderCommands : Command
 
             if (entry.ApiKey is null)
             {
-                // Idempotent on a keyless backend: no store entry, no settings write.
-                Console.WriteLine($"Backend '{entry.Name}' has no saved key; nothing to clear.");
+                // Idempotent on a keyless provider: no store entry, no settings write.
+                Console.WriteLine($"Provider '{entry.Name}' has no saved key; nothing to clear.");
                 return 0;
             }
 
@@ -408,7 +420,215 @@ internal sealed class ProviderCommands : Command
             ConfigCommand.UpdateProvider(settings, updated);
             _settingsStore.Save(settings);
 
-            Console.WriteLine($"API key for backend '{entry.Name}' cleared.");
+            Console.WriteLine($"API key for provider '{entry.Name}' cleared.");
+            return 0;
+        });
+
+        return cmd;
+    }
+
+    private Command CreateModelCommand()
+    {
+        Command cmd = new("model", "Manage a provider's model catalog");
+        cmd.Add(CreateModelAddCommand());
+        cmd.Add(CreateModelRemoveCommand());
+        cmd.Add(CreateModelListCommand());
+        return cmd;
+    }
+
+    private Command CreateModelAddCommand()
+    {
+        Argument<string> providerArg = new("provider")
+        {
+            Description = "The provider whose model catalog to edit",
+        };
+        Argument<string> modelArg = new("model")
+        {
+            Description = "The model entry name to add",
+        };
+        Option<string?> protocolOption = new("--protocol")
+        {
+            Description =
+                "Protocol override for this model (openai-chat, openai-responses, anthropic); " +
+                "omit to inherit the provider default",
+        };
+
+        Command cmd = new("add", "Add a model entry to a provider's catalog")
+        {
+            providerArg,
+            modelArg,
+            protocolOption,
+        };
+
+        cmd.SetAction(async (result, cancellationToken) =>
+        {
+            string providerName = result.GetRequiredValue(providerArg);
+            string modelName = result.GetRequiredValue(modelArg);
+            string? protocol = result.GetValue(protocolOption);
+
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
+            {
+                return loadExitCode;
+            }
+
+            ProtocolKind? protocolOverride = null;
+            if (protocol is not null)
+            {
+                ProtocolKind? kind = ProviderResolution.TryParseProtocol(protocol);
+                if (kind is null)
+                {
+                    await Console.Error.WriteLineAsync(
+                            $"Invalid protocol '{protocol}'. Must be one of: openai-chat, openai-responses, anthropic")
+                        .ConfigureAwait(true);
+                    return (int)LaunchExitCode.UsageError;
+                }
+
+                protocolOverride = kind;
+            }
+
+            ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, providerName);
+
+            (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+                .ConfigureAwait(true);
+            if (entry is null)
+            {
+                return resolutionExitCode;
+            }
+
+            // T002: entry names are unique within a provider, matched with the
+            // same case-insensitive rule launch resolution uses.
+            if (entry.Models.Any(m => string.Equals(m.Name, modelName, StringComparison.OrdinalIgnoreCase)))
+            {
+                await Console.Error.WriteLineAsync(
+                        $"model '{modelName}' is already listed for provider '{entry.Name}'.")
+                    .ConfigureAwait(true);
+                return (int)LaunchExitCode.UsageError;
+            }
+
+            Provider updated = entry with
+            {
+                Models = [.. entry.Models, new ModelEntry { Name = modelName, Protocol = protocolOverride }],
+            };
+            ConfigCommand.UpdateProvider(settings, updated);
+            _settingsStore.Save(settings);
+
+            Console.WriteLine($"Model '{modelName}' added to provider '{entry.Name}'.");
+            return 0;
+        });
+
+        return cmd;
+    }
+
+    private Command CreateModelRemoveCommand()
+    {
+        Argument<string> providerArg = new("provider")
+        {
+            Description = "The provider whose model catalog to edit",
+        };
+        Argument<string> modelArg = new("model")
+        {
+            Description = "The model entry name to remove",
+        };
+
+        Command cmd = new("remove", "Remove a model entry from a provider's catalog")
+        {
+            providerArg,
+            modelArg,
+        };
+
+        cmd.SetAction(async (result, cancellationToken) =>
+        {
+            string providerName = result.GetRequiredValue(providerArg);
+            string modelName = result.GetRequiredValue(modelArg);
+
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
+            {
+                return loadExitCode;
+            }
+
+            ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, providerName);
+
+            (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+                .ConfigureAwait(true);
+            if (entry is null)
+            {
+                return resolutionExitCode;
+            }
+
+            if (!entry.Models.Any(m => string.Equals(m.Name, modelName, StringComparison.OrdinalIgnoreCase)))
+            {
+                await Console.Error.WriteLineAsync(
+                        $"model '{modelName}' is not listed for provider '{entry.Name}'.")
+                    .ConfigureAwait(true);
+                return (int)LaunchExitCode.UsageError;
+            }
+
+            Provider updated = entry with
+            {
+                Models = entry.Models
+                    .Where(m => !string.Equals(m.Name, modelName, StringComparison.OrdinalIgnoreCase))
+                    .ToList(),
+            };
+            ConfigCommand.UpdateProvider(settings, updated);
+            _settingsStore.Save(settings);
+
+            Console.WriteLine($"Model '{modelName}' removed from provider '{entry.Name}'.");
+            return 0;
+        });
+
+        return cmd;
+    }
+
+    private Command CreateModelListCommand()
+    {
+        Argument<string> providerArg = new("provider")
+        {
+            Description = "The provider whose model catalog to list",
+        };
+
+        Command cmd = new("list", "List a provider's model catalog") { providerArg };
+
+        cmd.SetAction(async (result, cancellationToken) =>
+        {
+            string providerName = result.GetRequiredValue(providerArg);
+
+            (LauncherSettings settings, int loadExitCode) =
+                await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
+            if (loadExitCode != 0)
+            {
+                return loadExitCode;
+            }
+
+            ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, providerName);
+
+            (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
+                .ConfigureAwait(true);
+            if (entry is null)
+            {
+                return resolutionExitCode;
+            }
+
+            if (entry.Models.Count == 0)
+            {
+                Console.WriteLine(
+                    $"No models listed for provider '{entry.Name}'; any model launches on " +
+                    $"{ProviderResolution.ProtocolName(entry.DefaultProtocol)}.");
+                return 0;
+            }
+
+            Console.WriteLine($"Models for provider '{entry.Name}':");
+            foreach (ModelEntry model in entry.Models)
+            {
+                string protocol = model.Protocol is { } overrideProtocol
+                    ? ProviderResolution.ProtocolName(overrideProtocol)
+                    : "(provider default)";
+                Console.WriteLine($"  {model.Name}  {protocol}");
+            }
+
             return 0;
         });
 
@@ -417,11 +637,11 @@ internal sealed class ProviderCommands : Command
 
     /// <summary>
     /// Binds a no-override resolution to the saved entry for the config verbs
-    /// (remove, set-key, clear-key): the <c>Resolved</c> variant proves the
-    /// backend non-null, <c>Failed</c> carries its own message and typed exit
-    /// code, and <c>EmptySettings</c> is unreachable here - these verbs always
-    /// pass the required name argument, so resolution either finds the entry
-    /// or fails with the unknown-name class.
+    /// (remove, set-key, clear-key) and the model sub-verbs: the <c>Resolved</c>
+    /// variant proves the provider case non-null, <c>Failed</c> carries its own
+    /// message and typed exit code, and <c>EmptySettings</c> is unreachable here
+    /// - these verbs always pass the required name argument, so resolution
+    /// either finds the entry or fails with the unknown-name class.
     /// </summary>
     private static async Task<(Provider? Entry, int ExitCode)> TryResolveEntryAsync(
         ProviderResolutionResult resolution)
@@ -436,7 +656,7 @@ internal sealed class ProviderCommands : Command
                 return (null, ExitCodeFor(failed.Failure));
 
             default:
-                await Console.Error.WriteLineAsync("No backend is configured.").ConfigureAwait(true);
+                await Console.Error.WriteLineAsync("No provider is configured.").ConfigureAwait(true);
                 return (null, (int)LaunchExitCode.UsageError);
         }
     }
