@@ -191,6 +191,16 @@ public sealed class ConfigCommand : Command
             Console.Error.WriteLine(ex.Message);
             return (new LauncherSettings(), (int)LaunchExitCode.ConfigRestoreFailure);
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The load-time migration writes (backup marker, temp file,
+            // atomic move); an operational fault there is surfaced as a
+            // message - no stack trace - and mapped to the documented
+            // ConfigRestoreFailure rather than escaping as an unhandled
+            // exception with an exit code outside the contract.
+            Console.Error.WriteLine($"Settings load failed: {ex.Message}");
+            return (new LauncherSettings(), (int)LaunchExitCode.ConfigRestoreFailure);
+        }
     }
 
     internal static Provider? ResolveDefaultProvider(LauncherSettings settings)

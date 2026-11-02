@@ -1648,6 +1648,80 @@ public class LaunchFlowTests
         }
     }
 
+    [Test]
+    public async Task ExecuteAsync_migration_and_config_restore_share_one_backup_service_over_the_production_directory()
+    {
+        // Production layout and wiring: one backups directory under the
+        // settings dir, one BackupService shared by the store's migration
+        // and the flow's config-action restore. The migration's commit must
+        // be durable without disturbing the restore, and vice versa.
+        string tempDir = CreateTempDir();
+        try
+        {
+            string settingsDir = Path.Combine(tempDir, "settings");
+            Directory.CreateDirectory(settingsDir);
+            string backupsDir = Path.Combine(settingsDir, "backups");
+            Directory.CreateDirectory(backupsDir);
+
+            const string originalConfig = "# original config\n";
+            string configPath = Path.Combine(tempDir, "harness-config.toml");
+            await File.WriteAllTextAsync(configPath, originalConfig);
+
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            BackupService backupService = new BackupService(backupsDir);
+            SettingsStore settingsStore = new SettingsStore(settingsDir, keyStore, backupService);
+            await File.WriteAllTextAsync(
+                settingsStore.SettingsFilePath,
+                """
+                {
+                  "backends": [
+                    {
+                      "name": "work",
+                      "baseUri": "https://api.work.example/v1",
+                      "protocol": 0
+                    }
+                  ],
+                  "defaultBackend": "work",
+                  "schemaVersion": 2
+                }
+                """);
+
+            LaunchFlow flow = new(
+                settingsStore,
+                backupService,
+                new TestLaunchRunner(),
+                [new ConfigWritingAdapter(configPath)],
+                keyStore,
+                new FakeGuiInstallDiscovery(),
+                new FakeRunningInstanceDetector(),
+                new FakeConfirmationPrompt());
+
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
+
+            // The migration converged the file, and the launch-time restore
+            // (persist = none) did not undo it...
+            string settingsBytes = await File.ReadAllTextAsync(settingsStore.SettingsFilePath);
+            await Assert.That(settingsBytes.Contains(
+                $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}")).IsTrue();
+            await Assert.That(settingsBytes.Contains("\"providers\"")).IsTrue();
+
+            // ...while the config-action backup still restored as designed.
+            await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(originalConfig);
+
+            // Both markers are gone: the migration's by commit, the config's
+            // by restore-at-exit.
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     // --- LaunchRequest shape ---
 
     [Test]

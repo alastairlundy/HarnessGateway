@@ -1022,6 +1022,35 @@ public class ConfigCommandTests
     }
 
     [Test]
+    public async Task Load_migration_write_failure_returns_config_restore_failure_not_a_crash()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            SettingsStore store = CreateSettingsStore(tempDir);
+            File.WriteAllText(
+                store.SettingsFilePath,
+                """{"backends":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"work","schemaVersion":2}""");
+
+            // Fail the migration rewrite (see SettingsStoreTests): the load
+            // fault must surface as the documented ConfigRestoreFailure, not
+            // as an unhandled exception with a stack trace and an exit code
+            // outside the contract.
+            Directory.CreateDirectory(store.SettingsFilePath + ".migrating");
+
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeConfig(store, "config show")));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.ConfigRestoreFailure);
+            await Assert.That(string.IsNullOrWhiteSpace(errorOutput)).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Show_migrates_a_v1_plaintext_file_before_reading_it()
     {
         string tempDir = CreateTempDir();

@@ -21,8 +21,11 @@ public sealed record ProtocolEmission
     /// The protocol's additional variables. The API-key variable name rides
     /// here as a key with an empty-string value (T017): the planner receives
     /// no key, so it carries the naming only and the adapter that holds the
-    /// secret fills the value. Variables of unrelated protocols never appear
-    /// in this dictionary (T007).
+    /// secret fills the value. An adapter must skip any slot still empty
+    /// after key resolution - never emit an empty-valued environment
+    /// variable, so a keyless launch leaves that variable unset exactly as
+    /// today. Variables of unrelated protocols never appear in this
+    /// dictionary (T007).
     /// </summary>
     public IReadOnlyDictionary<string, string> ExtraVariables { get; init; } =
         new Dictionary<string, string>(StringComparer.Ordinal);

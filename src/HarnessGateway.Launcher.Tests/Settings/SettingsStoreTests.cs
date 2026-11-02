@@ -263,6 +263,83 @@ public class SettingsStoreTests
             await Assert.That(caught).IsNotNull();
             await Assert.That(caught!.Message).Contains("unsupported settings schema version");
             await Assert.That(caught.Message).Contains("delete the file");
+            // A versionless file that carries the legacy backends shape may
+            // only ever be told to declare 1 - recommending the current
+            // version would read it as an empty current-shape file and lose
+            // its entries at the next save.
+            await Assert.That(caught.Message).Contains("legacy backends shape");
+            await Assert.That(caught.Message.Contains("3 for a current one")).IsFalse();
+            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Load_missing_schema_version_on_a_current_shape_file_keeps_the_current_version_advice()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        try
+        {
+            SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
+            WriteRawSettings(store, """{ "providers": [], "defaultProvider": "" }""");
+            string before = File.ReadAllText(store.SettingsFilePath);
+
+            Exception? caught = null;
+            try
+            {
+                await store.LoadAsync();
+            }
+            catch (UnsupportedSettingsSchemaException ex)
+            {
+                caught = ex;
+            }
+
+            await Assert.That(caught).IsNotNull();
+            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("3 for a current one");
+            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Load_mixed_shape_file_declaring_current_version_is_refused_not_read_as_empty()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        try
+        {
+            SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
+            WriteRawSettings(store, RawV2Json("work").Replace("\"schemaVersion\": 2", "\"schemaVersion\": 3"));
+            string before = File.ReadAllText(store.SettingsFilePath);
+
+            // Declaring the current version while carrying the legacy shape
+            // would otherwise deserialize to empty settings - silent loss of
+            // the saved entries. It must fail like any other unreadable file.
+            Exception? caught = null;
+            try
+            {
+                await store.LoadAsync();
+            }
+            catch (UnsupportedSettingsSchemaException ex)
+            {
+                caught = ex;
+            }
+
+            await Assert.That(caught).IsNotNull();
+            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("legacy backends shape");
             await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
@@ -523,6 +600,131 @@ public class SettingsStoreTests
             // still on disk, ready for the next SelfHeal replay.
             await Assert.That(Directory.GetFiles(Path.Combine(tempDir, "backups"), "*.json"))
                 .Count().IsEqualTo(1);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Load_v1_failed_rewrite_marker_carries_no_plaintext_key()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        try
+        {
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = new SettingsStore(tempDir, keyStore);
+            WriteRawSettings(store, RawV1Json("sk-legacy-plaintext"));
+            string before = File.ReadAllText(store.SettingsFilePath);
+
+            // Fail the rewrite after the backup was taken (see
+            // Load_failed_rewrite...): the marker then outlives the failure,
+            // so it is the copy that must never hold the secret.
+            Directory.CreateDirectory(store.SettingsFilePath + ".migrating");
+
+            Exception? caught = null;
+            try
+            {
+                await store.LoadAsync();
+            }
+            catch (Exception ex)
+            {
+                caught = ex;
+            }
+
+            await Assert.That(caught).IsNotNull();
+
+            // The user's own file stays exactly as it was - plaintext and all.
+            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(before).Contains("sk-legacy-plaintext");
+
+            // The sweep still ran: the secret lives in the credential store.
+            string stored = await keyStore.RetrieveAsync("hgkey:default");
+            await Assert.That(stored).IsEqualTo("sk-legacy-plaintext");
+
+            // The backup marker - a second copy in JSON that outlives the
+            // failed rewrite - carries the swept shape, never the secret
+            // (no-secrets-in-JSON invariant).
+            string[] markers = Directory.GetFiles(Path.Combine(tempDir, "backups"), "*.json");
+            await Assert.That(markers).Count().IsEqualTo(1);
+            BackupRecord? record = JsonSerializer.Deserialize(
+                await File.ReadAllTextAsync(markers[0]),
+                BackupJsonContext.Default.BackupRecord);
+            await Assert.That(record).IsNotNull();
+            await Assert.That(record!.OriginalBytes).IsNotNull();
+
+            string markerJson = System.Text.Encoding.UTF8.GetString(record.OriginalBytes!);
+            await Assert.That(markerJson.Contains("sk-legacy-plaintext")).IsFalse();
+            await Assert.That(markerJson.Contains("hgkey:default")).IsTrue();
+            await Assert.That(markerJson.Contains("\"schemaVersion\": 1")).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Migration_commit_clears_only_its_own_pending_restore_records()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), $"HarnessGateway-test-{Guid.NewGuid():N}");
+        try
+        {
+            string settingsDir = Path.Combine(tempDir, "settings");
+            Directory.CreateDirectory(settingsDir);
+            string backupsDir = Path.Combine(settingsDir, "backups");
+            Directory.CreateDirectory(backupsDir);
+
+            // The production wiring (Program.cs) shares ONE BackupService
+            // between the store's load-time migration and the flow's
+            // restore-pending config records.
+            BackupService shared = new BackupService(backupsDir);
+            SettingsStore store = new SettingsStore(
+                settingsDir, new FakeSecureKeyStore(), shared);
+            await File.WriteAllTextAsync(store.SettingsFilePath, RawV2Json("work"));
+
+            // A pending config-action backup - the restore guarantee's
+            // pre-exit state: original on disk, current in memory.
+            string configPath = Path.Combine(tempDir, "harness-config.toml");
+            await File.WriteAllTextAsync(configPath, "original");
+            await shared.BackupAsync(configPath);
+            await File.WriteAllTextAsync(configPath, "modified");
+
+            // ...and must commit only its own: the pending config record
+            // keeps its restore obligation, while the migration's own record
+            // is gone. (The config marker file itself is consumed earlier -
+            // SelfHeal replays any pre-existing marker at the start of Load -
+            // which is the same recovery behavior production relies on.)
+            LauncherSettings loaded = await store.LoadAsync();
+            await Assert.That(loaded.DefaultProvider).IsEqualTo("work");
+
+            await Assert.That(
+                shared.CurrentLaunchBackups.Count(r =>
+                    string.Equals(r.TargetPath, configPath, StringComparison.Ordinal)))
+                .IsEqualTo(1);
+            await Assert.That(
+                shared.CurrentLaunchBackups.Count(r =>
+                    string.Equals(r.TargetPath, store.SettingsFilePath, StringComparison.Ordinal)))
+                .IsEqualTo(0);
+
+            // The pending restore still executes for the config file, and no
+            // marker survives: the migration's by its scoped commit, the
+            // config's by that restore.
+            await shared.RestoreOnExitAsync(persistConfig: false);
+            await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo("original");
+            await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
+
+            // And the migrated settings file was never part of that restore.
+            string settingsBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
+            await Assert.That(settingsBytes.Contains(
+                $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}")).IsTrue();
         }
         finally
         {

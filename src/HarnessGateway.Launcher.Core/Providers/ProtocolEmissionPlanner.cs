@@ -40,7 +40,9 @@ public sealed class ProtocolEmissionPlanner : IProtocolEmissionPlanner
     /// <summary>
     /// The API-key variable of a protocol as an empty-valued slot: the
     /// planner is given no key (T017), so it contributes the name and the
-    /// adapter fills the value from the resolved secret.
+    /// adapter fills the value from the resolved secret - or omits the entry
+    /// entirely when there is no secret, so keyless launches never emit an
+    /// empty environment variable.
     /// </summary>
     private static IReadOnlyDictionary<string, string> ApiKeySlot(string variableName) =>
         new Dictionary<string, string>(StringComparer.Ordinal) { [variableName] = string.Empty };

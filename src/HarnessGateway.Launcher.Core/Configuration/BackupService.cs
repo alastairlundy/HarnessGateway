@@ -19,15 +19,38 @@ public sealed class BackupService
 
     public async Task BackupAsync(string targetPath, CancellationToken cancellationToken = default)
     {
-        if (_currentLaunchBackups.Exists(b => string.Equals(b.TargetPath, targetPath, StringComparison.Ordinal)))
-        {
-            return;
-        }
-
         byte[]? originalBytes = null;
         if (File.Exists(targetPath))
         {
             originalBytes = await File.ReadAllBytesAsync(targetPath, cancellationToken).ConfigureAwait(false);
+        }
+
+        await RecordBackupAsync(targetPath, originalBytes, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Records a backup from explicit original bytes rather than reading the
+    /// target file - used when the on-disk content itself must not be copied
+    /// into the marker (the settings migration's plaintext-key sweep backs up
+    /// the swept shape, never the secret-bearing file text).
+    /// </summary>
+    public Task BackupAsync(
+        string targetPath,
+        byte[] originalBytes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(originalBytes);
+        return RecordBackupAsync(targetPath, originalBytes, cancellationToken);
+    }
+
+    private async Task RecordBackupAsync(
+        string targetPath,
+        byte[]? originalBytes,
+        CancellationToken cancellationToken)
+    {
+        if (_currentLaunchBackups.Exists(b => string.Equals(b.TargetPath, targetPath, StringComparison.Ordinal)))
+        {
+            return;
         }
 
         BackupRecord record = new(targetPath, originalBytes, Persisted: false);
@@ -62,6 +85,26 @@ public sealed class BackupService
         }
 
         _currentLaunchBackups.Clear();
+    }
+
+    /// <summary>
+    /// Commits one target's backup: the file as written stands (it is never
+    /// restored) and its marker is deleted, while every other pending record
+    /// keeps its restore obligation. Used by the settings migration, whose
+    /// load-time rewrite must be durable without disturbing a launch's
+    /// pending config restores - <see cref="RestoreOnExitAsync"/> would drop
+    /// them all.
+    /// </summary>
+    public void CommitBackup(string targetPath)
+    {
+        _currentLaunchBackups.RemoveAll(b =>
+            string.Equals(b.TargetPath, targetPath, StringComparison.Ordinal));
+
+        string backupPath = GetBackupPath(targetPath);
+        if (File.Exists(backupPath))
+        {
+            File.Delete(backupPath);
+        }
     }
 
     public async Task SelfHealAsync(CancellationToken cancellationToken = default)

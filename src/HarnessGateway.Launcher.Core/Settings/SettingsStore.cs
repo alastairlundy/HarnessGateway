@@ -65,30 +65,18 @@ public sealed class SettingsStore
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
 
-        if (root.ValueKind != JsonValueKind.Object
-            || !root.TryGetProperty(SchemaVersionPropertyName, out JsonElement versionElement))
-        {
-            throw UnsupportedSettingsSchemaException.Missing(_settingsFilePath);
-        }
-
-        if (versionElement.ValueKind != JsonValueKind.Number
-            || !versionElement.TryGetInt32(out int declaredVersion))
-        {
-            throw UnsupportedSettingsSchemaException.Malformed(
-                _settingsFilePath,
-                versionElement.GetRawText());
-        }
+        int declaredVersion = ReadDeclaredVersion(root);
 
         if (declaredVersion == LauncherSettings.CurrentSchemaVersion)
         {
-            return DeserializeSettings(root);
+            return ReadCurrentShape(root, declaredVersion);
         }
 
         if (declaredVersion is 1 or 2)
         {
-            LauncherSettings migrated =
+            (LauncherSettings migrated, byte[]? markerBytes) =
                 await ConvertLegacyShape(root, declaredVersion, cancellationToken).ConfigureAwait(false);
-            await RewriteThroughBackupFlowAsync(migrated, cancellationToken).ConfigureAwait(false);
+            await RewriteThroughBackupFlowAsync(migrated, markerBytes, cancellationToken).ConfigureAwait(false);
             return migrated;
         }
 
@@ -102,8 +90,64 @@ public sealed class SettingsStore
 
         throw UnsupportedSettingsSchemaException.Malformed(
             _settingsFilePath,
-            declaredVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            declaredVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            HasLegacyShape(root));
     }
+
+    /// <summary>
+    /// Reads and validates the declared <c>schemaVersion</c>, throwing the
+    /// documented unsupported-schema failures - with shape-aware remedies, so
+    /// a legacy-shaped document is only ever told to declare a migratable
+    /// version - for a missing field or a non-integer value.
+    /// </summary>
+    private int ReadDeclaredVersion(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty(SchemaVersionPropertyName, out JsonElement versionElement))
+        {
+            throw UnsupportedSettingsSchemaException.Missing(_settingsFilePath, HasLegacyShape(root));
+        }
+
+        if (versionElement.ValueKind != JsonValueKind.Number
+            || !versionElement.TryGetInt32(out int declaredVersion))
+        {
+            throw UnsupportedSettingsSchemaException.Malformed(
+                _settingsFilePath,
+                versionElement.GetRawText(),
+                HasLegacyShape(root));
+        }
+
+        return declaredVersion;
+    }
+
+    /// <summary>
+    /// Reads a document stamped with the current version, refusing the mixed
+    /// shape (a current stamp on legacy content would read as empty settings
+    /// and lose its entries at the next save) with the remedy that fits the
+    /// shape it carries - version 1, never the current one.
+    /// </summary>
+    private LauncherSettings ReadCurrentShape(JsonElement root, int declaredVersion)
+    {
+        if (HasLegacyShape(root))
+        {
+            throw UnsupportedSettingsSchemaException.Malformed(
+                _settingsFilePath,
+                declaredVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                legacyShape: true);
+        }
+
+        return DeserializeSettings(root);
+    }
+
+    /// <summary>
+    /// True when the document carries the legacy <c>backends</c> array and no
+    /// current <c>providers</c> array: the shape that may only ever be told
+    /// to declare a migratable version (1), never the current one.
+    /// </summary>
+    private static bool HasLegacyShape(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object
+        && root.TryGetProperty("backends", out _)
+        && !root.TryGetProperty("providers", out _);
 
     public void Save(LauncherSettings settings)
     {
@@ -125,10 +169,13 @@ public sealed class SettingsStore
     /// Reads a schemaVersion 1 or 2 file through the legacy read model and
     /// converts it to the current shape: the v1 plaintext-key sweep runs
     /// first (unchanged behavior), then the T020 mapping rules apply. The
-    /// result is stamped with the current schema version; nothing here writes
-    /// to disk - that is <see cref="RewriteThroughBackupFlowAsync"/>'s job.
+    /// result is stamped with the current schema version. Also returns the
+    /// bytes the rewrite should back up - for v1 the swept legacy shape, so
+    /// the marker never becomes a second copy of a plaintext key; for v2
+    /// (references only) the caller backs up the file as it stands. Nothing
+    /// here writes to disk - that is <see cref="RewriteThroughBackupFlowAsync"/>'s job.
     /// </summary>
-    private async Task<LauncherSettings> ConvertLegacyShape(
+    private async Task<(LauncherSettings Settings, byte[]? MarkerBytes)> ConvertLegacyShape(
         JsonElement root,
         int declaredVersion,
         CancellationToken cancellationToken)
@@ -139,43 +186,62 @@ public sealed class SettingsStore
             SettingsJsonContext.Default.LegacySettings)
             ?? new LegacySettings();
 
+        byte[]? markerBytes = null;
         if (declaredVersion == 1)
         {
             // SchemaVersion 1 keeps flowing through the plaintext-key
             // migration first; schemaVersion 2 files already carry references.
             await SweepLegacyPlaintextKeys(legacy, cancellationToken).ConfigureAwait(false);
+
+            // Back up the swept shape, not the plaintext the file still holds
+            // on disk: a failed or crashed migration must not leave a
+            // secret-bearing marker behind (no-secrets-in-JSON). Restoring
+            // these bytes yields a valid v1 file whose keys are references,
+            // which re-migrates idempotently.
+            markerBytes = System.Text.Encoding.UTF8.GetBytes(
+                JsonSerializer.Serialize(legacy, SettingsJsonContext.Default.LegacySettings));
         }
 
-        return LegacySettings.ToLauncherSettings(legacy);
+        return (LegacySettings.ToLauncherSettings(legacy), markerBytes);
 #pragma warning restore CS0618
     }
 
     /// <summary>
     /// Rewrites the settings file through the BackupService flow (T003):
-    /// backup the current bytes first, then write the converted shape through
-    /// a temp file and an atomic move - a failed write leaves the old file
-    /// intact and the error propagates to the caller - and finally commit the
-    /// change so neither the launch-time restore nor the next SelfHeal
-    /// replay can undo the migration. Idempotent by construction: only a
-    /// legacy-shaped file ever reaches this path.
+    /// backup the current state first (the explicit swept bytes for v1,
+    /// otherwise the file as it stands), then write the converted shape
+    /// through a temp file and an atomic move - a failed write leaves the old
+    /// file intact and the error propagates to the caller - and finally
+    /// commit the change so neither the launch-time restore nor the next
+    /// SelfHeal replay can undo the migration. Idempotent by construction:
+    /// only a legacy-shaped file ever reaches this path.
     /// </summary>
     private async Task RewriteThroughBackupFlowAsync(
         LauncherSettings converted,
+        byte[]? markerBytes,
         CancellationToken cancellationToken)
     {
-        await _backupService.BackupAsync(_settingsFilePath, cancellationToken).ConfigureAwait(false);
+        if (markerBytes is not null)
+        {
+            await _backupService.BackupAsync(_settingsFilePath, markerBytes, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await _backupService.BackupAsync(_settingsFilePath, cancellationToken).ConfigureAwait(false);
+        }
 
         string tempPath = _settingsFilePath + MigrationTempSuffix;
         string json = JsonSerializer.Serialize(converted, SettingsJsonContext.Default.LauncherSettings);
         await File.WriteAllTextAsync(tempPath, json, cancellationToken).ConfigureAwait(false);
         File.Move(tempPath, _settingsFilePath, overwrite: true);
 
-        // Commit semantics of RestoreOnExitAsync(persistConfig: true): keep
-        // the file as written and drop the backup marker. The store's backup
-        // service only ever holds migration records, and this runs before any
-        // launch-time configuration action can register one, so nothing else
-        // is cleared here.
-        await _backupService.RestoreOnExitAsync(persistConfig: true, cancellationToken).ConfigureAwait(false);
+        // Commit semantics: the migrated file stands as written and its
+        // marker is dropped, so neither the launch-time restore nor the next
+        // SelfHeal replay can undo the migration. Scoped to this target only:
+        // a shared BackupService may still hold a launch's pending config
+        // restores, which keep their obligation.
+        _backupService.CommitBackup(_settingsFilePath);
     }
 
 #pragma warning disable CS0618 // sweeps the deliberately-obsolete read model (removed first release after v1)
@@ -250,22 +316,46 @@ public sealed class UnsupportedSettingsSchemaException : Exception
     }
 
     /// <summary>The settings file declares no schemaVersion field at all.</summary>
-    public static UnsupportedSettingsSchemaException Missing(string path) =>
+    /// <param name="path">The settings file path.</param>
+    /// <param name="legacyShape">
+    /// True when the document carries the legacy <c>backends</c> shape. A
+    /// legacy-shaped file may only be told to declare version 1 - the advice
+    /// to declare the current version would read it as an empty current-shape
+    /// file and lose its entries at the next save.
+    /// </param>
+    public static UnsupportedSettingsSchemaException Missing(string path, bool legacyShape = false) =>
         new(
             $"The settings file '{path}' declares no schemaVersion field: " +
             $"unsupported settings schema version (supported: 1 through {LauncherSettings.CurrentSchemaVersion}). " +
-            $"Add \"schemaVersion\" - 1 for a file written by an older HarnessGateway, " +
-            $"{LauncherSettings.CurrentSchemaVersion} for a current one - or delete the file to start fresh. " +
-            "The file was left untouched.");
+            (legacyShape
+                ? "Add \"schemaVersion\": 1 - this file uses the legacy backends shape, and this build reads "
+                  + "version 1 through the legacy reader and migrates it forward to the current shape on the "
+                  + "next load - or delete the file to start fresh. The file was left untouched."
+                : "Add \"schemaVersion\" - 1 for a file written by an older HarnessGateway, "
+                  + $"{LauncherSettings.CurrentSchemaVersion} for a current one - or delete the file to start fresh. "
+                  + "The file was left untouched."));
 
     /// <summary>The schemaVersion field is present but is not a supported version number.</summary>
-    public static UnsupportedSettingsSchemaException Malformed(string path, string declaredValue) =>
+    /// <param name="path">The settings file path.</param>
+    /// <param name="declaredValue">The offending raw field value.</param>
+    /// <param name="legacyShape">
+    /// True when the document carries the legacy <c>backends</c> shape; see
+    /// <see cref="Missing"/> for why such a file is only ever told to declare 1.
+    /// </param>
+    public static UnsupportedSettingsSchemaException Malformed(
+        string path,
+        string declaredValue,
+        bool legacyShape = false) =>
         new(
             $"The settings file '{path}' declares schemaVersion {declaredValue}: " +
             $"unsupported settings schema version (supported: 1 through {LauncherSettings.CurrentSchemaVersion}). " +
-            $"Set the field to 1 for a file written by an older HarnessGateway or to " +
-            $"{LauncherSettings.CurrentSchemaVersion} for a current one, or delete the file to start fresh. " +
-            "The file was left untouched.");
+            (legacyShape
+                ? "Set the field to 1 - this file uses the legacy backends shape, and this build migrates it "
+                  + "forward to the current shape on the next read - or delete the file to start fresh. "
+                  + "The file was left untouched."
+                : "Set the field to 1 for a file written by an older HarnessGateway or to "
+                  + $"{LauncherSettings.CurrentSchemaVersion} for a current one, or delete the file to start fresh. "
+                  + "The file was left untouched."));
 
     /// <summary>The file was written by a newer build than this one.</summary>
     public static UnsupportedSettingsSchemaException Newer(string path, int declared, int supported) =>

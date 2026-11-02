@@ -56,21 +56,17 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     ModelCatalogClient catalogClient = new(new HttpClient());
     WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
 
-    WizardOutcome wizardOutcome;
-    try
+    // Load-time faults surface as messages with documented exit codes rather
+    // than escaping the wizard: unsupported schema, credential-store errors,
+    // and migration I/O faults (ConfigRestoreFailure, no stack trace).
+    (WizardOutcome? guardedOutcome, int guardExit) =
+        await RunWizardGuardedAsync(wizard, cancellationToken).ConfigureAwait(true);
+    if (guardedOutcome is null)
     {
-        wizardOutcome = await wizard.RunAsync(cancellationToken).ConfigureAwait(true);
+        return guardExit;
     }
-    catch (UnsupportedSettingsSchemaException ex)
-    {
-        Console.Error.WriteLine(ex.Message);
-        return (int)LaunchExitCode.UnsupportedSettingsSchema;
-    }
-    catch (SecureKeyStoreException ex)
-    {
-        Console.Error.WriteLine(ex.Message);
-        return (int)LaunchExitCode.ConfigRestoreFailure;
-    }
+
+    WizardOutcome wizardOutcome = guardedOutcome;
 
     if (wizardOutcome is WizardAborted aborted)
     {
@@ -106,6 +102,40 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)
         .ConfigureAwait(true);
     return await LaunchOrchestrator.MapOutcomeAsync(outcome).ConfigureAwait(true);
+}
+
+/// <summary>
+/// Runs one wizard pass with its load-time faults folded into (null, exit
+/// code): unsupported schema, credential-store errors, and migration I/O
+/// faults (ConfigRestoreFailure, message only - no stack trace, exit code
+/// stays inside the documented set). Mirrors how ConfigCommand maps the same
+/// faults on its load path.
+/// </summary>
+static async Task<(WizardOutcome? Outcome, int ExitCode)> RunWizardGuardedAsync(
+    WizardPipeline wizard,
+    CancellationToken cancellationToken)
+{
+    try
+    {
+        return (await wizard.RunAsync(cancellationToken).ConfigureAwait(true), 0);
+    }
+    catch (UnsupportedSettingsSchemaException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return (null, (int)LaunchExitCode.UnsupportedSettingsSchema);
+    }
+    catch (SecureKeyStoreException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return (null, (int)LaunchExitCode.ConfigRestoreFailure);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        // The load-time migration writes (backup marker, temp file,
+        // atomic move); mapped the same way ConfigCommand maps it.
+        Console.Error.WriteLine($"Settings load failed: {ex.Message}");
+        return (null, (int)LaunchExitCode.ConfigRestoreFailure);
+    }
 }
 
 // Each detector is marked to the platform it serves, so the construction
