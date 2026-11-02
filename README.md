@@ -136,7 +136,7 @@ harnessgateway launch [HARNESS] [options]
 
 | Option | Effect |
 |--------|--------|
-| `--backend NAME` | Launch against a saved backend entry instead of the default one |
+| `--provider NAME` | Launch against a saved provider entry instead of the default one |
 | `--endpoint URL --protocol PROTOCOL` | Override the endpoint and protocol of the selected entry |
 | `--model MODEL`, `-m MODEL` | Override the model for this launch only |
 | `--persist config` | Keep the codex `config.toml` edit instead of restoring the original on exit; for a GUI harness, also switches the launch to fire-and-forget mode |
@@ -159,41 +159,41 @@ the settings `schemaVersion` that `config get schemaVersion` reports.
 Run `harnessgateway` with no arguments, or `harnessgateway launch` with no
 harness identifier and no options, and you get the interactive wizard
 instead. The wizard
-prompts for the harness, endpoint, key, and model, in that order. For the model step it
+prompts for the harness, provider, key, and model, in that order. For the model step it
 fetches the endpoint's model list to fill in your choices, and falls back to
 free text if that request fails. Nothing it collects gets saved. Options
 without a harness are a parse error, not a silently ignored flag. An aborted
 wizard run exits with the same code the direct `launch` path returns for the
 equivalent condition: 0 when you cancel, 3 when no installed harness speaks
-the chosen protocol, 4 when nothing is installed, 8 for a default-backend
+the chosen protocol, 4 when nothing is installed, 8 for a default-provider
 pointer problem, 7 for a credential-store failure. Exit status alone cannot
 tell you which entry point you ran.
 
-### Choosing a backend
+### Choosing a provider
 
-`--backend NAME` picks a saved entry, and `--endpoint`, `--protocol`, and
+`--provider NAME` picks a saved entry, and `--endpoint`, `--protocol`, and
 `--model` each override one field of that entry. Everything else, including
 the entry's saved key, comes from the entry itself. There is no per-launch
 key.
 
-Without `--backend`, the launcher uses only the `defaultBackend` pointer. It
+Without `--provider`, the launcher uses only the `defaultProvider` pointer. It
 never falls back to the first entry, and the two pointer failures are
 distinct refusals — both exit with exit code 8:
 
-- **DanglingDefaultBackend** — the default-backend pointer is set but names no
+- **DanglingDefaultProvider** — the default-provider pointer is set but names no
   saved entry.
-- **AbsentDefaultBackend** — the pointer is empty while saved entries exist —
+- **AbsentDefaultProvider** — the pointer is empty while saved entries exist —
   no first-entry fallback.
 
-Run `config set defaultBackend <name>` to fix either one. A `--backend` name
+Run `config set defaultProvider <name>` to fix either one. A `--provider` name
 that matches no entry is the third exit-code-8 refusal; it prints
-`unknown backend name '<name>'` plus a similar-name suggestion when a saved
+`unknown provider name '<name>'` plus a similar-name suggestion when a saved
 name is close.
 
 ### What `--persist config` actually does
 
 Most harnesses read their settings from environment variables and leave no
-trace on disk. `codex` is the exception. It reads its backend from
+trace on disk. `codex` is the exception. It reads its provider from
 `config.toml`, so HarnessGateway writes a `model_providers.harnessgateway`
 block there (`$CODEX_HOME/config.toml`, or `~/.codex/config.toml` by default)
 and passes the key through the environment variable that block names.
@@ -211,8 +211,8 @@ with exit code 10 rather than adopt or overwrite it. Rename the block or
 point `CODEX_HOME` elsewhere.
 
 `--persist model` saves the model this launch used as the entry's default.
-Note that choosing `--backend` never promotes an entry to default. Only
-`config set defaultBackend` does that.
+Note that choosing `--provider` never promotes an entry to default. Only
+`config set defaultProvider` does that.
 
 ### Launching a GUI harness
 
@@ -244,11 +244,20 @@ CLI harnesses have no running instance to confirm.
 **Keys never touch disk.** A saved API key is handed to the app as an
 environment variable on the child process - only when the harness declares
 that surface - and the launcher never writes key material to a
-configuration file. A key-carrying backend pointed at a GUI harness that
+configuration file. A key-carrying provider pointed at a GUI harness that
 declares no environment surface refuses with exit code 4, as does a
-backend or model override against a harness that declares no configuration
-surface that could carry it. Keys still come only from saved backend
+provider or model override against a harness that declares no configuration
+surface that could carry it. Keys still come only from saved provider
 entries; there is no per-launch key for GUI harnesses either.
+
+## Migration note
+
+This release renames the configuration surface from "backend" to "provider"
+(`provider` verbs, `--provider`, `defaultProvider`, `providers.<name>.*`). The
+old `backend` spellings no longer parse and there are no deprecated aliases.
+Saved entries from a previous build are converted to the new `providers`
+shape automatically on first launch (schemaVersion 3); no action is required
+from you. The exit-code table is unchanged in size.
 
 ## Configuration
 
@@ -258,7 +267,7 @@ harnessgateway config get <key>
 harnessgateway config set <key> <value>
 ```
 
-`config show` prints the default backend: its endpoint, protocol, and default
+`config show` prints the default provider: its endpoint, protocol, and default
 model, plus whether an API key is set. It never prints the key itself. When
 no default is set, the command reports that and prints the command that
 fixes it.
@@ -269,47 +278,47 @@ fixes it.
 
 | Key | Access | Value |
 |-----|--------|-------|
-| `defaultBackend` | read/write | Name of the default backend entry. This is what `launch` resolves when no `--backend` is given |
+| `defaultProvider` | read/write | Name of the default provider entry. This is what `launch` resolves when no `--provider` is given |
 | `schemaVersion` | read-only | Version of the settings-file schema, stamped by the loader |
-| `backends` | read-only | Saved backend names, one per line. Never endpoints, protocols, or keys |
-| `backends.<name>.endpoint` | read/write | Absolute URL of a saved entry |
-| `backends.<name>.protocol` | read/write | `openai-chat`, `openai-responses`, or `anthropic` |
-| `backends.<name>.defaultModel` | read/write | Per-entry default model |
+| `providers` | read-only | Saved provider names, one per line. Never endpoints, protocols, or keys |
+| `providers.<name>.endpoint` | read/write | Absolute URL of a saved entry |
+| `providers.<name>.protocol` | read/write | `openai-chat`, `openai-responses`, or `anthropic` |
+| `providers.<name>.defaultModel` | read/write | Per-entry default model |
 
 Using any other key exits with code 2. That includes an unknown key, a key
 that matches no saved entry, and a write to a read-only key (`schemaVersion`
-or `backends`). Keys can't create or delete backends; the `backend add` and
-`backend remove` commands do that. No key can write secret material.
+or `providers`). Keys can't create or delete providers; the `provider add` and
+`provider remove` commands do that. No key can write secret material.
 
-`config set defaultBackend <name>` is the only way to move the default
+`config set defaultProvider <name>` is the only way to move the default
 pointer. The command checks the name against your saved entries, prints
-`Default backend set to '<name>'`, and succeeds without changing anything if
+`Default provider set to '<name>'`, and succeeds without changing anything if
 the pointer already names that entry. An unknown name exits with code 8, as
 do both default-pointer refusals the command exists to fix:
-DanglingDefaultBackend (the default-backend pointer is set but names no saved
-entry) and AbsentDefaultBackend (the pointer is empty while saved entries
+DanglingDefaultProvider (the default-provider pointer is set but names no saved
+entry) and AbsentDefaultProvider (the pointer is empty while saved entries
 exist — no first-entry fallback).
 
-### Backends
+### Providers
 
-The `config backend` subcommands create and manage the saved entries that
-`launch` and `--backend` refer to:
+The `provider` subcommands create and manage the saved entries that
+`launch` and `--provider` refer to:
 
 ```bash
-harnessgateway config backend add <name> --endpoint URL --protocol PROTOCOL [--key SECRET]
-harnessgateway config backend list
-harnessgateway config backend remove <name>
-harnessgateway config backend set-key <name> [--key SECRET]
-harnessgateway config backend clear-key <name>
+harnessgateway provider add <name> --endpoint URL --protocol PROTOCOL [--key SECRET]
+harnessgateway provider list
+harnessgateway provider remove <name>
+harnessgateway provider set-key <name> [--key SECRET]
+harnessgateway provider clear-key <name>
 ```
 
-`backend add` creates an entry, or replaces an existing one of the same name.
+`provider add` creates an entry, or replaces an existing one of the same name.
 Both `--endpoint` and `--protocol` are required. A malformed URL or an
 unknown protocol name exits with code 2. The command doesn't move the
-default pointer, so run `config set defaultBackend <name>` after your first
+default pointer, so run `config set defaultProvider <name>` after your first
 `add`; the success message says the same thing.
 
-Without `--key`, `backend add` shows a `Set an API key for '<name>'? [y/N]`
+Without `--key`, `provider add` shows a `Set an API key for '<name>'? [y/N]`
 prompt on an interactive terminal, or a `Replace` prompt when the entry
 already has a key, and hides what you type. Answering no, pressing Enter at
 the hidden prompt, or piping input through stdin all leave the entry keyless,
@@ -317,25 +326,41 @@ which is perfectly valid. `--key` skips the prompt, which is convenient for
 scripts but puts the secret in your shell history. If talking to the
 credential store fails, the command exits with code 7 and writes nothing.
 
-`backend list` marks the default entry with `*`. It prints a hint to add an
-entry when the settings file is empty, or a hint to run `set defaultBackend`
+`provider list` marks the default entry with `*`. It prints a hint to add an
+entry when the settings file is empty, or a hint to run `set defaultProvider`
 when there are entries but no default.
 
-`backend remove` deletes the entry and its stored key. The command exits with
+`provider remove` deletes the entry and its stored key. The command exits with
 code 2 rather than remove the current default or the last remaining entry.
 Set a new default first.
 
-`backend set-key` sets or replaces the saved API key for one backend. It
+`provider set-key` sets or replaces the saved API key for one provider. It
 touches only the credential store, never the entry's endpoint, protocol, or
-default model. The prompt rules are the same as for `backend add`, so
+default model. The prompt rules are the same as for `provider add`, so
 `--key` skips the hidden prompt. If you decline the prompt, `set-key`
 reports success and writes nothing. A credential-store failure exits with
 code 7 and writes nothing.
 
-`backend clear-key` removes the saved key and leaves everything else about
-the entry alone. Clearing a keyless backend succeeds and reports that there
+`provider clear-key` removes the saved key and leaves everything else about
+the entry alone. Clearing a keyless provider succeeds and reports that there
 was nothing to clear. A credential-store failure exits with code 7 and writes
 nothing.
+
+### Provider models
+
+Model entries for a provider are managed through the `provider model`
+sub-verbs (models are deliberately not scriptable through `config set`):
+
+```bash
+harnessgateway provider model add <provider> <name> [--protocol PROTOCOL]
+harnessgateway provider model remove <provider> <name>
+harnessgateway provider model list <provider>
+```
+
+`provider model add` creates an entry, or replaces an existing one of the
+same name. `--protocol` is optional; when omitted the entry inherits the
+provider's default protocol. `provider model remove` deletes the entry.
+`provider model list` prints the entry names.
 
 For `remove`, `set-key`, and `clear-key`, a name that matches no saved entry
 exits with code 8.
@@ -367,11 +392,11 @@ leaves it untouched.
 | 0 | Ok | Command succeeded; for `launch`, the harness process itself exited 0 — or, for a detached GUI launch (`--persist config`), the app was handed off successfully and there is no exit status to wait for |
 | 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), a `remove` that would break the default pointer or empty the entry list, or `--confirm-running` against a CLI harness, which has no running instance to confirm (ConfirmUnsupportedForHarness) |
 | 3 | UnknownAgent | Unrecognized harness identifier, or a protocol the chosen harness doesn't support. A near miss prompts a suggestion of the correct identifier |
-| 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` (for a GUI harness: not found on `PATH` or in the OS's conventional install locations), or a GUI launch stopped because an already-running instance was not confirmed (RunningInstanceUnconfirmed), or because the harness's declared configuration surfaces cannot carry the launch's key or overrides (GuiBackendUnsupported) |
+| 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` (for a GUI harness: not found on `PATH` or in the OS's conventional install locations), or a GUI launch stopped because an already-running instance was not confirmed (RunningInstanceUnconfirmed), or because the harness's declared configuration surfaces cannot carry the launch's key or overrides (GuiProviderUnsupported) |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
 | 6 | RequiredModelMissing | **Reserved.** Declared but never returned; the launcher prints a warning when a harness requires a model but has none, then launches it anyway |
 | 7 | ConfigRestoreFailure | Credential-store failure (absent key or store error), or an unexpected fault inside the launch flow — including a config restore that fails. Messages from the unexpected path start with `Launch failed:` |
-| 8 | UnknownBackendName | `--backend` matched no entry (unknown backend name), the default-backend pointer is set but names no saved entry (DanglingDefaultBackend), or the pointer is empty while saved entries exist (AbsentDefaultBackend — no first-entry fallback) |
+| 8 | UnknownProviderName | `--provider` matched no entry (unknown provider name), the default-provider pointer is set but names no saved entry (DanglingDefaultProvider), or the pointer is empty while saved entries exist (AbsentDefaultProvider — no first-entry fallback) |
 | 9 | UnsupportedSettingsSchema | `schemaVersion` is missing, malformed, or newer than this build. Nothing is written |
 | 10 | ConfigConflict | A user-authored `model_providers.harnessgateway` block already exists in the codex config |
 
@@ -382,7 +407,7 @@ launch, the harness process's own exit status is passed through unchanged,
 so a number the harness itself returns can coincide with any code above.
 
 The three GUI refusals are producers of the existing numbers above, not new
-codes: RunningInstanceUnconfirmed and GuiBackendUnsupported exit 4 like
+codes: RunningInstanceUnconfirmed and GuiProviderUnsupported exit 4 like
 every other unavailable-harness stop, and ConfirmUnsupportedForHarness
 exits 2 like every other usage error. Scripts that need to tell those
 stops apart should read the stderr message, which names the reason - the
