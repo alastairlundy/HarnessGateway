@@ -38,5 +38,5 @@ public sealed record Provider
     /// closed set launch resolution will accept.
     /// </summary>
     [JsonPropertyName("models")]
-    public List<ModelEntry> Models { get; init; } = [];
+    public IList<ModelEntry> Models { get; init; } = [];
 }
