@@ -192,17 +192,28 @@ public class LaunchCommandFlagParsingTests
     public async Task Parse_provider_option()
     {
         LaunchCommand command = new LaunchCommand();
-        ParseResult result = command.Parse("launch opencode --backend production");
+        ParseResult result = command.Parse("launch opencode --provider production");
 
         await Assert.That(result.Errors).IsEmpty();
         await Assert.That(result.GetValue(LaunchCommand.ProviderOption)).IsEqualTo("production");
     }
 
     [Test]
+    public async Task Parse_backend_option_is_rejected()
+    {
+        // D004: the backend spelling breaks at this version - --provider is
+        // the only accepted selector, with no deprecated alias.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch opencode --backend production");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+    }
+
+    [Test]
     public async Task Parse_provider_without_value_fails()
     {
         LaunchCommand command = new LaunchCommand();
-        ParseResult result = command.Parse("launch opencode --backend");
+        ParseResult result = command.Parse("launch opencode --provider");
 
         await Assert.That(result.Errors).IsNotEmpty();
     }
@@ -220,10 +231,10 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_persist_provider_value_fails()
     {
-        // The persist family stays closed at config|model: a --backend launch
+        // The persist family stays closed at config|model: a --provider launch
         // cannot persist its selection.
         LaunchCommand command = new LaunchCommand();
-        ParseResult result = command.Parse("launch opencode --backend production --persist backend");
+        ParseResult result = command.Parse("launch opencode --provider production --persist backend");
 
         await Assert.That(result.Errors).IsNotEmpty();
     }

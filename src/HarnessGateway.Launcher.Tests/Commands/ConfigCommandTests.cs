@@ -599,7 +599,7 @@ public class ConfigCommandTests
                 Task.FromResult(InvokeConfig(store, "config set defaultBackend nope")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
-            await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
+            await Assert.That(errorOutput).Contains("unknown provider name 'nope'");
 
             LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.DefaultProvider).IsEqualTo(string.Empty);

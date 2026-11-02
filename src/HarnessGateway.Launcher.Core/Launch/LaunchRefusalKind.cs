@@ -12,10 +12,10 @@ public enum LaunchRefusalKind
     /// <summary>The harness is known but not installed or not detectable.</summary>
     HarnessUnavailable,
 
-    /// <summary>No backend could be used: empty settings and no complete endpoint/protocol override.</summary>
+    /// <summary>No provider could be used: empty settings and no complete endpoint/protocol override.</summary>
     NoProvider,
 
-    /// <summary>--backend named no saved backend entry.</summary>
+    /// <summary>--provider named no saved provider entry.</summary>
     UnknownProviderName,
 
     /// <summary>The DefaultProvider pointer names no saved backend entry.</summary>
@@ -56,8 +56,15 @@ public enum LaunchRefusalKind
 
     /// <summary>
     /// The GUI harness's declared configuration surfaces cannot carry what
-    /// this launch asked to deliver: a backend or model override with no
+    /// this launch asked to deliver: a provider or model override with no
     /// capable surface, or a key when only file surfaces are declared.
     /// </summary>
     GuiProviderUnsupported,
+
+    /// <summary>
+    /// The effective model names no entry in the provider's non-empty models
+    /// array (or a DefaultModel missing from it) - the user-rectifiable
+    /// unlisted-model refusal that reuses exit code 3.
+    /// </summary>
+    UnlistedModel,
 }

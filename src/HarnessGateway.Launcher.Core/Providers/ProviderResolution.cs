@@ -4,11 +4,13 @@ using HarnessGateway.Launcher.Core.Text;
 namespace HarnessGateway.Launcher.Core.Providers;
 
 /// <summary>
-/// Profile-aware backend resolution shared by the launch path and the
+/// Profile-aware launch resolution shared by the launch path and the
 /// config/wizard read paths: named-entry selection, the strict
 /// <c>DefaultProvider</c> pointer read (no first-entry fallback, no
-/// auto-promotion), and field-by-field override layering. DefaultProtocol selection
-/// is always explicit - nothing here probes endpoints.
+/// auto-promotion), precedence and override layering onto the sealed
+/// two-case <see cref="LaunchResolution"/> family, and the launch-time
+/// unlisted-model guard. Selection is always explicit - nothing here
+/// probes endpoints.
 /// </summary>
 public static class ProviderResolution
 {
@@ -16,11 +18,13 @@ public static class ProviderResolution
         ["openai-chat", "openai-responses", "anthropic"];
 
     /// <summary>
-    /// Resolve the backend for a launch: select a saved entry (by name when
+    /// Resolve a launch: select a saved entry (by name when
     /// <paramref name="providerName"/> is given, otherwise via the strict
-    /// default-pointer read), then layer the per-launch overrides on top of it
-    /// field by field. Flag values win over the entry per field; keys are never
-    /// overridable - the entry's stored key is the sole credential source.
+    /// default-pointer read), layer the flag pair and per-model precedence on
+    /// top of it, and return the provider case or - when no saved provider
+    /// exists and the flag pair is complete - the keyless ad-hoc case. The
+    /// unlisted-model guard applies here: a named effective model outside a
+    /// non-empty models array is refused (exit 3 upstream).
     /// </summary>
     public static ProviderResolutionResult Resolve(
         LauncherSettings settings,
@@ -28,6 +32,29 @@ public static class ProviderResolution
         string? endpoint,
         string? protocol,
         string? model)
+        => Resolve(settings, providerName, endpoint, protocol, model, applyUnlistedModelGuard: true);
+
+    /// <summary>
+    /// Resolve a saved entry for the management and read paths (config
+    /// pointer writes, key lifecycle, the wizard's prefill read): identical
+    /// selection, pairing, and failure shapes, but no unlisted-model guard -
+    /// that refusal belongs to launch and must never block writing a pointer
+    /// or removing, re-keying, or repairing the provider that carries a
+    /// broken default model.
+    /// </summary>
+    public static ProviderResolutionResult ResolveEntry(
+        LauncherSettings settings,
+        string? providerName)
+        => Resolve(settings, providerName, endpoint: null, protocol: null, model: null,
+            applyUnlistedModelGuard: false);
+
+    private static ProviderResolutionResult Resolve(
+        LauncherSettings settings,
+        string? providerName,
+        string? endpoint,
+        string? protocol,
+        string? model,
+        bool applyUnlistedModelGuard)
     {
         // Raw-URL rule: --endpoint and --protocol travel together.
         if (endpoint is not null && protocol is null)
@@ -68,7 +95,7 @@ public static class ProviderResolution
             parsedProtocol = kind;
         }
 
-        // Select the entry: --backend resolves against the saved list; without
+        // Select the entry: --provider resolves against the saved list; without
         // it the DefaultProvider pointer is the only source of truth.
         Provider? entry;
         if (providerName is not null)
@@ -90,8 +117,7 @@ public static class ProviderResolution
             {
                 return Fail(
                     ProviderResolutionFailure.DanglingDefaultProvider,
-                    $"unknown backend name '{settings.DefaultProvider}' in the default backend pointer. " +
-                    "Run 'harnessgateway config set defaultBackend <name>' to choose a default backend.");
+                    DanglingPointerMessage(settings));
             }
 
             entry = defaultEntry.Value;
@@ -100,8 +126,8 @@ public static class ProviderResolution
         {
             return Fail(
                 ProviderResolutionFailure.AbsentDefaultProvider,
-                "no default backend is set while saved backend entries exist. " +
-                "Run 'harnessgateway config set defaultBackend <name>' to choose a default backend.");
+                "no default provider is set while saved provider entries exist. " +
+                "Run 'harnessgateway config set defaultProvider <name>' to choose a default provider.");
         }
         else
         {
@@ -111,38 +137,63 @@ public static class ProviderResolution
         if (entry is null)
         {
             // Nothing stored to layer onto: a complete raw URL still launches
-            // as an ad-hoc override entry; otherwise there is no backend at all.
+            // as the keyless ad-hoc case; otherwise there is no provider at all.
             if (parsedEndpoint is not null && parsedProtocol is not null)
             {
-                return new ProviderResolutionResult.Resolved(new Provider
-                {
-                    Name = "override",
-                    BaseUri = parsedEndpoint,
-                    DefaultProtocol = parsedProtocol.Value,
-                    DefaultModel = model,
-                });
+                return new ProviderResolutionResult.Resolved(
+                    new LaunchResolution.AdHocCase(parsedEndpoint, parsedProtocol.Value, model));
             }
 
             return new ProviderResolutionResult.EmptySettings();
         }
 
-        Provider resolved = entry;
-        if (parsedEndpoint is not null)
+        // Precedence: the effective model is --model else the stored default;
+        // the effective protocol is the listed model entry's override, else
+        // the provider default. The flag pair wins wholesale for the session
+        // and exempts the launch from the unlisted-model guard.
+        string? effectiveModel = model ?? entry.DefaultModel;
+        Uri sessionBaseUri;
+        ProtocolKind sessionProtocol;
+
+        if (parsedEndpoint is not null && parsedProtocol is not null)
         {
-            resolved = resolved with { BaseUri = parsedEndpoint };
+            sessionBaseUri = parsedEndpoint;
+            sessionProtocol = parsedProtocol.Value;
+        }
+        else
+        {
+            sessionBaseUri = entry.BaseUri;
+            sessionProtocol = entry.DefaultProtocol;
+
+            if (applyUnlistedModelGuard && effectiveModel is not null && entry.Models.Count > 0)
+            {
+                ModelEntry? listed = entry.Models.FirstOrDefault(m =>
+                    string.Equals(m.Name, effectiveModel, StringComparison.OrdinalIgnoreCase));
+
+                if (listed is null)
+                {
+                    return Fail(
+                        ProviderResolutionFailure.UnlistedModel,
+                        UnlistedModelMessage(entry, effectiveModel));
+                }
+
+                sessionProtocol = listed.Protocol ?? entry.DefaultProtocol;
+            }
         }
 
-        if (parsedProtocol is not null)
+        // The whole Provider travels with the case, layered for this session:
+        // endpoint and default protocol carry the effective values, so
+        // pre-planner consumers reading Provider.DefaultProtocol see the
+        // protocol that will actually be emitted.
+        Provider sessionProvider = entry with
         {
-            resolved = resolved with { DefaultProtocol = parsedProtocol.Value };
-        }
+            BaseUri = sessionBaseUri,
+            DefaultProtocol = sessionProtocol,
+            DefaultModel = effectiveModel,
+        };
 
-        if (model is not null)
-        {
-            resolved = resolved with { DefaultModel = model };
-        }
-
-        return new ProviderResolutionResult.Resolved(resolved);
+        return new ProviderResolutionResult.Resolved(
+            new LaunchResolution.ProviderCase(sessionProvider, effectiveModel, sessionProtocol));
     }
 
     public static bool IsValidProtocol(string? value) =>
@@ -172,7 +223,7 @@ public static class ProviderResolution
 
     private static string UnknownNameMessage(LauncherSettings settings, string name)
     {
-        string message = $"unknown backend name '{name}'.";
+        string message = $"unknown provider name '{name}'.";
 
         // Best-effort close-match hint; non-contractual UX that may be
         // improved or dropped without changing the resolution outcome.
@@ -183,6 +234,39 @@ public static class ProviderResolution
         }
 
         return message;
+    }
+
+    private static string DanglingPointerMessage(LauncherSettings settings)
+    {
+        string message =
+            $"unknown provider name '{settings.DefaultProvider}' in the default provider pointer.";
+
+        Result<string> hint = CloseMatch.Best(
+            settings.Providers.Select(b => b.Name), settings.DefaultProvider);
+        if (hint.Success)
+        {
+            message += $" Did you mean '{hint.Value}'?";
+        }
+
+        return message +
+               " Run 'harnessgateway config set defaultProvider <name>' to choose a default provider.";
+    }
+
+    private static string UnlistedModelMessage(Provider provider, string model)
+    {
+        string message = $"model '{model}' is not listed for provider '{provider.Name}'.";
+
+        // Best-effort close-match hint over the listed names; non-contractual
+        // UX, same rule as the name-resolution hints above.
+        Result<string> hint = CloseMatch.Best(provider.Models.Select(m => m.Name), model);
+        if (hint.Success)
+        {
+            message += $" Did you mean '{hint.Value}'?";
+        }
+
+        return message +
+               $" Pass a listed model with --model, or add it with 'harnessgateway provider model add " +
+               $"{provider.Name} {model}'.";
     }
 
     private static ProviderResolutionResult Fail(ProviderResolutionFailure failure, string message) =>

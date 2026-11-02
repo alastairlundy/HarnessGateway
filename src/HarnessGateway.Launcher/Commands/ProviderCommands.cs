@@ -97,7 +97,16 @@ internal sealed class ProviderCommands : Command
             Provider entry;
             if (resolution is ProviderResolutionResult.Resolved resolved)
             {
-                entry = resolved.Provider;
+                // Selection by name only ever yields the provider case here:
+                // an unknown name failed above, so no ad-hoc case can reach
+                // this branch. Thrown instead of cast so the impossibility
+                // stays locally verifiable.
+                entry = resolved.Launch switch
+                {
+                    LaunchResolution.ProviderCase providerCase => providerCase.Provider,
+                    _ => throw new InvalidOperationException(
+                        "config backend add resolved an ad-hoc launch for a named entry."),
+                };
             }
             else if (overridePair is { } pair)
             {
@@ -220,7 +229,7 @@ internal sealed class ProviderCommands : Command
                 return loadExitCode;
             }
 
-            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
+            ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, name);
 
             (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
                 .ConfigureAwait(true);
@@ -301,7 +310,7 @@ internal sealed class ProviderCommands : Command
                 return loadExitCode;
             }
 
-            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
+            ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, name);
 
             (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
                 .ConfigureAwait(true);
@@ -363,7 +372,7 @@ internal sealed class ProviderCommands : Command
                 return loadExitCode;
             }
 
-            ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, name, endpoint: null, protocol: null, model: null);
+            ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, name);
 
             (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
                 .ConfigureAwait(true);
@@ -419,8 +428,8 @@ internal sealed class ProviderCommands : Command
     {
         switch (resolution)
         {
-            case ProviderResolutionResult.Resolved resolved:
-                return (resolved.Provider, 0);
+            case ProviderResolutionResult.Resolved { Launch: LaunchResolution.ProviderCase providerCase }:
+                return (providerCase.Provider, 0);
 
             case ProviderResolutionResult.Failed failed:
                 await Console.Error.WriteLineAsync(failed.Message).ConfigureAwait(true);

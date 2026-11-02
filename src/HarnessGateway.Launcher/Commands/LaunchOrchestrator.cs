@@ -106,11 +106,12 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// Exhaustive over the fifteen refusal kinds: every kind names its
+    /// Exhaustive over the sixteen refusal kinds: every kind names its
     /// exit code explicitly so a newly added kind cannot silently land on a
     /// catch-all default. Codes are today's values, preserved byte-for-byte;
-    /// the three GUI kinds are producer additions to existing families, not
-    /// new numbers.
+    /// the three GUI kinds are producer additions to existing families, and
+    /// the unlisted-model kind reuses the UnknownAgent number per T006 -
+    /// none of them new numbers.
     /// </summary>
     private static int ExitCodeFor(LaunchRefusalKind kind) => kind switch
     {
@@ -118,6 +119,9 @@ public sealed class LaunchOrchestrator
         LaunchRefusalKind.UnknownHarness => (int)LaunchExitCode.UnknownAgent,
         LaunchRefusalKind.HarnessUnavailable => (int)LaunchExitCode.HarnessUnavailable,
         LaunchRefusalKind.ProtocolNotSupported => (int)LaunchExitCode.UnknownAgent,
+        // The unlisted-model refusal reuses exit 3: no new exit code, the
+        // README table keeps its size (T006).
+        LaunchRefusalKind.UnlistedModel => (int)LaunchExitCode.UnknownAgent,
         LaunchRefusalKind.ProviderBlockConflict => (int)LaunchExitCode.ConfigConflict,
         // GUI stops reuse the unavailable-harness family: a confirmation
         // nothing confirmed and a surface nothing can carry both mean this

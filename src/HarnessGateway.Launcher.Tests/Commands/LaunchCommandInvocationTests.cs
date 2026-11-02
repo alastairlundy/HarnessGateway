@@ -208,10 +208,10 @@ public class LaunchCommandInvocationTests
         try
         {
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                root.Parse("launch TestAgent --backend nope").InvokeAsync());
+                root.Parse("launch TestAgent --provider nope").InvokeAsync());
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
-            await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
+            await Assert.That(errorOutput).Contains("unknown provider name 'nope'");
             await Assert.That(adapter.LastRequest).IsNull();
         }
         finally

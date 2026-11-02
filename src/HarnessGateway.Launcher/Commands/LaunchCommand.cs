@@ -15,19 +15,19 @@ public sealed class LaunchCommand : Command
         Arity = ArgumentArity.ZeroOrOne,
     };
 
-    public static readonly Option<string?> ProviderOption = new("--backend")
+    public static readonly Option<string?> ProviderOption = new("--provider")
     {
-        Description = "Select a saved backend entry by name to launch against",
+        Description = "Select a saved provider entry by name to launch against",
     };
 
     public static readonly Option<string?> EndpointOption = new("--endpoint")
     {
-        Description = "Override the backend endpoint URL (requires --protocol)",
+        Description = "Override the provider endpoint URL (requires --protocol)",
     };
 
     public static readonly Option<string?> ProtocolOption = new("--protocol")
     {
-        Description = "Override the backend protocol (openai-chat, openai-responses, anthropic)",
+        Description = "Override the provider protocol (openai-chat, openai-responses, anthropic)",
     };
 
     public static readonly Option<string?> ModelOption = new("--model", "-m")
@@ -64,7 +64,7 @@ public sealed class LaunchCommand : Command
         LaunchOrchestrator? orchestrator,
         Func<CancellationToken, Task<int>>? wizardAction = null,
         IEnumerable<IHarnessAdapter>? adapters = null)
-        : base("launch", "Launch an agent harness with the specified backend configuration")
+        : base("launch", "Launch an agent harness with the specified provider configuration")
     {
         _wizardAction = wizardAction;
 

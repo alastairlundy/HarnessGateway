@@ -594,7 +594,7 @@ public class ProviderCommandsTests
                 Task.FromResult(InvokeConfig(store, "config backend set-key nope --key sk-x")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
-            await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
+            await Assert.That(errorOutput).Contains("unknown provider name 'nope'");
         }
         finally
         {
@@ -726,7 +726,7 @@ public class ProviderCommandsTests
                 Task.FromResult(InvokeConfig(store, "config backend clear-key nope")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
-            await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
+            await Assert.That(errorOutput).Contains("unknown provider name 'nope'");
         }
         finally
         {
@@ -879,7 +879,7 @@ public class ProviderCommandsTests
                 Task.FromResult(InvokeConfig(store, "config backend remove nope")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
-            await Assert.That(errorOutput).Contains("unknown backend name 'nope'");
+            await Assert.That(errorOutput).Contains("unknown provider name 'nope'");
         }
         finally
         {

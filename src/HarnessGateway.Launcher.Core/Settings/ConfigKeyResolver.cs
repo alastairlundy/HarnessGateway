@@ -144,13 +144,13 @@ public static class ConfigKeyResolver
     /// </summary>
     private static ConfigKeyResult SetDefaultProvider(LauncherSettings settings, string value)
     {
-        ProviderResolutionResult resolution = ProviderResolution.Resolve(settings, value, endpoint: null, protocol: null, model: null);
+        ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, value);
 
         Provider entry;
         switch (resolution)
         {
-            case ProviderResolutionResult.Resolved resolved:
-                entry = resolved.Provider;
+            case ProviderResolutionResult.Resolved { Launch: LaunchResolution.ProviderCase providerCase }:
+                entry = providerCase.Provider;
                 break;
 
             case ProviderResolutionResult.Failed failed:

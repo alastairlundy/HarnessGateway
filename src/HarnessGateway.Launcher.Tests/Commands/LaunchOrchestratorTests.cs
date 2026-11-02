@@ -37,6 +37,9 @@ public class LaunchOrchestratorTests
     [Arguments(LaunchRefusalKind.EndpointWithoutProtocol, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidEndpoint, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidProtocol, (int)LaunchExitCode.UsageError)]
+    // The unlisted-model refusal reuses exit 3 per T006: no new exit code, the
+    // README table keeps its size.
+    [Arguments(LaunchRefusalKind.UnlistedModel, (int)LaunchExitCode.UnknownAgent)]
     // The three GUI kinds are producer additions to existing families:
     // unconfirmed instance and incapable surface both ride the
     // unavailable-harness number, flag misuse rides the usage number.

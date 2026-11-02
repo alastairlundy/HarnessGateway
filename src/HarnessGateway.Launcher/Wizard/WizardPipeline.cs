@@ -35,14 +35,11 @@ public sealed class WizardPipeline
 
         // Strict default-pointer read: no first-entry fallback.
         // A dangling or absent pointer is user-rectifiable - surface the
-        // resolver's message (it names 'config set defaultBackend') and abort;
+        // resolver's message (it names 'config set defaultProvider') and abort;
         // a first run resolves to null and prompts with no prefill.
-        ProviderResolutionResult resolution = ProviderResolution.Resolve(
+        ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(
             settings,
-            providerName: null,
-            endpoint: null,
-            protocol: null,
-            model: null);
+            providerName: null);
 
         if (resolution is ProviderResolutionResult.Failed failed)
         {
@@ -57,10 +54,15 @@ public sealed class WizardPipeline
             return new WizardAborted(abortReason);
         }
 
-        // A first run (EmptySettings) resolves to no backend at all and
-        // prompts with no prefill; Resolved carries its backend non-null.
-        Provider? defaultProvider = resolution is ProviderResolutionResult.Resolved resolved
-            ? resolved.Provider
+        // A first run (EmptySettings) resolves to no provider at all and
+        // prompts with no prefill; the provider case carries its entry, and
+        // the ad-hoc case is unreachable here - the wizard passes no flag
+        // pair, so resolution only ever selects a stored entry.
+        Provider? defaultProvider = resolution is ProviderResolutionResult.Resolved
+            {
+                Launch: LaunchResolution.ProviderCase providerCase
+            }
+            ? providerCase.Provider
             : null;
 
         // Locked step order (harness, endpoint, key, model). The pairing

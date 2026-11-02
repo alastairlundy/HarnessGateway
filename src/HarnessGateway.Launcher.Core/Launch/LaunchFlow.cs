@@ -86,12 +86,15 @@ public sealed class LaunchFlow
                 return new LaunchRefused(RefusalKindFor(failed.Failure), failed.Message);
             }
 
-            // Resolved carries its backend non-null; EmptySettings is the
-            // success-without-a-backend variant and falls through to the
-            // usage-error guard below.
+            // Resolved carries its launch case non-null; EmptySettings is the
+            // success-without-a-provider variant and falls through to the
+            // usage-error guard below. The adapter contract still takes a
+            // Provider (the family-based handoff lands with the adapter
+            // rework), so the ad-hoc case is bridged here as the keyless
+            // session provider it has always been - never as a stored one.
             Provider? backend = resolution switch
             {
-                ProviderResolutionResult.Resolved resolved => resolved.Provider,
+                ProviderResolutionResult.Resolved resolved => AdapterProviderFor(resolved.Launch),
                 ProviderResolutionResult.EmptySettings => null,
                 _ => throw new InvalidOperationException(
                     $"unexpected resolution variant '{resolution.GetType().Name}'"),
@@ -315,7 +318,30 @@ public sealed class LaunchFlow
         ProviderResolutionFailure.EndpointWithoutProtocol => LaunchRefusalKind.EndpointWithoutProtocol,
         ProviderResolutionFailure.InvalidEndpoint => LaunchRefusalKind.InvalidEndpoint,
         ProviderResolutionFailure.InvalidProtocol => LaunchRefusalKind.InvalidProtocol,
+        ProviderResolutionFailure.UnlistedModel => LaunchRefusalKind.UnlistedModel,
         _ => throw new InvalidOperationException($"unexpected resolution failure '{failure}'"),
+    };
+
+    /// <summary>
+    /// The adapter-boundary bridge for the two-case family: the provider
+    /// case hands adapters its whole session-layered provider, and the
+    /// ad-hoc case is materialized as the keyless session provider a raw-URL
+    /// launch has always been. Deliberate and transitional - the adapter
+    /// rework replaces this with direct case branching, so no stored-looking
+    /// provider is ever synthesized into the resolution result itself.
+    /// </summary>
+    private static Provider? AdapterProviderFor(LaunchResolution launch) => launch switch
+    {
+        LaunchResolution.ProviderCase providerCase => providerCase.Provider,
+        LaunchResolution.AdHocCase adHoc => new Provider
+        {
+            Name = "override",
+            BaseUri = adHoc.BaseUri,
+            DefaultProtocol = adHoc.Protocol,
+            DefaultModel = adHoc.Model,
+        },
+        _ => throw new InvalidOperationException(
+            $"unexpected launch resolution case '{launch.GetType().Name}'"),
     };
 
     /// <summary>
@@ -485,7 +511,7 @@ public sealed class LaunchFlow
 
         // Persist onto the stored entry by name only: per-launch field
         // overrides (--endpoint/--protocol/--model layering) never ride back
-        // into settings, and a --backend launch never re-points DefaultProvider.
+        // into settings, and a --provider launch never re-points DefaultProvider.
         int index = settings.Providers.FindIndex(b =>
             string.Equals(b.Name, backend.Name, StringComparison.OrdinalIgnoreCase));
 

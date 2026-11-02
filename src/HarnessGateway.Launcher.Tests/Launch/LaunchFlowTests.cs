@@ -617,7 +617,7 @@ public class LaunchFlowTests
 
             LaunchRefused refused = (LaunchRefused)outcome;
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.UnknownProviderName);
-            await Assert.That(refused.Message).Contains("unknown backend name 'nope'");
+            await Assert.That(refused.Message).Contains("unknown provider name 'nope'");
         }
         finally
         {
@@ -639,7 +639,46 @@ public class LaunchFlowTests
 
             LaunchRefused refused = (LaunchRefused)outcome;
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.DanglingDefaultProvider);
-            await Assert.That(refused.Message).Contains("config set defaultBackend");
+            await Assert.That(refused.Message).Contains("config set defaultProvider");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_unlisted_model_folds_to_refusal()
+    {
+        // T006: a non-empty models array is the closed set launch accepts; a
+        // --model naming no entry is a user-rectifiable refusal (exit 3 via
+        // the UnknownAgent row, mapped in LaunchOrchestratorTests).
+        LauncherSettings settings = new()
+        {
+            Providers =
+            [
+                new Provider
+                {
+                    Name = "primary",
+                    BaseUri = new Uri("https://api.default.com/v1"),
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
+                    Models = [new ModelEntry { Name = "gpt-5" }],
+                },
+            ],
+            DefaultProvider = "primary",
+        };
+
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: new TestHarnessAdapter("TestAgent"),
+            settings: settings);
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, "gpt-4", [], null));
+
+            LaunchRefused refused = (LaunchRefused)outcome;
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.UnlistedModel);
+            await Assert.That(refused.Message).Contains("'gpt-4'");
         }
         finally
         {

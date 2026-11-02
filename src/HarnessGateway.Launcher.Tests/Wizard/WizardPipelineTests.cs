@@ -427,7 +427,7 @@ public class WizardPipelineTests
             await Assert.That(result).IsNull();
             await Assert.That(console.Prompts).IsEmpty();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
-            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultBackend");
+            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultProvider");
         }
         finally
         {
@@ -452,7 +452,7 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts).IsEmpty();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("'ghost'");
-            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultBackend");
+            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultProvider");
         }
         finally
         {

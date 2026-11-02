@@ -151,7 +151,7 @@ public class ConfigKeyResolverTests
         await Assert.That(result.IsSuccess).IsFalse();
         await Assert.That(result.Failure).IsEqualTo(ConfigKeyFailure.UnknownProviderName);
         // The contract message from backend resolution, not a bespoke string.
-        await Assert.That(result.Message).Contains("unknown backend name 'nope'");
+        await Assert.That(result.Message).Contains("unknown provider name 'nope'");
     }
 
     [Test]
