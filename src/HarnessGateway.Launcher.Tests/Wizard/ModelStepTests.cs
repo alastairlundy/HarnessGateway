@@ -37,9 +37,9 @@ public class ModelStepTests
         ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
         console.EnqueueChoice("[skip]");
 
-        string? model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
 
-        await Assert.That(model).IsNull();
+        await Assert.That(selection.Model).IsNull();
     }
 
     [Test]
@@ -56,9 +56,9 @@ public class ModelStepTests
         ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
         console.EnqueueChoice("gpt-4");
 
-        string? model = await step.RunAsync(requiresModel: true, savedDefaultModel: null);
+        ModelSelection selection = await step.RunAsync(requiresModel: true, savedDefaultModel: null);
 
-        await Assert.That(model).IsEqualTo("gpt-4");
+        await Assert.That(selection.Model).IsEqualTo("gpt-4");
     }
 
     [Test]
@@ -75,9 +75,9 @@ public class ModelStepTests
         ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
         console.EnqueueChoice("gpt-4");
 
-        string? model = await step.RunAsync(requiresModel: false, savedDefaultModel: "gpt-4");
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: "gpt-4");
 
-        await Assert.That(model).IsEqualTo("gpt-4");
+        await Assert.That(selection.Model).IsEqualTo("gpt-4");
     }
 
     [Test]
@@ -88,9 +88,9 @@ public class ModelStepTests
 
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
 
-        string? model = await step.RunAsync(requiresModel: false, savedDefaultModel: "saved-model");
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: "saved-model");
 
-        await Assert.That(model).IsEqualTo("saved-model");
+        await Assert.That(selection.Model).IsEqualTo("saved-model");
         await Assert.That(console.WrittenMessages.Count).IsGreaterThan(0);
     }
 
@@ -103,9 +103,9 @@ public class ModelStepTests
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
         console.EnqueueText("manual-model");
 
-        string? model = await step.RunAsync(requiresModel: true, savedDefaultModel: null);
+        ModelSelection selection = await step.RunAsync(requiresModel: true, savedDefaultModel: null);
 
-        await Assert.That(model).IsEqualTo("manual-model");
+        await Assert.That(selection.Model).IsEqualTo("manual-model");
     }
 
     [Test]
@@ -117,9 +117,9 @@ public class ModelStepTests
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
         console.EnqueueChoice("[skip]");
 
-        string? model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
 
-        await Assert.That(model).IsNull();
+        await Assert.That(selection.Model).IsNull();
     }
 
     [Test]
@@ -132,9 +132,9 @@ public class ModelStepTests
         console.EnqueueChoice("[manual]");
         console.EnqueueText("my-custom-model");
 
-        string? model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
 
-        await Assert.That(model).IsEqualTo("my-custom-model");
+        await Assert.That(selection.Model).IsEqualTo("my-custom-model");
     }
 
     [Test]
@@ -146,9 +146,9 @@ public class ModelStepTests
         ModelStep step = new ModelStep(console, fetchModels: null, backend);
         console.EnqueueChoice("[skip]");
 
-        string? model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
 
-        await Assert.That(model).IsNull();
+        await Assert.That(selection.Model).IsNull();
     }
 
     [Test]
@@ -162,9 +162,9 @@ public class ModelStepTests
         ModelStep step = new ModelStep(console, failingFetcher, backend);
         console.EnqueueChoice("[skip]");
 
-        string? model = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
 
-        await Assert.That(model).IsNull();
+        await Assert.That(selection.Model).IsNull();
         await Assert.That(console.ErrorMessages).IsNotEmpty();
     }
 }

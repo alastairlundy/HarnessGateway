@@ -2,6 +2,7 @@ using HarnessGateway.Launcher.Core;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Providers.Models;
+using HarnessGateway.Launcher.Core.Settings;
 
 namespace HarnessGateway.Launcher.Wizard;
 
@@ -65,12 +66,13 @@ public sealed class WizardPipeline
             ? providerCase.Provider
             : null;
 
-        // Locked step order (harness, endpoint, key, model). The pairing
-        // guard re-enters only the harness step: the endpoint step runs
-        // exactly once and its typed endpoint/protocol survive a loop-back.
+        // Locked step order (harness, provider, key, model). The pairing
+        // guard re-enters only the harness step: the provider step runs
+        // exactly once and its chosen endpoint/protocol survive a loop-back.
         ProtocolKind? protocolToCheck = defaultProvider?.DefaultProtocol;
         bool annotateIncompatible = false;
-        (string? endpoint, ProtocolKind protocol) endpointResult = (null, ProtocolKind.OpenAiChat);
+        (string? endpoint, ProtocolKind protocol, Provider? provider) providerResult =
+            (null, ProtocolKind.OpenAiChat, null);
         string? harnessName;
         IHarnessAdapter? adapter;
 
@@ -84,13 +86,13 @@ public sealed class WizardPipeline
             Result<IHarnessAdapter> adapterResult = HarnessLookup.TryResolve(_adapters, harnessName);
             adapter = adapterResult.Success ? adapterResult.Value : null;
 
-            if (endpointResult.endpoint is null)
+            if (providerResult.endpoint is null)
             {
-                endpointResult = await RunEndpointStepAsync(defaultProvider, cancellationToken).ConfigureAwait(true);
-                if (endpointResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
+                providerResult = await RunProviderStepAsync(settings, defaultProvider, cancellationToken).ConfigureAwait(true);
+                if (providerResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
             }
 
-            if (adapter is null || adapter.Metadata.SupportedProtocols.Contains(endpointResult.protocol))
+            if (adapter is null || adapter.Metadata.SupportedProtocols.Contains(providerResult.protocol))
             {
                 break;
             }
@@ -100,25 +102,25 @@ public sealed class WizardPipeline
             // refusal so an unsupported protocol can never trap the user in a
             // re-prompt loop; otherwise mirror the direct-mode reason and loop
             // back to the harness step only - the endpoint result stands.
-            if (!AnyAdapterSupports(endpointResult.protocol))
+            if (!AnyAdapterSupports(providerResult.protocol))
             {
-                WriteNoHarnessSupports(endpointResult.protocol);
+                WriteNoHarnessSupports(providerResult.protocol);
                 return new WizardAborted(WizardAbortReason.NoHarnessSupportsProtocol);
             }
 
             await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(
                 adapter.Metadata.Name,
-                endpointResult.protocol,
+                providerResult.protocol,
                 adapter.Metadata.SupportedProtocols)), cancellationToken).ConfigureAwait(false);
             
-            protocolToCheck = endpointResult.protocol;
+            protocolToCheck = providerResult.protocol;
             annotateIncompatible = true;
         }
 
         // Resolve the saved entry before the key and model steps so catalogue HTTP
         // auth and the key step both see the secret, never the at-rest
         // reference - and so a dangling reference names the saved provider.
-        Provider? resolvedProvider = defaultProvider;
+        Provider? resolvedProvider = providerResult.provider ?? defaultProvider;
         if (resolvedProvider is not null)
         {
             try
@@ -134,25 +136,30 @@ public sealed class WizardPipeline
 
         Provider effectiveProvider = new()
         {
-            Name = "wizard",
-            BaseUri = new Uri(endpointResult.endpoint),
-            DefaultProtocol = endpointResult.protocol,
+            Name = resolvedProvider?.Name ?? "wizard",
+            BaseUri = new Uri(providerResult.endpoint!),
+            DefaultProtocol = providerResult.protocol,
             ApiKey = resolvedProvider?.ApiKey,
+            DefaultModel = resolvedProvider?.DefaultModel,
         };
 
         string? apiKey = await RunKeyStepAsync(effectiveProvider, cancellationToken).ConfigureAwait(true);
 
         ModelStep modelStep = new(_console, _catalogClient, effectiveProvider);
         bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
-        string? savedDefaultModel = defaultProvider?.DefaultModel;
-        string? model = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
+        string? savedDefaultModel = providerResult.provider?.DefaultModel ?? defaultProvider?.DefaultModel;
+        ModelSelection modelSelection = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
+
+        ProtocolKind effectiveProtocol = modelSelection.Protocol ?? providerResult.protocol;
 
         return new WizardCompleted(new WizardResult(
             AgentCommandName: harnessName!,
-            Endpoint: endpointResult.endpoint!,
-            Protocol: endpointResult.protocol,
+            ProviderName: providerResult.provider?.Name,
+            Endpoint: providerResult.endpoint!,
+            Protocol: effectiveProtocol,
             ApiKey: apiKey,
-            Model: model));
+            Model: modelSelection.Model,
+            Models: modelSelection.Models));
         }
         catch (OperationCanceledException)
         {
@@ -347,6 +354,44 @@ public sealed class WizardPipeline
         return $"Refusing to launch {harnessName}: the selected provider's protocol " +
                $"({ProviderResolution.ProtocolName(protocol)}) is not supported by {harnessName}, " +
                $"which supports: {supported}.";
+    }
+
+    private async Task<(string? endpoint, ProtocolKind protocol, Provider? provider)> RunProviderStepAsync(
+        LauncherSettings settings,
+        Provider? defaultProvider,
+        CancellationToken cancellationToken)
+    {
+        // No saved providers: walk the creation flow directly (endpoint + protocol),
+        // exactly as a first run always has.
+        if (settings.Providers.Count == 0)
+        {
+            (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(defaultProvider, cancellationToken).ConfigureAwait(true);
+            if (ep is null) return (null, ProtocolKind.OpenAiChat, null);
+            return (ep, proto, null);
+        }
+
+        List<ConsoleChoice> choices = [];
+        foreach (Provider provider in settings.Providers)
+        {
+            choices.Add(new ConsoleChoice(provider.Name, null));
+        }
+        choices.Add(new ConsoleChoice("[add new provider]", "create a session entry"));
+
+        string pick = await _console.PromptChoiceAsync(
+            "Select a provider:", choices, cancellationToken).ConfigureAwait(true);
+
+        if (string.Equals(pick, "[add new provider]", StringComparison.OrdinalIgnoreCase))
+        {
+            (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(defaultProvider, cancellationToken).ConfigureAwait(true);
+            if (ep is null) return (null, ProtocolKind.OpenAiChat, null);
+            return (ep, proto, null);
+        }
+
+        Provider? chosen = settings.Providers.FirstOrDefault(p =>
+            string.Equals(p.Name, pick, StringComparison.OrdinalIgnoreCase));
+        if (chosen is null) return (null, ProtocolKind.OpenAiChat, null);
+
+        return (chosen.BaseUri.ToString().TrimEnd('/'), chosen.DefaultProtocol, chosen);
     }
 
     private async Task<(string? endpoint, ProtocolKind protocol)> RunEndpointStepAsync(

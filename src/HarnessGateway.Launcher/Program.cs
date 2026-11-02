@@ -92,7 +92,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     // survive the launch, so the restore-on-exit default opts out.
     LaunchRequest request = new(
         wizardResult.AgentCommandName,
-        ProviderName: null,
+        ProviderName: wizardResult.ProviderName,
         wizardResult.Endpoint,
         LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,
