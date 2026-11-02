@@ -558,7 +558,7 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"work","schemaVersion":2}""");
+                """{"providers":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -619,7 +619,7 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[],"defaultBackend":"","schemaVersion":2}""");
+                """{"providers":[],"defaultProvider":"","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -791,7 +791,7 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[{"name":"default","baseUri":"https://api.example.com/v1","protocol":0,"apiKey":"hgkey:default"}],"defaultBackend":"default","schemaVersion":2}""");
+                """{"providers":[{"name":"default","baseUri":"https://api.example.com/v1","protocol":0,"apiKey":"hgkey:default"}],"defaultProvider":"default","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -953,7 +953,7 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
             string before = File.ReadAllText(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -978,7 +978,7 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
             string before = File.ReadAllText(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -1005,7 +1005,7 @@ public class ConfigCommandTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
             string before = File.ReadAllText(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>

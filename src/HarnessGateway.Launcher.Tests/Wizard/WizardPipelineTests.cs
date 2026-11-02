@@ -357,7 +357,7 @@ public class WizardPipelineTests
         {
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
 
             TestConsole console = new TestConsole();
             IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();

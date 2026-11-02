@@ -406,7 +406,7 @@ public class ProviderCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[{"name":"default","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"default","schemaVersion":2}""");
+                """{"providers":[{"name":"default","baseUri":"https://api.example.com/v1","protocol":0}],"defaultProvider":"default","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -612,7 +612,7 @@ public class ProviderCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":2,"defaultModel":"gpt-4"}],"defaultBackend":"work","schemaVersion":2}""");
+                """{"providers":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":2,"defaultModel":"gpt-4"}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -745,7 +745,7 @@ public class ProviderCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":0,"apiKey":"hgkey:work"}],"defaultBackend":"work","schemaVersion":2}""");
+                """{"providers":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":0,"apiKey":"hgkey:work"}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -809,7 +809,7 @@ public class ProviderCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"work","schemaVersion":2}""");
+                """{"providers":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -839,7 +839,7 @@ public class ProviderCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{"backends":[{"name":"alpha","baseUri":"https://alpha.example.com/v1","protocol":0,"apiKey":"hgkey:alpha"},{"name":"beta","baseUri":"https://beta.example.com/v1","protocol":0}],"defaultBackend":"alpha","schemaVersion":2}""");
+                """{"providers":[{"name":"alpha","baseUri":"https://alpha.example.com/v1","protocol":0,"apiKey":"hgkey:alpha"},{"name":"beta","baseUri":"https://beta.example.com/v1","protocol":0}],"defaultProvider":"alpha","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -1016,7 +1016,7 @@ public class ProviderCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir);
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
             string before = File.ReadAllText(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>

@@ -20,10 +20,12 @@ List<IHarnessAdapter> adapters =
 
 string settingsDir = SettingsStore.GetPlatformConfigDirectory();
 ISecureKeyStore keyStore = SecureKeyStoreFactory.Create(settingsDir);
-SettingsStore settingsStore = new(settingsDir, keyStore);
 string backupsDir = Path.Combine(settingsDir, "backups");
 Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
+// The store shares the flow's backup service so the load-time migration's
+// backup-before-write markers live in the same directory SelfHeal replays.
+SettingsStore settingsStore = new(settingsDir, keyStore, backupService);
 LaunchRunner runner = new();
 
 // GUI collaborators, injected alongside the ones above: install discovery

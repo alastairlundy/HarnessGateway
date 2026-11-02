@@ -6,16 +6,17 @@ public sealed record LauncherSettings
 {
     /// <summary>
     /// The schema version this build reads and writes. Version 1 is the legacy
-    /// shape (plaintext keys); <see cref="SettingsStore.LoadAsync"/> migrates it
-    /// forward on read, so a fresh object and every file this tool writes carry
-    /// the current version.
+    /// plaintext-key shape and version 2 the legacy <c>backends</c> shape;
+    /// <see cref="SettingsStore.LoadAsync"/> migrates both forward on read
+    /// through the legacy read model, so a fresh object and every file this
+    /// tool writes carry the current version.
     /// </summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
-    [JsonPropertyName("backends")]
+    [JsonPropertyName("providers")]
     public List<Provider> Providers { get; init; } = [];
 
-    [JsonPropertyName("defaultBackend")]
+    [JsonPropertyName("defaultProvider")]
     public string DefaultProvider { get; init; } = string.Empty;
 
     [JsonPropertyName("schemaVersion")]

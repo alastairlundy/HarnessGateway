@@ -1581,7 +1581,7 @@ public class LaunchFlowTests
         try
         {
             string settingsPath = Path.Combine(settingsDir, "HarnessGateway-launcher.json");
-            string rawJson = """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""";
+            string rawJson = """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""";
             await File.WriteAllTextAsync(settingsPath, rawJson);
 
             LaunchOutcome outcome = await flow.ExecuteAsync(

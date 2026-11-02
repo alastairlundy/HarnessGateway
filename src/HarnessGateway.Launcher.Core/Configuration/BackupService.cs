@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -110,9 +111,14 @@ public sealed class BackupService
 
     private string GetBackupPath(string targetPath)
     {
-        // Convert.ToHexString emits only [0-9A-F]: the output is already
-        // path-safe, so no character sanitization is needed here.
-        string sanitized = Convert.ToHexString(Encoding.UTF8.GetBytes(targetPath));
-        return Path.Combine(_backupsDirectory, $"{sanitized}.json");
+        // SHA-256 hex: a fixed 64 path-safe chars ([0-9A-F]). The previous
+        // raw-hex-of-path scheme doubled the target path's length, which
+        // broke the platform's per-filename limit (255 chars) for longer
+        // targets such as the settings file under a deep temp directory.
+        // The filename only has to round-trip within one process (SelfHeal
+        // discovers markers by globbing *.json and reads the target out of
+        // the record's content), so a stable hash is enough.
+        string name = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(targetPath)));
+        return Path.Combine(_backupsDirectory, $"{name}.json");
     }
 }
