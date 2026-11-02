@@ -102,9 +102,11 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
     {
         string providerName = KeyReference.RequireProviderName(reference);
 
-        // Best effort: a non-zero exit covers the already-absent item, which the
-        // idempotent contract requires to succeed.
-        await SecureKeyStoreProcess.RunAsync(
+        // Both the idempotent miss and an operational failure exit non-zero:
+        // only the recognized "could not be found" miss succeeds (see
+        // MacOsDeleteFailed) - everything else, a locked keychain or an
+        // authorization refusal, is reported instead of swallowed.
+        BufferedProcessResult result = await SecureKeyStoreProcess.RunAsync(
             SecurityBinary,
             ["delete-generic-password", "-s", ServiceName, "-a", providerName],
             providerName,
@@ -112,5 +114,13 @@ public sealed class MacOsKeychainSecureKeyStore : ISecureKeyStore
             SpawnFailure,
             standardInput: null,
             cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (SecureKeyStoreProcess.MacOsDeleteFailed(result.ExitCode, result.StandardError))
+        {
+            throw SecureKeyStoreException.OperationFailed(
+                providerName,
+                DeleteOperation,
+                "the 'security' command could not delete the item; unlock the login keychain and retry.");
+        }
     }
 }

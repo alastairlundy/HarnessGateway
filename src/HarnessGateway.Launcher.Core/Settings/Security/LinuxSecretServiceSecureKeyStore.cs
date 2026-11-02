@@ -99,9 +99,10 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
     {
         string providerName = KeyReference.RequireProviderName(reference);
 
-        // Best effort: `clear` on an entry that is not there must still succeed
-        // for the idempotent contract, so a non-zero exit is swallowed here too.
-        await SecureKeyStoreProcess.RunAsync(
+        // `secret-tool clear` succeeds when nothing matched, so a non-zero
+        // exit is an operational failure (locked collection, unreachable
+        // session) and is reported instead of swallowed.
+        BufferedProcessResult result = await SecureKeyStoreProcess.RunAsync(
             SecretTool,
             ["clear", "key", providerName],
             providerName,
@@ -109,5 +110,11 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
             SpawnFailure,
             standardInput: null,
             cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (SecureKeyStoreProcess.LinuxDeleteFailed(result.ExitCode))
+        {
+            throw SecureKeyStoreException.OperationFailed(
+                providerName, DeleteOperation, NoSessionFailure + ".");
+        }
     }
 }
