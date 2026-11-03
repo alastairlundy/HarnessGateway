@@ -116,7 +116,8 @@ public class LaunchFlowGuiTests
             effectiveKeyStore,
             discovery ?? new FakeGuiInstallDiscovery(found: true),
             detector ?? new FakeRunningInstanceDetector(),
-            prompt ?? new FakeConfirmationPrompt());
+            prompt ?? new FakeConfirmationPrompt(),
+            new ProtocolEmissionPlanner());
         return (flow, tempDir, backupsDir);
     }
 

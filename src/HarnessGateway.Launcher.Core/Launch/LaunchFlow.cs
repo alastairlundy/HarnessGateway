@@ -40,6 +40,7 @@ public sealed class LaunchFlow
     private readonly IGuiInstallDiscovery _installDiscovery;
     private readonly IRunningInstanceDetector _instanceDetector;
     private readonly IConfirmationPrompt _confirmationPrompt;
+    private readonly IProtocolEmissionPlanner _emissionPlanner;
 
     public LaunchFlow(
         SettingsStore settingsStore,
@@ -49,7 +50,8 @@ public sealed class LaunchFlow
         ISecureKeyStore keyStore,
         IGuiInstallDiscovery installDiscovery,
         IRunningInstanceDetector instanceDetector,
-        IConfirmationPrompt confirmationPrompt)
+        IConfirmationPrompt confirmationPrompt,
+        IProtocolEmissionPlanner emissionPlanner)
     {
         _settingsStore = settingsStore;
         _backupService = backupService;
@@ -59,6 +61,7 @@ public sealed class LaunchFlow
         _installDiscovery = installDiscovery;
         _instanceDetector = instanceDetector;
         _confirmationPrompt = confirmationPrompt;
+        _emissionPlanner = emissionPlanner;
     }
 
     /// <summary>
@@ -88,13 +91,13 @@ public sealed class LaunchFlow
 
             // Resolved carries its launch case non-null; EmptySettings is the
             // success-without-a-provider variant and falls through to the
-            // usage-error guard below. The adapter contract still takes a
-            // Provider (the family-based handoff lands with the adapter
-            // rework), so the ad-hoc case is bridged here as the keyless
-            // session provider it has always been - never as a stored one.
-            Provider? backend = resolution switch
+            // usage-error guard below. The family itself travels on to the
+            // adapter payload - the transitional bridge that synthesized a
+            // stored-looking provider for the ad-hoc case is gone, so a
+            // raw-URL launch reaches the adapter as the keyless case it is.
+            LaunchResolution? launch = resolution switch
             {
-                ProviderResolutionResult.Resolved resolved => AdapterProviderFor(resolved.Launch),
+                ProviderResolutionResult.Resolved resolved => resolved.Launch,
                 ProviderResolutionResult.EmptySettings => null,
                 _ => throw new InvalidOperationException(
                     $"unexpected resolution variant '{resolution.GetType().Name}'"),
@@ -136,48 +139,80 @@ public sealed class LaunchFlow
                     + "CLI. Re-run without --confirm-running.");
             }
 
-            // A successful resolution can still carry no backend at all: empty
-            // settings with no --endpoint/--protocol override. Adapters need a
-            // backend, so refuse here with a readable message instead of
-            // NRE-ing inside PlanLaunchAsync. This is a usage error, not an
-            // internal fault: nothing is corrupt and nothing threw.
-            if (backend is null)
+            // A successful resolution can still carry no launch at all: empty
+            // settings with no --endpoint/--protocol override. Adapters plan
+            // from a resolved case, so refuse here with a readable message
+            // instead of NRE-ing inside PlanLaunchAsync. This is a usage
+            // error, not an internal fault: nothing is corrupt and nothing
+            // threw.
+            if (launch is null)
             {
                 return new LaunchRefused(LaunchRefusalKind.NoProvider, NoProviderMessage);
             }
 
-            // Fail before any configuration action when the resolved backend's
+            // Fail before any configuration action when the resolved
             // protocol is not supported by the chosen harness.
-            if (!adapter.Metadata.SupportedProtocols.Contains(backend.DefaultProtocol))
+            if (!adapter.Metadata.SupportedProtocols.Contains(launch.Protocol))
             {
+                // The refusal prose quotes a provider name: the stored
+                // entry's for the provider case, and the "override"
+                // spelling today's synthesized bridge printed for a
+                // raw-URL launch for the ad-hoc case.
+                string providerName = launch switch
+                {
+                    LaunchResolution.ProviderCase stored => stored.Provider.Name,
+                    LaunchResolution.AdHocCase => "override",
+                    _ => throw new InvalidOperationException(
+                        $"unexpected launch resolution case '{launch.GetType().Name}'"),
+                };
+
                 string supported = string.Join(
                     ", ",
                     adapter.Metadata.SupportedProtocols.Select(ProviderResolution.ProtocolName));
                 return new LaunchRefused(
                     LaunchRefusalKind.ProtocolNotSupported,
                     $"Refusing to launch {request.Harness}: the selected provider's protocol " +
-                    $"({ProviderResolution.ProtocolName(backend.DefaultProtocol)}) is not supported by " +
+                    $"({ProviderResolution.ProtocolName(launch.Protocol)}) is not supported by " +
                     $"{adapter.Metadata.Name}, which supports: {supported}. " +
                     "Override the launch with --endpoint <provider-url> --protocol <supported-protocol>, " +
                     "or re-point the default provider with 'harnessgateway provider add " +
-                    $"{backend.Name} --endpoint <url> --protocol <supported-protocol>'.");
+                    $"{providerName} --endpoint <url> --protocol <supported-protocol>'.");
             }
 
-            string? resolvedModel = ResolveModel(request.Model, backend, adapter);
+            string? resolvedModel = ResolveModel(launch, adapter);
 
-            // Resolve the at-rest key reference into the secret on this local
-            // copy only: `settings` keeps carrying the reference, so a later
-            // Save (PersistDefaultModel) can never write a secret back out.
-            backend = await ProviderKeyResolver.ResolveAsync(backend, _keyStore, ct).ConfigureAwait(false);
+            // The launch-scoped secret: the provider case's stored reference
+            // resolved into the secret on this local copy only - `settings`
+            // keeps carrying the reference, so a later Save
+            // (PersistDefaultModel) can never write a secret back out - and
+            // the ad-hoc case keyless by design, since a raw-URL launch has
+            // no stored reference of any kind.
+            string? apiKey;
+            switch (launch)
+            {
+                case LaunchResolution.ProviderCase providerCase:
+                    Provider resolvedProvider = await ProviderKeyResolver
+                        .ResolveAsync(providerCase.Provider, _keyStore, ct)
+                        .ConfigureAwait(false);
+                    apiKey = resolvedProvider.ApiKey;
+                    break;
+                case LaunchResolution.AdHocCase:
+                    apiKey = null;
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"unexpected launch resolution case '{launch.GetType().Name}'");
+            }
 
             // The wizard's collected key (and only that carry-over) overrides
-            // on this local copy, never on the stored entry. The wizard
+            // on this launch copy, never on the stored entry. The wizard
             // supplies a key only when the resolved entry had none or the user
             // typed one, so this layering can only fill a gap; it never masks
-            // a stored key with a stale copy.
+            // a stored key with a stale copy. It is also what makes a
+            // first-run ad-hoc launch credentialed at all.
             if (!string.IsNullOrEmpty(request.SessionKey))
             {
-                backend = backend with { ApiKey = request.SessionKey };
+                apiKey = request.SessionKey;
             }
 
             if (adapter.Metadata.Kind == HarnessKind.Gui)
@@ -195,14 +230,14 @@ public sealed class LaunchFlow
 
                 // Capability check, still before planning: what this launch
                 // asks to deliver must ride a surface the harness declares.
-                LaunchRefused? surfaceRefusal = DeclaredSurfaceRefusal(adapter, request, backend);
+                LaunchRefused? surfaceRefusal = DeclaredSurfaceRefusal(adapter, request, apiKey);
                 if (surfaceRefusal is not null)
                 {
                     return surfaceRefusal;
                 }
             }
 
-            ResolvedLaunch payload = new(backend, resolvedModel, workingDirectory);
+            ResolvedLaunch payload = new(launch, apiKey, workingDirectory, _emissionPlanner);
 
             LaunchPlan plan;
             try
@@ -276,10 +311,14 @@ public sealed class LaunchFlow
             // fault in the finally propagates and lands in the terminal fold,
             // so the model is never saved onto a launch whose configuration
             // could not be restored (today's ordering where restore throwing
-            // meant no persist).
-            if (request.Persist.Contains("model", StringComparer.OrdinalIgnoreCase) && resolvedModel is not null)
+            // meant no persist). Only the provider case has a stored entry to
+            // persist onto; an ad-hoc launch never writes settings (it can
+            // only arise when no entries exist at all).
+            if (request.Persist.Contains("model", StringComparer.OrdinalIgnoreCase)
+                && resolvedModel is not null
+                && launch is LaunchResolution.ProviderCase selected)
             {
-                PersistDefaultModel(settings, backend, resolvedModel);
+                PersistDefaultModel(settings, selected.Provider.Name, resolvedModel);
             }
 
             return new LaunchCompleted(completed);
@@ -320,28 +359,6 @@ public sealed class LaunchFlow
         ProviderResolutionFailure.InvalidProtocol => LaunchRefusalKind.InvalidProtocol,
         ProviderResolutionFailure.UnlistedModel => LaunchRefusalKind.UnlistedModel,
         _ => throw new InvalidOperationException($"unexpected resolution failure '{failure}'"),
-    };
-
-    /// <summary>
-    /// The adapter-boundary bridge for the two-case family: the provider
-    /// case hands adapters its whole session-layered provider, and the
-    /// ad-hoc case is materialized as the keyless session provider a raw-URL
-    /// launch has always been. Deliberate and transitional - the adapter
-    /// rework replaces this with direct case branching, so no stored-looking
-    /// provider is ever synthesized into the resolution result itself.
-    /// </summary>
-    private static Provider? AdapterProviderFor(LaunchResolution launch) => launch switch
-    {
-        LaunchResolution.ProviderCase providerCase => providerCase.Provider,
-        LaunchResolution.AdHocCase adHoc => new Provider
-        {
-            Name = "override",
-            BaseUri = adHoc.BaseUri,
-            DefaultProtocol = adHoc.Protocol,
-            DefaultModel = adHoc.Model,
-        },
-        _ => throw new InvalidOperationException(
-            $"unexpected launch resolution case '{launch.GetType().Name}'"),
     };
 
     /// <summary>
@@ -395,16 +412,19 @@ public sealed class LaunchFlow
     /// harness declaring no surface at all. A launch that asks for neither
     /// never produces this refusal.
     /// </summary>
+    /// <param name="apiKey">
+    /// The launch-scoped resolved secret, if this launch carries one.
+    /// </param>
     /// <returns>The refusal to stop with, or <c>null</c> to proceed.</returns>
     private static LaunchRefused? DeclaredSurfaceRefusal(
         IHarnessAdapter adapter,
         LaunchRequest request,
-        Provider backend)
+        string? apiKey)
     {
         IReadOnlySet<ConfigurationSurface> surfaces = adapter.Metadata.SupportedSurfaces;
         string name = adapter.Metadata.Name;
 
-        if (!string.IsNullOrEmpty(backend.ApiKey)
+        if (!string.IsNullOrEmpty(apiKey)
             && !surfaces.Contains(ConfigurationSurface.Environment))
         {
             return new LaunchRefused(
@@ -457,8 +477,10 @@ public sealed class LaunchFlow
     }
 
     /// <summary>
-    /// Picks the model for this launch: the explicit <c>--model</c> value, else
-    /// the resolved entry's saved default.
+    /// Picks the model for this launch: the case's effective model - the
+    /// resolution layer already applied <c>--model</c> over the stored
+    /// default before the family was built, so both cases carry the value
+    /// this launch runs with.
     /// </summary>
     /// <remarks>
     /// Deliberately unaware of <c>--persist</c>. Whether the model is saved is
@@ -466,14 +488,15 @@ public sealed class LaunchFlow
     /// model resolution actually needs. This is also where a missing required
     /// model is warned about - a warning, never a refusal.
     /// </remarks>
-    private string? ResolveModel(string? model, Provider? backend, IHarnessAdapter adapter)
+    private static string? ResolveModel(LaunchResolution launch, IHarnessAdapter adapter)
     {
-        string? resolvedModel = model;
-
-        if (resolvedModel is null && backend?.DefaultModel is not null)
+        string? resolvedModel = launch switch
         {
-            resolvedModel = backend.DefaultModel;
-        }
+            LaunchResolution.ProviderCase providerCase => providerCase.Model,
+            LaunchResolution.AdHocCase adHoc => adHoc.Model,
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{launch.GetType().Name}'"),
+        };
 
         if (adapter.Metadata.RequiresModel && resolvedModel is null)
         {
@@ -505,20 +528,18 @@ public sealed class LaunchFlow
         }
     }
 
-    private void PersistDefaultModel(LauncherSettings settings, Provider? backend, string model)
+    private void PersistDefaultModel(LauncherSettings settings, string providerName, string model)
     {
-        if (backend is null) return;
-
         // Persist onto the stored entry by name only: per-launch field
         // overrides (--endpoint/--protocol/--model layering) never ride back
         // into settings, and a --provider launch never re-points DefaultProvider.
+        // Only the provider case calls this - an ad-hoc launch has no stored
+        // entry to persist onto and never reaches this method.
         int index = settings.Providers.FindIndex(b =>
-            string.Equals(b.Name, backend.Name, StringComparison.OrdinalIgnoreCase));
+            string.Equals(b.Name, providerName, StringComparison.OrdinalIgnoreCase));
 
         if (index < 0)
         {
-            // Ad-hoc raw-URL override against an empty settings file: there is
-            // no durable entry to persist a default model onto.
             return;
         }
 

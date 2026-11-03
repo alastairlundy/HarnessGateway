@@ -1,4 +1,5 @@
 using CliInvoke;
+using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Launch;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
@@ -40,29 +41,32 @@ public sealed class PiAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
-        Dictionary<string, string> envVars = new(StringComparer.Ordinal);
-
-        string baseUrl = request.Provider.BaseUri.ToString().TrimEnd('/');
-
-        switch (request.Provider.DefaultProtocol)
+        // Direct case branching (T021): each case hands over its own
+        // effective protocol, base URL, and model - no stored-looking
+        // provider is synthesized in between, and no protocol is computed
+        // here (T018).
+        (ProtocolEmission emission, string? model) = request.Launch switch
         {
-            case ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses:
-                envVars["OPENAI_BASE_URL"] = baseUrl;
-                if (request.Provider.ApiKey is { Length: > 0 })
-                    envVars["OPENAI_API_KEY"] = request.Provider.ApiKey;
-                break;
-            case ProtocolKind.Anthropic:
-                envVars["ANTHROPIC_BASE_URL"] = baseUrl;
-                if (request.Provider.ApiKey is { Length: > 0 })
-                    envVars["ANTHROPIC_API_KEY"] = request.Provider.ApiKey;
-                break;
-        }
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
+        // One shared mapping (T007): the emission carries this protocol's
+        // env-var names and values, merged by the one consumption rule.
+        Dictionary<string, string> envVars = new(StringComparer.Ordinal);
+        EmissionMerge.MergeInto(envVars, emission, request.ApiKey);
 
         List<string> args = [];
-        if (request.Model is { Length: > 0 })
+        if (model is { Length: > 0 })
         {
             args.Add("--model");
-            args.Add(request.Model);
+            args.Add(model);
         }
 
         ProcessConfiguration config = new("pi")

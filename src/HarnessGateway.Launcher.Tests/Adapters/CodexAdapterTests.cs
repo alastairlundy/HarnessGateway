@@ -4,6 +4,7 @@ using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Toml;
+using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Adapters;
 
@@ -43,18 +44,32 @@ public class CodexAdapterTests
         ProtocolKind protocol = ProtocolKind.OpenAiResponses,
         string? model = "gpt-5",
         string? apiKey = "sk-test",
-        string baseUri = "https://api.example.com/v1")
+        string baseUri = "https://api.example.com/v1",
+        bool adHoc = false,
+        IProtocolEmissionPlanner? planner = null)
     {
+        Uri baseAddress = new(baseUri);
+        Provider provider = new()
+        {
+            Name = "test",
+            BaseUri = baseAddress,
+            DefaultProtocol = protocol,
+            ApiKey = apiKey
+        };
+
+        // The provider case carries the stored entry; the ad-hoc case is the
+        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // payload either way - a wizard session key can credential an
+        // ad-hoc launch.
+        LaunchResolution launch = adHoc
+            ? new LaunchResolution.AdHocCase(baseAddress, protocol, model)
+            : new LaunchResolution.ProviderCase(provider, model, protocol);
+
         return new ResolvedLaunch(
-            new Provider
-            {
-                Name = "test",
-                BaseUri = new Uri(baseUri),
-                DefaultProtocol = protocol,
-                ApiKey = apiKey
-            },
-            Model: model,
-            Path.GetTempPath());
+            launch,
+            apiKey,
+            Path.GetTempPath(),
+            planner ?? new ProtocolEmissionPlanner());
     }
 
     private static (string TempDir, string CodexHome, string ConfigPath) CreateCodexHome()
@@ -273,7 +288,13 @@ public class CodexAdapterTests
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
             await Assert.That(plan.ConfigurationActions.Count).IsEqualTo(1);
-            await Assert.That(plan.Process.EnvironmentVariables.Count).IsEqualTo(0);
+            // The shared emission's base-url variable still rides the
+            // environment; only the key is omitted.
+            await Assert.That(plan.Process.EnvironmentVariables.Count).IsEqualTo(1);
+            await Assert.That(plan.Process.EnvironmentVariables)
+                .DoesNotContainKey(CodexAdapter.EnvKeyName);
+            await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+                .IsEqualTo("https://api.example.com/v1");
         }
         finally
         {
@@ -296,7 +317,8 @@ public class CodexAdapterTests
             await Assert.That(content.Contains("sk-test", StringComparison.Ordinal)).IsFalse();
             await Assert.That(content.Contains("dummy", StringComparison.Ordinal)).IsFalse();
             // No key saved - none may appear in the spawned process environment either.
-            await Assert.That(plan.Process.EnvironmentVariables.Count).IsEqualTo(0);
+            await Assert.That(plan.Process.EnvironmentVariables)
+                .DoesNotContainKey(CodexAdapter.EnvKeyName);
         }
         finally
         {
@@ -404,6 +426,116 @@ public class CodexAdapterTests
             // Refusal happens before any write: the user's file is untouched.
             await Assert.That(await File.ReadAllTextAsync(configPath))
                 .IsEqualTo("[model_providers]\nharnessgateway = { name = \"Mine\", wire_api = \"responses\" }\n");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task PlanLaunch_consumes_the_planners_emission_in_config_and_environment()
+    {
+        // A sentinel emission proves the base URL comes from the planner
+        // (T007): it lands in the harness-owned TOML block and as the
+        // launch's one base-url environment variable, while the key stays
+        // under this harness's env_key name - never the planner's slot.
+        (string tempDir, string codexHome, string configPath) = CreateCodexHome();
+        try
+        {
+            FakeProtocolEmissionPlanner planner = new()
+            {
+                CannedEmission = new ProtocolEmission
+                {
+                    Protocol = ProtocolKind.OpenAiResponses,
+                    BaseUrlVariable = "CANNED_BASE_URL",
+                    BaseUrlValue = "https://canned.example/v1",
+                    ExtraVariables = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["CANNED_API_KEY"] = string.Empty,
+                    },
+                },
+            };
+            CodexAdapter adapter = CreateAdapter(codexHome);
+            ResolvedLaunch request = CreateRequest(apiKey: "sk-canned", planner: planner);
+
+            LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+            await Assert.That(plan.Process.EnvironmentVariables["CANNED_BASE_URL"])
+                .IsEqualTo("https://canned.example/v1");
+            await Assert.That(plan.Process.EnvironmentVariables[CodexAdapter.EnvKeyName])
+                .IsEqualTo("sk-canned");
+            await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("CANNED_API_KEY");
+
+            string content = ((ConfigFileWriteAction)plan.ConfigurationActions[0]).Content;
+            await Assert.That(content).Contains("base_url = \"https://canned.example/v1\"");
+            await Assert.That(planner.PlannedCalls.Count).IsEqualTo(1);
+            await Assert.That(planner.PlannedCalls[0].Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+            await Assert.That(planner.PlannedCalls[0].BaseUri)
+                .IsEqualTo(new Uri("https://api.example.com/v1"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task PlanLaunch_from_the_ad_hoc_case_plans_the_ad_hoc_values()
+    {
+        // The family's other arm: a raw-URL launch reaches the same planner
+        // call with its own base URL (T021), and the session key still
+        // credentials it under this harness's env_key.
+        (string tempDir, string codexHome, _) = CreateCodexHome();
+        try
+        {
+            FakeProtocolEmissionPlanner planner = new();
+            CodexAdapter adapter = CreateAdapter(codexHome);
+            ResolvedLaunch request = CreateRequest(
+                apiKey: "sk-wizard",
+                adHoc: true,
+                planner: planner);
+
+            LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+            await Assert.That(planner.PlannedCalls.Count).IsEqualTo(1);
+            await Assert.That(planner.PlannedCalls[0].Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+            await Assert.That(planner.PlannedCalls[0].BaseUri)
+                .IsEqualTo(new Uri("https://api.example.com/v1"));
+            await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+                .IsEqualTo("https://api.example.com/v1");
+            await Assert.That(plan.Process.EnvironmentVariables[CodexAdapter.EnvKeyName])
+                .IsEqualTo("sk-wizard");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task PlanLaunch_emits_exactly_one_base_url_variable_and_no_unrelated_protocol_vars()
+    {
+        // Exactly one base-url variable per launch - this protocol's - and
+        // never an ANTHROPIC_* variable beside it (T007).
+        (string tempDir, string codexHome, _) = CreateCodexHome();
+        try
+        {
+            CodexAdapter adapter = CreateAdapter(codexHome);
+            ResolvedLaunch request = CreateRequest();
+
+            LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+            string[] baseUrlVariables =
+            [
+                .. plan.Process.EnvironmentVariables.Keys.Where(
+                    key => key.EndsWith("_BASE_URL", StringComparison.Ordinal)),
+            ];
+            await Assert.That(baseUrlVariables).IsEquivalentTo(["OPENAI_BASE_URL"]);
+            await Assert.That(plan.Process.EnvironmentVariables)
+                .DoesNotContainKey("ANTHROPIC_BASE_URL");
+            await Assert.That(plan.Process.EnvironmentVariables)
+                .DoesNotContainKey("ANTHROPIC_API_KEY");
         }
         finally
         {

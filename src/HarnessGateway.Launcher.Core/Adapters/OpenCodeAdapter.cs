@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CliInvoke;
+using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Serialization;
 
@@ -42,30 +43,33 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
+        // Direct case branching (T021): each case hands over its own
+        // effective protocol, base URL, and model - no stored-looking
+        // provider is synthesized in between, and no protocol is computed
+        // here (T018).
+        (ProtocolEmission emission, string? model) = request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
+        // One shared mapping (T007): the emission carries this protocol's
+        // env-var names and values, merged by the one consumption rule.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
+        EmissionMerge.MergeInto(envVars, emission, request.ApiKey);
 
-        string baseUrl = request.Provider.BaseUri.ToString().TrimEnd('/');
-
-        string? providerId = request.Provider.DefaultProtocol switch
+        string? providerId = emission.Protocol switch
         {
             ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => "openai",
             ProtocolKind.Anthropic => "anthropic",
             _ => null,
         };
-
-        switch (request.Provider.DefaultProtocol)
-        {
-            case ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses:
-                envVars["OPENAI_BASE_URL"] = baseUrl;
-                if (request.Provider.ApiKey is { Length: > 0 })
-                    envVars["OPENAI_API_KEY"] = request.Provider.ApiKey;
-                break;
-            case ProtocolKind.Anthropic:
-                envVars["ANTHROPIC_BASE_URL"] = baseUrl;
-                if (request.Provider.ApiKey is { Length: > 0 })
-                    envVars["ANTHROPIC_API_KEY"] = request.Provider.ApiKey;
-                break;
-        }
 
         // opencode v2 has no top-level --model flag: `opencode --model <id>`
         // is rejected outright ("Unrecognized flag: --model", exit 1), so the
@@ -75,9 +79,9 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
         // touches a file on disk. Provider options use {env:...} references
         // rather than literals - the key never gets duplicated into a second
         // channel, and the TUI prompts for auth when no key is set.
-        if (providerId is not null && request.Model is { Length: > 0 })
+        if (providerId is not null && model is { Length: > 0 })
         {
-            string configContent = BuildSessionConfig(providerId, baseUrl, request.Model);
+            string configContent = BuildSessionConfig(providerId, emission.BaseUrlValue, model);
             envVars["OPENCODE_CONFIG_CONTENT"] = configContent;
         }
 

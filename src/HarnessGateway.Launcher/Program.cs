@@ -38,6 +38,12 @@ IGuiInstallDiscovery installDiscovery = new GuiInstallDiscovery(new FilePathReso
 IRunningInstanceDetector instanceDetector = CreateInstanceDetector();
 IConfirmationPrompt confirmationPrompt = new TerminalConfirmationPrompt();
 
+// The one shared protocol-to-env-var mapping (T007): registered here at
+// the composition root and handed to the launch flow, which forwards it
+// to every adapter on the launch payload (T010) - the mapping is reached
+// through this wiring, never through statics.
+IProtocolEmissionPlanner emissionPlanner = new ProtocolEmissionPlanner();
+
 // One flow, both callers: the CLI-side orchestrator and the wizard
 // handoff below both submit through this instance.
 LaunchFlow flow = new(
@@ -48,7 +54,8 @@ LaunchFlow flow = new(
     keyStore,
     installDiscovery,
     instanceDetector,
-    confirmationPrompt);
+    confirmationPrompt,
+    emissionPlanner);
 LaunchOrchestrator orchestrator = new(flow);
 async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 {

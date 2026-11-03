@@ -3,6 +3,7 @@ using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
+using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Adapters;
 
@@ -17,18 +18,32 @@ public class ClaudeCodeAdapterTests
     private static ResolvedLaunch CreateRequest(
         string? model = "claude-sonnet-5",
         string? apiKey = "sk-test",
-        string baseUri = "https://api.example.com/v1/")
+        string baseUri = "https://api.example.com/v1/",
+        bool adHoc = false,
+        IProtocolEmissionPlanner? planner = null)
     {
+        Uri baseAddress = new(baseUri);
+        Provider provider = new()
+        {
+            Name = "test",
+            BaseUri = baseAddress,
+            DefaultProtocol = ProtocolKind.Anthropic,
+            ApiKey = apiKey
+        };
+
+        // The provider case carries the stored entry; the ad-hoc case is the
+        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // payload either way - a wizard session key can credential an
+        // ad-hoc launch.
+        LaunchResolution launch = adHoc
+            ? new LaunchResolution.AdHocCase(baseAddress, ProtocolKind.Anthropic, model)
+            : new LaunchResolution.ProviderCase(provider, model, ProtocolKind.Anthropic);
+
         return new ResolvedLaunch(
-            new Provider
-            {
-                Name = "test",
-                BaseUri = new Uri(baseUri),
-                DefaultProtocol = ProtocolKind.Anthropic,
-                ApiKey = apiKey
-            },
-            Model: model,
-            Path.GetTempPath());
+            launch,
+            apiKey,
+            Path.GetTempPath(),
+            planner ?? new ProtocolEmissionPlanner());
     }
 
     [Test]
@@ -191,5 +206,92 @@ public class ClaudeCodeAdapterTests
         // action family, and a config file write is never planned.
         await Assert.That(plan.ConfigurationActions.All(action => action is CliArgumentAction))
             .IsTrue();
+    }
+
+    [Test]
+    public async Task PlanLaunch_consumes_the_planners_emission_and_renames_the_key_slot()
+    {
+        // A sentinel emission proves the base-url variable comes from the
+        // planner (T007), while the key slot keeps this harness's own
+        // rename: ANTHROPIC_AUTH_TOKEN, never the planner's
+        // ANTHROPIC_API_KEY spelling (T007, harness-owned per the
+        // planner's contract).
+        FakeProtocolEmissionPlanner planner = new()
+        {
+            CannedEmission = new ProtocolEmission
+            {
+                Protocol = ProtocolKind.Anthropic,
+                BaseUrlVariable = "CANNED_BASE_URL",
+                BaseUrlValue = "https://canned.example/v1",
+                ExtraVariables = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["CANNED_API_KEY"] = string.Empty,
+                },
+            },
+        };
+        ClaudeCodeAdapter adapter = CreateAdapter();
+        ResolvedLaunch request = CreateRequest(apiKey: "sk-canned", planner: planner);
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.EnvironmentVariables["CANNED_BASE_URL"])
+            .IsEqualTo("https://canned.example/v1");
+        await Assert.That(plan.Process.EnvironmentVariables["ANTHROPIC_AUTH_TOKEN"])
+            .IsEqualTo("sk-canned");
+        // The planner's key slot is deliberately not filled under its own
+        // name - that variable makes Claude Code raise an approval prompt.
+        await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("CANNED_API_KEY");
+        await Assert.That(planner.PlannedCalls.Count).IsEqualTo(1);
+        await Assert.That(planner.PlannedCalls[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(planner.PlannedCalls[0].BaseUri)
+            .IsEqualTo(new Uri("https://api.example.com/v1/"));
+    }
+
+    [Test]
+    public async Task PlanLaunch_from_the_ad_hoc_case_plans_the_ad_hoc_values()
+    {
+        // The family's other arm: a raw-URL launch reaches the same planner
+        // call with its own base URL (T021), and the session key still
+        // credentials it under the harness's rename.
+        FakeProtocolEmissionPlanner planner = new();
+        ClaudeCodeAdapter adapter = CreateAdapter();
+        ResolvedLaunch request = CreateRequest(
+            model: null,
+            apiKey: "sk-wizard",
+            adHoc: true,
+            planner: planner);
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(planner.PlannedCalls.Count).IsEqualTo(1);
+        await Assert.That(planner.PlannedCalls[0].Protocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(planner.PlannedCalls[0].BaseUri)
+            .IsEqualTo(new Uri("https://api.example.com/v1/"));
+        await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("ANTHROPIC_BASE_URL");
+        await Assert.That(plan.Process.EnvironmentVariables["ANTHROPIC_AUTH_TOKEN"])
+            .IsEqualTo("sk-wizard");
+        await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("OPENAI_BASE_URL");
+    }
+
+    [Test]
+    public async Task PlanLaunch_emits_exactly_one_base_url_variable_and_no_unrelated_protocol_vars()
+    {
+        // Exactly one base-url variable per launch - this harness's own -
+        // and never an OPENAI_* variable or the planner's API-key spelling
+        // beside it (T007).
+        ClaudeCodeAdapter adapter = CreateAdapter();
+        ResolvedLaunch request = CreateRequest();
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        string[] baseUrlVariables =
+        [
+            .. plan.Process.EnvironmentVariables.Keys.Where(
+                key => key.EndsWith("_BASE_URL", StringComparison.Ordinal)),
+        ];
+        await Assert.That(baseUrlVariables).IsEquivalentTo(["ANTHROPIC_BASE_URL"]);
+        await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("OPENAI_BASE_URL");
+        await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("ANTHROPIC_API_KEY");
+        await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("OPENAI_API_KEY");
     }
 }

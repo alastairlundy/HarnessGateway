@@ -329,34 +329,44 @@ public class ConfigurationActionTests
 public class ResolvedLaunchTests
 {
     [Test]
-    public async Task ResolvedLaunch_stores_provider_model_and_working_directory()
+    public async Task ResolvedLaunch_carries_the_case_key_working_directory_and_planner()
     {
-        Provider backend = new Core.Providers.Provider
+        Provider provider = new Core.Providers.Provider
         {
             Name = "test",
             BaseUri = new Uri("https://api.example.com"),
             DefaultProtocol = Core.Providers.ProtocolKind.OpenAiChat
         };
+        LaunchResolution.ProviderCase launch = new(
+            provider, "gpt-4", Core.Providers.ProtocolKind.OpenAiChat);
+        IProtocolEmissionPlanner planner = new ProtocolEmissionPlanner();
 
-        ResolvedLaunch request = new ResolvedLaunch(backend, "gpt-4", "/home/user/project");
+        ResolvedLaunch request = new ResolvedLaunch(
+            launch, "sk-test", "/home/user/project", planner);
 
-        await Assert.That(request.Provider).IsEqualTo(backend);
-        await Assert.That(request.Model).IsEqualTo("gpt-4");
+        // The family rides directly - no synthesized stored-looking provider
+        // between the resolution and the adapter (T021).
+        await Assert.That(request.Launch).IsSameReferenceAs(launch);
+        // The launch-scoped secret, never the at-rest key reference.
+        await Assert.That(request.ApiKey).IsEqualTo("sk-test");
         await Assert.That(request.WorkingDirectory).IsEqualTo("/home/user/project");
+        // The planner arrives through the payload, wired at the composition
+        // root - never reached through statics (T010).
+        await Assert.That(request.EmissionPlanner).IsSameReferenceAs(planner);
     }
 
     [Test]
-    public async Task ResolvedLaunch_allows_null_model()
+    public async Task ResolvedLaunch_allows_a_keyless_ad_hoc_launch()
     {
-        Provider backend = new Core.Providers.Provider
-        {
-            Name = "test",
-            BaseUri = new Uri("https://api.example.com"),
-            DefaultProtocol = Core.Providers.ProtocolKind.OpenAiChat
-        };
+        LaunchResolution.AdHocCase launch = new(
+            new Uri("https://api.example.com"),
+            Core.Providers.ProtocolKind.OpenAiChat,
+            model: null);
 
-        ResolvedLaunch request = new ResolvedLaunch(backend, null, "/tmp");
+        ResolvedLaunch request = new ResolvedLaunch(
+            launch, ApiKey: null, "/tmp", new ProtocolEmissionPlanner());
 
-        await Assert.That(request.Model).IsNull();
+        await Assert.That(request.Launch).IsEqualTo(launch);
+        await Assert.That(request.ApiKey).IsNull();
     }
 }

@@ -164,9 +164,12 @@ public class LaunchOrchestratorTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
             // Parsed flags reached the adapter as a resolved launch: the
             // orchestrator is a request-building adapter over the flow, and
-            // the default-backend pointer is what the request resolved to.
+            // the default-backend pointer is what the request resolved to -
+            // the stored entry riding the payload's provider case (T021).
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Provider.Name).IsEqualTo("default");
+            LaunchResolution.ProviderCase providerCase =
+                (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;
+            await Assert.That(providerCase.Provider.Name).IsEqualTo("default");
         }
         finally
         {
@@ -284,7 +287,8 @@ public class LaunchOrchestratorTests
             keyStore,
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
-            new FakeConfirmationPrompt());
+            new FakeConfirmationPrompt(),
+            new ProtocolEmissionPlanner());
         return (new LaunchOrchestrator(flow), tempDir);
     }
 

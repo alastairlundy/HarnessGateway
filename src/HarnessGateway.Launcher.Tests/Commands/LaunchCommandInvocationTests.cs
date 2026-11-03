@@ -55,7 +55,8 @@ public class LaunchCommandInvocationTests
                 new FakeSecureKeyStore(),
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
-                new FakeConfirmationPrompt()));
+                new FakeConfirmationPrompt(),
+                new ProtocolEmissionPlanner()));
 
         LaunchCommand launchCommand = new LaunchCommand(orchestrator, wizardAction);
         return (new RootCommand { launchCommand }, adapter, tempDir);
@@ -126,9 +127,9 @@ public class LaunchCommandInvocationTests
             // as a launch request. Any of these failing would re-expose the
             // silent no-op this suite guards against.
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Provider.BaseUri)
+            await Assert.That(adapter.LastRequest!.Launch.BaseUri)
                 .IsEqualTo(new Uri("https://api.example.com/v1"));
-            await Assert.That(adapter.LastRequest!.Provider.DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest!.Launch.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
         }
         finally
         {

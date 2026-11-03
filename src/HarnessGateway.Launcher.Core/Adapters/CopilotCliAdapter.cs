@@ -43,26 +43,48 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
+        // Direct case branching (T021): each case hands over its own
+        // effective protocol, base URL, and model - no stored-looking
+        // provider is synthesized in between, and no protocol is computed
+        // here (T018).
+        (ProtocolEmission emission, string? model) = request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
+        // One shared mapping (T007): the emission carries this protocol's
+        // base URL and protocol. This harness reads its own provider-block
+        // names (harness-owned, adapter-side per T007), so the block below
+        // supplies the variable names and the emission supplies the values -
+        // the plan therefore carries exactly this harness's three variables
+        // and never the canonical OPENAI_*/ANTHROPIC_* spellings.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
-            ["COPILOT_PROVIDER_BASE_URL"] = request.Provider.BaseUri.ToString().TrimEnd('/'),
+            ["COPILOT_PROVIDER_BASE_URL"] = emission.BaseUrlValue,
+            ["COPILOT_PROVIDER_TYPE"] = emission.Protocol switch
+            {
+                ProtocolKind.Anthropic => "anthropic",
+                _ => "openai",
+            },
         };
 
-        if (request.Provider.ApiKey is { Length: > 0 })
-            envVars["COPILOT_PROVIDER_API_KEY"] = request.Provider.ApiKey;
-
-        envVars["COPILOT_PROVIDER_TYPE"] = request.Provider.DefaultProtocol switch
+        if (request.ApiKey is { Length: > 0 })
         {
-            ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => "openai",
-            ProtocolKind.Anthropic => "anthropic",
-            _ => "openai",
-        };
+            envVars["COPILOT_PROVIDER_API_KEY"] = request.ApiKey;
+        }
 
         List<string> args = [];
-        if (request.Model is { Length: > 0 })
+        if (model is { Length: > 0 })
         {
             args.Add("--model");
-            args.Add(request.Model);
+            args.Add(model);
         }
 
         ProcessConfiguration config = new("copilot")

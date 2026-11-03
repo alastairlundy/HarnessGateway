@@ -4,6 +4,7 @@ using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 
@@ -41,7 +42,8 @@ public class VersionFlagTests
                 new FakeSecureKeyStore(),
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
-                new FakeConfirmationPrompt()));
+                new FakeConfirmationPrompt(),
+                new ProtocolEmissionPlanner()));
 
         bool wizardCalled = false;
         RootCommand root = RootCommandFactory.Create(

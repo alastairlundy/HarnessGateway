@@ -1394,7 +1394,8 @@ public class ProviderCommandsTests
                 keyStore,
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
-                new FakeConfirmationPrompt()));
+                new FakeConfirmationPrompt(),
+                new ProtocolEmissionPlanner()));
 
         RootCommand root = RootCommandFactory.Create(
             orchestrator,

@@ -125,7 +125,7 @@ setting in the table below is passed only to the process it starts:
 | `opencode`, `kilo`, `pi` | `OPENAI_*` or `ANTHROPIC_*` env vars |
 | `copilot` | `COPILOT_PROVIDER_BASE_URL`, `COPILOT_PROVIDER_API_KEY`, `COPILOT_PROVIDER_TYPE` |
 | `claude-code` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL` |
-| `codex` | a `model_providers.harnessgateway` block written to `config.toml` |
+| `codex` | a `model_providers.harnessgateway` block written to `config.toml`, plus the `OPENAI_BASE_URL` process variable |
 | `opencode-desktop` | `OPENAI_*` or `ANTHROPIC_*` env vars plus `OPENCODE_CONFIG_CONTENT`, an inline session config the app's sidecar server reads. The launcher never writes the app's own config file |
 
 ## Usage
