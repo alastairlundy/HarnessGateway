@@ -581,6 +581,11 @@ public class WizardPipelineTests
             console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("anthropic");
             console.EnqueueChoice("AnthropicCapable");
+            // An "[add new provider]" session is keyless until the user types a
+            // key: it never inherits the default entry's stored credential, so
+            // the key prompt fires even though the default entry has one stored.
+            console.EnqueueText("typed-key");
+            console.EnqueueChoice("[skip]");
 
             WizardResult? result = await pipeline.RunAsync();
 
@@ -588,15 +593,17 @@ public class WizardPipelineTests
             await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Endpoint).IsEqualTo("https://new.example.com/v1");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(result.ApiKey).IsEqualTo("saved-key");
+            await Assert.That(result.ProviderName).IsNull();
+            await Assert.That(result.ApiKey).IsEqualTo("typed-key");
 
-            await Assert.That(console.Prompts.Count).IsEqualTo(6);
+            await Assert.That(console.Prompts.Count).IsEqualTo(7);
             await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
             await Assert.That(console.Prompts[1].Title).IsEqualTo("Select a provider:");
             await Assert.That(console.Prompts[2].Title).IsEqualTo("Endpoint URL:");
             await Assert.That(console.Prompts[3].Title).IsEqualTo("Protocol:");
             await Assert.That(console.Prompts[4].Title).IsEqualTo("Select a harness:");
-            await Assert.That(console.Prompts[5].Title).IsEqualTo("Model catalogue unavailable:");
+            await Assert.That(console.Prompts[5].Title).IsEqualTo("API key (will not be saved):");
+            await Assert.That(console.Prompts[6].Title).IsEqualTo("Model catalogue unavailable:");
             await Assert.That(
                 console.Prompts[4].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
                 .IsEqualTo("incompatible: anthropic");

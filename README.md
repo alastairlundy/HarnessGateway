@@ -357,10 +357,21 @@ harnessgateway provider model remove <provider> <name>
 harnessgateway provider model list <provider>
 ```
 
-`provider model add` creates an entry, or replaces an existing one of the
-same name. `--protocol` is optional; when omitted the entry inherits the
-provider's default protocol. `provider model remove` deletes the entry.
+`provider model add` appends a new entry to the catalog. `--protocol` is
+optional; when omitted the entry inherits the provider's default protocol. A
+name that is already listed for the provider (case-insensitively) exits with
+code 2 rather than replacing the existing entry; remove it first with
+`provider model remove` if you want to change it. `provider model remove`
+deletes the entry; a model name that is not listed exits with code 2.
 `provider model list` prints the entry names.
+
+A provider with an empty catalog launches any model on its default protocol
+(or the entry's own override once one is listed). A provider with a non-empty
+catalog is the opposite: launching with a model that is not in the list —
+whether passed with `--model` or stored as the entry's default model — is a
+user-rectifiable refusal that exits with code 3. Passing a complete
+`--endpoint <url> --protocol <protocol>` pair for the launch exempts it from
+that guard.
 
 For `remove`, `set-key`, and `clear-key`, a name that matches no saved entry
 exits with code 8.
@@ -391,7 +402,7 @@ leaves it untouched.
 |------|------|---------|
 | 0 | Ok | Command succeeded; for `launch`, the harness process itself exited 0 — or, for a detached GUI launch (`--persist config`), the app was handed off successfully and there is no exit status to wait for |
 | 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), a `remove` that would break the default pointer or empty the entry list, or `--confirm-running` against a CLI harness, which has no running instance to confirm (ConfirmUnsupportedForHarness) |
-| 3 | UnknownAgent | Unrecognized harness identifier, or a protocol the chosen harness doesn't support. A near miss prompts a suggestion of the correct identifier |
+| 3 | UnknownAgent | Unrecognized harness identifier, a protocol the chosen harness doesn't support, or a launch whose effective model is not listed in a provider's non-empty catalog (UnlistedModel). A near miss prompts a suggestion of the correct identifier or entry name |
 | 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` (for a GUI harness: not found on `PATH` or in the OS's conventional install locations), or a GUI launch stopped because an already-running instance was not confirmed (RunningInstanceUnconfirmed), or because the harness's declared configuration surfaces cannot carry the launch's key or overrides (GuiProviderUnsupported) |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
 | 6 | RequiredModelMissing | **Reserved.** Declared but never returned; the launcher prints a warning when a harness requires a model but has none, then launches it anyway |

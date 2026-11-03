@@ -5,13 +5,14 @@ namespace HarnessGateway.Launcher.Wizard;
 
 /// <summary>
 /// The outcome of one <see cref="ModelStep"/> run: the selected model name (or
-/// <c>null</c> when skipped/unavailable), the effective protocol for that
-/// selection, and the model entries emitted in settings-schema shape.
+/// <c>null</c> when skipped/unavailable) and the effective protocol for that
+/// selection (null when the selection carries no protocol finding). The wizard
+/// is write-free: model entries are saved only through the
+/// <c>provider model</c> verbs, never here.
 /// </summary>
 public sealed record ModelSelection(
     string? Model,
-    ProtocolKind? Protocol,
-    IReadOnlyList<ModelEntry> Models);
+    ProtocolKind? Protocol);
 
 public sealed class ModelStep
 {
@@ -37,25 +38,28 @@ public sealed class ModelStep
 
     public async Task<ModelSelection> RunAsync(bool requiresModel, string? savedDefaultModel, CancellationToken cancellationToken = default)
     {
-        // Fetch the catalog once per protocol kind, merging the results into one
-        // listing tagged with every protocol each model was found under.
+        // Fetch the catalog once per wire family, not per protocol kind, merging
+        // the results into one listing tagged with every protocol each model was
+        // found under. Chat and responses produce identical client requests
+        // (both hit /v1/models with bearer auth), so sharing one fetch and
+        // tagging both kinds is the same union three separate fetches produced -
+        // at two requests instead of three.
         Dictionary<string, HashSet<ProtocolKind>> found = new(StringComparer.OrdinalIgnoreCase);
 
         if (_fetchModels is not null && _provider is not null)
         {
-            ProtocolKind[] kinds =
+            (ProtocolKind FetchProtocol, IReadOnlyList<ProtocolKind> Tagged)[] fetches =
             [
-                ProtocolKind.OpenAiChat,
-                ProtocolKind.OpenAiResponses,
-                ProtocolKind.Anthropic
+                (ProtocolKind.OpenAiChat, [ProtocolKind.OpenAiChat, ProtocolKind.OpenAiResponses]),
+                (ProtocolKind.Anthropic, [ProtocolKind.Anthropic]),
             ];
 
-            foreach (ProtocolKind kind in kinds)
+            foreach ((ProtocolKind fetchProtocol, IReadOnlyList<ProtocolKind> tagged) in fetches)
             {
                 try
                 {
                     ModelCatalog catalog = await _fetchModels(
-                        _provider with { DefaultProtocol = kind }, cancellationToken).ConfigureAwait(true);
+                        _provider with { DefaultProtocol = fetchProtocol }, cancellationToken).ConfigureAwait(true);
 
                     foreach (ModelCatalogEntry model in catalog.Models)
                     {
@@ -65,7 +69,10 @@ public sealed class ModelStep
                             found[model.Id] = set;
                         }
 
-                        set.Add(kind);
+                        foreach (ProtocolKind kind in tagged)
+                        {
+                            set.Add(kind);
+                        }
                     }
                 }
                 catch
@@ -126,12 +133,12 @@ public sealed class ModelStep
 
         if (string.Equals(selected, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
-            return new ModelSelection(null, null, []);
+            return new ModelSelection(null, null);
         }
 
         if (!found.TryGetValue(selected, out HashSet<ProtocolKind>? selectedProtocols) || selectedProtocols is null)
         {
-            return new ModelSelection(selected, null, [new ModelEntry { Name = selected }]);
+            return new ModelSelection(selected, null);
         }
 
         // Determine the effective protocol: prompt only when more than one
@@ -158,13 +165,10 @@ public sealed class ModelStep
             effectiveProtocol = selectedProtocols.First();
         }
 
-        ProtocolKind? overrideProtocol = effectiveProtocol == _provider!.DefaultProtocol
-            ? null
-            : effectiveProtocol;
-
-        IReadOnlyList<ModelEntry> models = [new ModelEntry { Name = selected, Protocol = overrideProtocol }];
-
-        return new ModelSelection(selected, effectiveProtocol, models);
+        // The effective protocol is the model's own protocol; the wizard
+        // records it on the result and the launch path applies it. No
+        // ModelEntry is persisted anywhere - the wizard is write-free.
+        return new ModelSelection(selected, effectiveProtocol);
     }
 
     private async Task<ModelSelection> RunDegradedAsync(
@@ -179,8 +183,7 @@ public sealed class ModelStep
 
             return new ModelSelection(
                 savedDefaultModel,
-                null,
-                [new ModelEntry { Name = savedDefaultModel }]);
+                null);
         }
 
         if (requiresModel)
@@ -191,8 +194,7 @@ public sealed class ModelStep
 
             return new ModelSelection(
                 trimmed,
-                null,
-                trimmed is null ? [] : [new ModelEntry { Name = trimmed }]);
+                null);
         }
 
         string skip = await _console.PromptChoiceAsync("Model catalogue unavailable:", [
@@ -202,7 +204,7 @@ public sealed class ModelStep
 
         if (string.Equals(skip, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
-            return new ModelSelection(null, null, []);
+            return new ModelSelection(null, null);
         }
 
         string manualModel = await _console.PromptTextAsync("Enter model name:", cancellationToken: cancellationToken).ConfigureAwait(true);
@@ -210,8 +212,7 @@ public sealed class ModelStep
 
         return new ModelSelection(
             manual,
-            null,
-            manual is null ? [] : [new ModelEntry { Name = manual }]);
+            null);
     }
 
     private static ProtocolKind? ParseProtocol(string value) => value switch

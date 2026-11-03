@@ -117,10 +117,18 @@ public sealed class WizardPipeline
             annotateIncompatible = true;
         }
 
-        // Resolve the saved entry before the key and model steps so catalogue HTTP
-        // auth and the key step both see the secret, never the at-rest
-        // reference - and so a dangling reference names the saved provider.
-        Provider? resolvedProvider = providerResult.provider ?? defaultProvider;
+        // Resolve the chosen stored entry (the provider step's pick) before the
+        // key and model steps so catalogue HTTP auth and the key step both see
+        // the secret, never the at-rest reference - and so a dangling reference
+        // names the saved provider.
+        //
+        // An "[add new provider]" session resolves to nothing: the fresh
+        // endpoint is keyless until the user types a key, and it never
+        // inherits the default entry's stored credential or default model -
+        // the default entry is not what the user picked, so its allowance to
+        // speak for the wizard's launch does not extend to an arbitrary new
+        // endpoint. A first run resolves to nothing too (no entries exist).
+        Provider? resolvedProvider = providerResult.provider;
         if (resolvedProvider is not null)
         {
             try
@@ -147,7 +155,7 @@ public sealed class WizardPipeline
 
         ModelStep modelStep = new(_console, _catalogClient, effectiveProvider);
         bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
-        string? savedDefaultModel = providerResult.provider?.DefaultModel ?? defaultProvider?.DefaultModel;
+        string? savedDefaultModel = providerResult.provider?.DefaultModel;
         ModelSelection modelSelection = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
 
         ProtocolKind effectiveProtocol = modelSelection.Protocol ?? providerResult.protocol;
@@ -158,8 +166,7 @@ public sealed class WizardPipeline
             Endpoint: providerResult.endpoint!,
             Protocol: effectiveProtocol,
             ApiKey: apiKey,
-            Model: modelSelection.Model,
-            Models: modelSelection.Models));
+            Model: modelSelection.Model));
         }
         catch (OperationCanceledException)
         {
@@ -382,7 +389,11 @@ public sealed class WizardPipeline
 
         if (string.Equals(pick, "[add new provider]", StringComparison.OrdinalIgnoreCase))
         {
-            (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(defaultProvider, cancellationToken).ConfigureAwait(true);
+            // No prefill: a new session entry starts with a blank endpoint.
+            // Prefilling the default entry's URL here would let a bare Enter
+            // silently re-adopt it, while the launch still runs as an ad-hoc
+            // keyless session - the user picked "add new", not the default.
+            (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(null, cancellationToken).ConfigureAwait(true);
             if (ep is null) return (null, ProtocolKind.OpenAiChat, null);
             return (ep, proto, null);
         }
