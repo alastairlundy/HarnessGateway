@@ -1,6 +1,6 @@
 # Out of scope — standing refusals
 
-Proposed, considered, and deliberately rejected behaviors for the `harnessgateway` launcher. Do not re-propose any of these without a new decision — each was a considered rejection, not an oversight. (The dated decisions behind them lived in a decision ledger that has since been deleted; this file preserves the refusals, not the process.)
+Proposed, considered, and deliberately rejected behaviors for the `harnessgateway` launcher. Do not re-propose any of these without a new decision — each was a considered rejection, not an oversight. (The dated decisions behind them are preserved in git history; this file preserves the refusals, not the process.)
 
 ## Credentials
 
