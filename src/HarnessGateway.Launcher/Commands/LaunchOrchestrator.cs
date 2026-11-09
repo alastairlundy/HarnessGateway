@@ -27,14 +27,14 @@ public sealed class LaunchOrchestrator
     /// <summary>
     /// The direct CLI path: parsed flags and nothing more. The direct path
     /// never carries a launch-time key - keys are a stored-entry concern here
-    /// (set via <c>config backend set-key</c>) - so the request always builds
+    /// (set via <c>provider set-key</c>) - so the request always builds
     /// with a null <see cref="LaunchRequest.SessionKey"/>. The
     /// <paramref name="confirmRunning"/> fact rides verbatim from the flag: the
     /// request builder never inspects the harness kind, because the misuse
     /// refusal (flag against a Kind=Cli harness) belongs to the flow.
     /// </summary>
     public async Task<int> RunAsync(
-        string agentName, string? backendName,
+        string agentName, string? providerName,
         string? endpoint, string? protocol,
         string? model, IReadOnlyList<string> persistValues,
         bool confirmRunning = false,
@@ -42,7 +42,7 @@ public sealed class LaunchOrchestrator
     {
         LaunchRequest request = new(
             agentName,
-            backendName,
+            providerName,
             endpoint,
             protocol,
             model,
@@ -106,29 +106,33 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// Exhaustive over the fifteen refusal kinds: every kind names its
+    /// Exhaustive over the sixteen refusal kinds: every kind names its
     /// exit code explicitly so a newly added kind cannot silently land on a
     /// catch-all default. Codes are today's values, preserved byte-for-byte;
-    /// the three GUI kinds are producer additions to existing families, not
-    /// new numbers.
+    /// the three GUI kinds are producer additions to existing families, and
+    /// the unlisted-model kind reuses the UnknownAgent number per T006 -
+    /// none of them new numbers.
     /// </summary>
     private static int ExitCodeFor(LaunchRefusalKind kind) => kind switch
     {
-        LaunchRefusalKind.NoBackend => (int)LaunchExitCode.UsageError,
+        LaunchRefusalKind.NoProvider => (int)LaunchExitCode.UsageError,
         LaunchRefusalKind.UnknownHarness => (int)LaunchExitCode.UnknownAgent,
         LaunchRefusalKind.HarnessUnavailable => (int)LaunchExitCode.HarnessUnavailable,
         LaunchRefusalKind.ProtocolNotSupported => (int)LaunchExitCode.UnknownAgent,
+        // The unlisted-model refusal reuses exit 3: no new exit code, the
+        // README table keeps its size (T006).
+        LaunchRefusalKind.UnlistedModel => (int)LaunchExitCode.UnknownAgent,
         LaunchRefusalKind.ProviderBlockConflict => (int)LaunchExitCode.ConfigConflict,
         // GUI stops reuse the unavailable-harness family: a confirmation
         // nothing confirmed and a surface nothing can carry both mean this
         // launch cannot run as asked.
         LaunchRefusalKind.RunningInstanceUnconfirmed
-            or LaunchRefusalKind.GuiBackendUnsupported => (int)LaunchExitCode.HarnessUnavailable,
+            or LaunchRefusalKind.GuiProviderUnsupported => (int)LaunchExitCode.HarnessUnavailable,
         // Flag misuse is a usage error, same as every other bad-flag stop.
         LaunchRefusalKind.ConfirmUnsupportedForHarness => (int)LaunchExitCode.UsageError,
-        LaunchRefusalKind.UnknownBackendName
-            or LaunchRefusalKind.DanglingDefaultBackend
-            or LaunchRefusalKind.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
+        LaunchRefusalKind.UnknownProviderName
+            or LaunchRefusalKind.DanglingDefaultProvider
+            or LaunchRefusalKind.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
         // Pair-rule and invalid-override refusals keep the resolution
         // failure's default: usage error.
         LaunchRefusalKind.ProtocolWithoutEndpoint

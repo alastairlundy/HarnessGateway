@@ -3,7 +3,7 @@ using HarnessGateway.Launcher.Commands;
 namespace HarnessGateway.Launcher.Tests.Fakes;
 
 /// <summary>
-/// Scripted <see cref="IKeyPrompt"/> for the <c>config backend add</c> prompt
+/// Scripted <see cref="IKeyPrompt"/> for the <c>provider add</c> prompt
 /// seam: records how often the prompt would have been shown and returns the
 /// scripted value (null = the user declined, so the entry stays keyless).
 /// </summary>
@@ -18,7 +18,7 @@ public sealed class ScriptedKeyPrompt : IKeyPrompt
 
     public int CallCount { get; private set; }
 
-    public string? PromptForNewKey(string backendName, bool entryHasKey)
+    public string? PromptForNewKey(string providerName, bool entryHasKey)
     {
         CallCount++;
         return _key;

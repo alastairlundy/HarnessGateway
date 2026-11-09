@@ -1,6 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 using HarnessGateway.Launcher.Wizard;
@@ -177,6 +177,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("[add new provider]");
             console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("anthropic");
 
@@ -232,7 +233,6 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
-            console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("my-api-key");
 
             WizardResult? result = await pipeline.RunAsync();
@@ -317,8 +317,8 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             LauncherSettings savedSettings = await store.LoadAsync();
-            await Assert.That(savedSettings.Backends).IsEmpty();
-            await Assert.That(savedSettings.DefaultBackend).IsEmpty();
+            await Assert.That(savedSettings.Providers).IsEmpty();
+            await Assert.That(savedSettings.DefaultProvider).IsEmpty();
         }
         finally
         {
@@ -357,7 +357,7 @@ public class WizardPipelineTests
         {
             File.WriteAllText(
                 store.SettingsFilePath,
-                """{ "backends": [], "defaultBackend": "", "schemaVersion": 3 }""");
+                """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
 
             TestConsole console = new TestConsole();
             IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
@@ -414,7 +414,7 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_absent_default_pointer_writes_error_and_returns_null()
     {
-        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "" };
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultProvider = "" };
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
@@ -427,7 +427,7 @@ public class WizardPipelineTests
             await Assert.That(result).IsNull();
             await Assert.That(console.Prompts).IsEmpty();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
-            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultBackend");
+            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultProvider");
         }
         finally
         {
@@ -438,7 +438,7 @@ public class WizardPipelineTests
     [Test]
     public async Task RunAsync_dangling_default_pointer_writes_error_and_returns_null()
     {
-        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultBackend = "ghost" };
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings() with { DefaultProvider = "ghost" };
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
         try
         {
@@ -452,7 +452,7 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts).IsEmpty();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("'ghost'");
-            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultBackend");
+            await Assert.That(console.ErrorMessages[0]).Contains("config set defaultProvider");
         }
         finally
         {
@@ -494,7 +494,6 @@ public class WizardPipelineTests
 
             console.EnqueueChoice("OpenAiOnly");
             console.EnqueueChoice("AnthropicCapable");
-            console.EnqueueText("https://api.anthropic.example.com/v1");
             console.EnqueueText("anthropic-key");
 
             WizardResult? result = await pipeline.RunAsync();
@@ -578,9 +577,15 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
 
             console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("[add new provider]");
             console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("anthropic");
             console.EnqueueChoice("AnthropicCapable");
+            // An "[add new provider]" session is keyless until the user types a
+            // key: it never inherits the default entry's stored credential, so
+            // the key prompt fires even though the default entry has one stored.
+            console.EnqueueText("typed-key");
+            console.EnqueueChoice("[skip]");
 
             WizardResult? result = await pipeline.RunAsync();
 
@@ -588,16 +593,19 @@ public class WizardPipelineTests
             await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Endpoint).IsEqualTo("https://new.example.com/v1");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(result.ApiKey).IsEqualTo("saved-key");
+            await Assert.That(result.ProviderName).IsNull();
+            await Assert.That(result.ApiKey).IsEqualTo("typed-key");
 
-            await Assert.That(console.Prompts.Count).IsEqualTo(5);
+            await Assert.That(console.Prompts.Count).IsEqualTo(7);
             await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
-            await Assert.That(console.Prompts[1].Title).IsEqualTo("Endpoint URL:");
-            await Assert.That(console.Prompts[2].Title).IsEqualTo("Protocol:");
-            await Assert.That(console.Prompts[3].Title).IsEqualTo("Select a harness:");
-            await Assert.That(console.Prompts[4].Title).IsEqualTo("Model catalogue unavailable:");
+            await Assert.That(console.Prompts[1].Title).IsEqualTo("Select a provider:");
+            await Assert.That(console.Prompts[2].Title).IsEqualTo("Endpoint URL:");
+            await Assert.That(console.Prompts[3].Title).IsEqualTo("Protocol:");
+            await Assert.That(console.Prompts[4].Title).IsEqualTo("Select a harness:");
+            await Assert.That(console.Prompts[5].Title).IsEqualTo("API key (will not be saved):");
+            await Assert.That(console.Prompts[6].Title).IsEqualTo("Model catalogue unavailable:");
             await Assert.That(
-                console.Prompts[3].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
+                console.Prompts[4].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
                 .IsEqualTo("incompatible: anthropic");
             await Assert.That(console.ErrorMessages.Count).IsEqualTo(1);
             await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
@@ -698,7 +706,6 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
-            console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("ordered-key");
 
             WizardResult? result = await pipeline.RunAsync();
@@ -706,7 +713,7 @@ public class WizardPipelineTests
             await Assert.That(result).IsNotNull();
             await Assert.That(console.Prompts.Count).IsEqualTo(4);
             await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
-            await Assert.That(console.Prompts[1].Title).IsEqualTo("Endpoint URL:");
+            await Assert.That(console.Prompts[1].Title).IsEqualTo("Select a provider:");
             await Assert.That(console.Prompts[2].Title).IsEqualTo("API key (will not be saved):");
             await Assert.That(console.Prompts[3].Title).IsEqualTo("Model catalogue unavailable:");
         }
@@ -749,9 +756,9 @@ public class WizardPipelineTests
             await Assert.That(result).IsNotNull();
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(2);
-            await Assert.That(after.Backends.Count).IsEqualTo(before.Backends.Count);
-            await Assert.That(after.Backends[0].Name).IsEqualTo(before.Backends[0].Name);
-            await Assert.That(after.DefaultBackend).IsEqualTo(before.DefaultBackend);
+            await Assert.That(after.Providers.Count).IsEqualTo(before.Providers.Count);
+            await Assert.That(after.Providers[0].Name).IsEqualTo(before.Providers[0].Name);
+            await Assert.That(after.DefaultProvider).IsEqualTo(before.DefaultProvider);
         }
         finally
         {
@@ -772,7 +779,6 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("RequiredAgent");
-            console.EnqueueText("https://api.example.com/v1");
             console.EnqueueText("required-model");
 
             WizardResult? result = await pipeline.RunAsync();
@@ -804,7 +810,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
-            console.EnqueueText("https://api.example.com/v1");
+            console.EnqueueChoice("default");
             console.EnqueueChoice("[skip]");
 
             WizardResult? result = await pipeline.RunAsync();

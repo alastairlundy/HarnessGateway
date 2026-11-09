@@ -12,17 +12,17 @@ public enum LaunchRefusalKind
     /// <summary>The harness is known but not installed or not detectable.</summary>
     HarnessUnavailable,
 
-    /// <summary>No backend could be used: empty settings and no complete endpoint/protocol override.</summary>
-    NoBackend,
+    /// <summary>No provider could be used: empty settings and no complete endpoint/protocol override.</summary>
+    NoProvider,
 
-    /// <summary>--backend named no saved backend entry.</summary>
-    UnknownBackendName,
+    /// <summary>--provider named no saved provider entry.</summary>
+    UnknownProviderName,
 
-    /// <summary>The DefaultBackend pointer names no saved backend entry.</summary>
-    DanglingDefaultBackend,
+    /// <summary>The DefaultProvider pointer names no saved provider entry.</summary>
+    DanglingDefaultProvider,
 
-    /// <summary>The DefaultBackend pointer is empty while entries exist (no first-entry fallback).</summary>
-    AbsentDefaultBackend,
+    /// <summary>The DefaultProvider pointer is empty while entries exist (no first-entry fallback).</summary>
+    AbsentDefaultProvider,
 
     /// <summary>--protocol was given without --endpoint.</summary>
     ProtocolWithoutEndpoint,
@@ -56,8 +56,15 @@ public enum LaunchRefusalKind
 
     /// <summary>
     /// The GUI harness's declared configuration surfaces cannot carry what
-    /// this launch asked to deliver: a backend or model override with no
+    /// this launch asked to deliver: a provider or model override with no
     /// capable surface, or a key when only file surfaces are declared.
     /// </summary>
-    GuiBackendUnsupported,
+    GuiProviderUnsupported,
+
+    /// <summary>
+    /// The effective model names no entry in the provider's non-empty models
+    /// array (or a DefaultModel missing from it) - the user-rectifiable
+    /// unlisted-model refusal that reuses exit code 3.
+    /// </summary>
+    UnlistedModel,
 }

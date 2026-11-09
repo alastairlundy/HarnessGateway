@@ -44,33 +44,54 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
+        // Direct case branching (T021): each case hands over its own
+        // effective protocol, base URL, and model - no stored-looking
+        // provider is synthesized in between, and no protocol is computed
+        // here (T018).
+        (ProtocolEmission emission, string? model) = request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
         // claude-code is configured exclusively through environment variables
         // scoped to the spawned process. No config file is ever read or written,
         // so the user's durable Claude Code settings are untouched and the
-        // launcher's own process environment is never mutated.
+        // launcher's own process environment is never mutated. The emission's
+        // base-url variable merges verbatim - ANTHROPIC_BASE_URL is this
+        // harness's spelling too.
         List<ConfigurationAction> actions = [];
         Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
-            ["ANTHROPIC_BASE_URL"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
+            [emission.BaseUrlVariable] = emission.BaseUrlValue,
         };
 
-        // Token choice: ANTHROPIC_AUTH_TOKEN, never ANTHROPIC_API_KEY - the
-        // latter makes Claude Code raise an interactive approval prompt. Key
-        // handling: inject the saved key only when the resolved backend entry
-        // has one; with no key saved there is no token variable at all.
-        if (request.Backend.ApiKey is { Length: > 0 })
+        // Token choice (harness-owned rename, adapter-side per T007):
+        // ANTHROPIC_AUTH_TOKEN, never the emission's ANTHROPIC_API_KEY slot -
+        // the latter makes Claude Code raise an interactive approval prompt.
+        // The key therefore lands under this harness's own name and the
+        // planner's slot stays unfilled. Key handling: inject the saved key
+        // only when the launch carries one; with no key there is no token
+        // variable at all.
+        if (request.ApiKey is { Length: > 0 })
         {
-            envVars["ANTHROPIC_AUTH_TOKEN"] = request.Backend.ApiKey;
+            envVars["ANTHROPIC_AUTH_TOKEN"] = request.ApiKey;
         }
 
         // The model is optional for claude-code. When one is chosen it reaches
         // the harness as ANTHROPIC_MODEL on the spawned process environment,
         // and the plan records the optional --model CLI argument action.
         // No config-file write either way.
-        if (request.Model is { Length: > 0 })
+        if (model is { Length: > 0 })
         {
-            envVars["ANTHROPIC_MODEL"] = request.Model;
-            actions.Add(new CliArgumentAction("--model", request.Model));
+            envVars["ANTHROPIC_MODEL"] = model;
+            actions.Add(new CliArgumentAction("--model", model));
         }
 
         ProcessConfiguration config = new("claude")

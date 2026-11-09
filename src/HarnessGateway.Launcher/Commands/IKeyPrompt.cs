@@ -2,5 +2,5 @@ namespace HarnessGateway.Launcher.Commands;
 
 internal interface IKeyPrompt
 {
-    string? PromptForNewKey(string backendName, bool entryHasKey);
+    string? PromptForNewKey(string providerName, bool entryHasKey);
 }

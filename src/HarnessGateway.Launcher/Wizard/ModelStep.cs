@@ -1,58 +1,101 @@
-using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 
 namespace HarnessGateway.Launcher.Wizard;
+
+/// <summary>
+/// The outcome of one <see cref="ModelStep"/> run: the selected model name (or
+/// <c>null</c> when skipped/unavailable) and the effective protocol for that
+/// selection (null when the selection carries no protocol finding). The wizard
+/// is write-free: model entries are saved only through the
+/// <c>provider model</c> verbs, never here.
+/// </summary>
+public sealed record ModelSelection(
+    string? Model,
+    ProtocolKind? Protocol);
 
 public sealed class ModelStep
 {
     private readonly IConsoleAbstraction _console;
-    private readonly Func<Backend, CancellationToken, Task<ModelCatalog>>? _fetchModels;
-    private readonly Backend? _backend;
+    private readonly Func<Provider, CancellationToken, Task<ModelCatalog>>? _fetchModels;
+    private readonly Provider? _provider;
 
-    public ModelStep(IConsoleAbstraction console, Func<Backend, CancellationToken, Task<ModelCatalog>>? fetchModels, Backend? backend)
+    public ModelStep(IConsoleAbstraction console, Func<Provider, CancellationToken, Task<ModelCatalog>>? fetchModels, Provider? backend)
     {
         _console = console;
         _fetchModels = fetchModels;
-        _backend = backend;
+        _provider = backend;
     }
 
-    public ModelStep(IConsoleAbstraction console, ModelCatalogClient? catalogClient, Backend? backend)
+    public ModelStep(IConsoleAbstraction console, ModelCatalogClient? catalogClient, Provider? backend)
     {
         _console = console;
         _fetchModels = catalogClient is not null && backend is not null
             ? (b, ct) => catalogClient.FetchModelsAsync(b, ct)
             : null;
-        _backend = backend;
+        _provider = backend;
     }
 
-    public async Task<string?> RunAsync(bool requiresModel, string? savedDefaultModel, CancellationToken cancellationToken = default)
+    public async Task<ModelSelection> RunAsync(bool requiresModel, string? savedDefaultModel, CancellationToken cancellationToken = default)
     {
-        ModelCatalog? catalog = null;
+        // Fetch the catalog once per wire family, not per protocol kind, merging
+        // the results into one listing tagged with every protocol each model was
+        // found under. Chat and responses produce identical client requests
+        // (both hit /v1/models with bearer auth), so sharing one fetch and
+        // tagging both kinds is the same union three separate fetches produced -
+        // at two requests instead of three.
+        Dictionary<string, HashSet<ProtocolKind>> found = new(StringComparer.OrdinalIgnoreCase);
 
-        if (_fetchModels is not null && _backend is not null)
+        if (_fetchModels is not null && _provider is not null)
         {
-            try
+            (ProtocolKind FetchProtocol, IReadOnlyList<ProtocolKind> Tagged)[] fetches =
+            [
+                (ProtocolKind.OpenAiChat, [ProtocolKind.OpenAiChat, ProtocolKind.OpenAiResponses]),
+                (ProtocolKind.Anthropic, [ProtocolKind.Anthropic]),
+            ];
+
+            foreach ((ProtocolKind fetchProtocol, IReadOnlyList<ProtocolKind> tagged) in fetches)
             {
-                catalog = await _fetchModels(_backend, cancellationToken).ConfigureAwait(true);
-            }
-            catch
-            {
-                await Task.Run(() => _console.WriteError("Could not fetch model catalogue. Endpoint may be unreachable."), cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    ModelCatalog catalog = await _fetchModels(
+                        _provider with { DefaultProtocol = fetchProtocol }, cancellationToken).ConfigureAwait(true);
+
+                    foreach (ModelCatalogEntry model in catalog.Models)
+                    {
+                        if (!found.TryGetValue(model.Id, out HashSet<ProtocolKind>? set))
+                        {
+                            set = new HashSet<ProtocolKind>();
+                            found[model.Id] = set;
+                        }
+
+                        foreach (ProtocolKind kind in tagged)
+                        {
+                            set.Add(kind);
+                        }
+                    }
+                }
+                catch
+                {
+                    await Task.Run(() => _console.WriteError(
+                        "Could not fetch model catalogue. Endpoint may be unreachable."),
+                        cancellationToken).ConfigureAwait(false);
+                }
             }
         }
 
-        bool hasCatalog = catalog is { Models.Count: > 0 };
+        bool hasCatalog = found.Count > 0;
 
-        if (!hasCatalog || catalog is null)
+        if (!hasCatalog || _provider is null)
         {
             return await RunDegradedAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
         }
 
-        return await RunWithCatalogAsync(catalog,
-            requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
+        return await RunWithCatalogAsync(found, requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
     }
 
-    private async Task<string?> RunWithCatalogAsync(
-        ModelCatalog catalog,
+    private async Task<ModelSelection> RunWithCatalogAsync(
+        Dictionary<string, HashSet<ProtocolKind>> found,
         bool requiresModel,
         string? savedDefaultModel,
         CancellationToken cancellationToken)
@@ -64,13 +107,22 @@ public sealed class ModelStep
             choices.Add(new ConsoleChoice("[skip]", "do not set a model"));
         }
 
-        foreach (ModelCatalogEntry model in catalog.Models)
+        foreach (KeyValuePair<string, HashSet<ProtocolKind>> entry in found.OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase))
         {
-            // Raw text - SpectreConsoleAbstraction renders annotations in parens.
-            string? annotation = string.Equals(model.Id, savedDefaultModel, StringComparison.OrdinalIgnoreCase)
-                ? "saved default"
-                : null;
-            choices.Add(new ConsoleChoice(model.Id, annotation));
+            List<string> annotationParts = [];
+
+            // Protocols found under, in stable kind order.
+            string protocolsText = string.Join(
+                ", ",
+                entry.Value.OrderBy(p => p).Select(ProviderResolution.ProtocolName));
+            annotationParts.Add(protocolsText);
+
+            if (string.Equals(entry.Key, savedDefaultModel, StringComparison.OrdinalIgnoreCase))
+            {
+                annotationParts.Add("saved default");
+            }
+
+            choices.Add(new ConsoleChoice(entry.Key, string.Join("; ", annotationParts)));
         }
 
         string title = requiresModel
@@ -81,27 +133,68 @@ public sealed class ModelStep
 
         if (string.Equals(selected, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return new ModelSelection(null, null);
         }
 
-        return selected;
+        if (!found.TryGetValue(selected, out HashSet<ProtocolKind>? selectedProtocols) || selectedProtocols is null)
+        {
+            return new ModelSelection(selected, null);
+        }
+
+        // Determine the effective protocol: prompt only when more than one
+        // protocol was found, preselecting the provider default when present.
+        ProtocolKind effectiveProtocol;
+        if (selectedProtocols.Count > 1)
+        {
+            List<ProtocolKind> ordered = selectedProtocols
+                .OrderBy(p => p == _provider!.DefaultProtocol ? 0 : 1)
+                .ThenBy(p => p)
+                .ToList();
+
+            List<ConsoleChoice> protocolChoices = ordered
+                .Select(p => new ConsoleChoice(ProviderResolution.ProtocolName(p)))
+                .ToList();
+
+            string protocolStr = await _console.PromptChoiceAsync(
+                "Protocol:", protocolChoices, cancellationToken).ConfigureAwait(true);
+
+            effectiveProtocol = ParseProtocol(protocolStr) ?? selectedProtocols.First();
+        }
+        else
+        {
+            effectiveProtocol = selectedProtocols.First();
+        }
+
+        // The effective protocol is the model's own protocol; the wizard
+        // records it on the result and the launch path applies it. No
+        // ModelEntry is persisted anywhere - the wizard is write-free.
+        return new ModelSelection(selected, effectiveProtocol);
     }
 
-    private async Task<string?> RunDegradedAsync(
+    private async Task<ModelSelection> RunDegradedAsync(
         bool requiresModel,
         string? savedDefaultModel,
         CancellationToken cancellationToken)
     {
         if (savedDefaultModel is not null)
         {
-            await Task.Run(() => _console.WriteMarkup($"Using saved default model: [green]{savedDefaultModel}[/]"), cancellationToken).ConfigureAwait(false);
-            return savedDefaultModel;
+            await Task.Run(() => _console.WriteMarkup(
+                $"Using saved default model: [green]{savedDefaultModel}[/]"), cancellationToken).ConfigureAwait(false);
+
+            return new ModelSelection(
+                savedDefaultModel,
+                null);
         }
 
         if (requiresModel)
         {
-            string model = await _console.PromptTextAsync("Enter model name (required):", cancellationToken: cancellationToken).ConfigureAwait(true);
-            return string.IsNullOrWhiteSpace(model) ? null : model.Trim();
+            string model = await _console.PromptTextAsync(
+                "Enter model name (required):", cancellationToken: cancellationToken).ConfigureAwait(true);
+            string? trimmed = string.IsNullOrWhiteSpace(model) ? null : model.Trim();
+
+            return new ModelSelection(
+                trimmed,
+                null);
         }
 
         string skip = await _console.PromptChoiceAsync("Model catalogue unavailable:", [
@@ -111,10 +204,22 @@ public sealed class ModelStep
 
         if (string.Equals(skip, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return new ModelSelection(null, null);
         }
 
         string manualModel = await _console.PromptTextAsync("Enter model name:", cancellationToken: cancellationToken).ConfigureAwait(true);
-        return string.IsNullOrWhiteSpace(manualModel) ? null : manualModel.Trim();
+        string? manual = string.IsNullOrWhiteSpace(manualModel) ? null : manualModel.Trim();
+
+        return new ModelSelection(
+            manual,
+            null);
     }
+
+    private static ProtocolKind? ParseProtocol(string value) => value switch
+    {
+        "openai-chat" => ProtocolKind.OpenAiChat,
+        "openai-responses" => ProtocolKind.OpenAiResponses,
+        "anthropic" => ProtocolKind.Anthropic,
+        _ => null
+    };
 }

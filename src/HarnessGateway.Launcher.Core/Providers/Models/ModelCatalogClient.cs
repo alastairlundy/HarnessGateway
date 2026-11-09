@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
-namespace HarnessGateway.Launcher.Core.Backends.Models;
+namespace HarnessGateway.Launcher.Core.Providers.Models;
 
 public sealed class ModelCatalogClient
 {
@@ -12,11 +12,11 @@ public sealed class ModelCatalogClient
         _httpClient = httpClient;
     }
 
-    public async Task<ModelCatalog> FetchModelsAsync(Backend backend, CancellationToken cancellationToken = default)
+    public async Task<ModelCatalog> FetchModelsAsync(Provider backend, CancellationToken cancellationToken = default)
     {
         try
         {
-            return backend.Protocol switch
+            return backend.DefaultProtocol switch
             {
                 ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => await FetchOpenAiModelsAsync(backend, cancellationToken).ConfigureAwait(false),
                 ProtocolKind.Anthropic => await FetchAnthropicModelsAsync(backend, cancellationToken).ConfigureAwait(false),
@@ -29,7 +29,7 @@ public sealed class ModelCatalogClient
         }
     }
 
-    private async Task<ModelCatalog> FetchOpenAiModelsAsync(Backend backend, CancellationToken cancellationToken)
+    private async Task<ModelCatalog> FetchOpenAiModelsAsync(Provider backend, CancellationToken cancellationToken)
     {
         HttpRequestMessage request = new(HttpMethod.Get, "/v1/models");
 
@@ -52,7 +52,7 @@ public sealed class ModelCatalogClient
         return new(models, DateTimeOffset.UtcNow);
     }
 
-    private async Task<ModelCatalog> FetchAnthropicModelsAsync(Backend backend, CancellationToken cancellationToken)
+    private async Task<ModelCatalog> FetchAnthropicModelsAsync(Provider backend, CancellationToken cancellationToken)
     {
         HttpRequestMessage request = new(HttpMethod.Get, "/v1/models");
         request.Headers.Add("anthropic-version", "2023-06-01");

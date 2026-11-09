@@ -53,10 +53,10 @@ public class LaunchExitCodeTests
     }
 
     [Test]
-    public async Task UnknownBackendName_is_eight()
+    public async Task UnknownProviderName_is_eight()
     {
         // Subject held in a local so the assertion is not on a constant.
-        int code = (int)LaunchExitCode.UnknownBackendName;
+        int code = (int)LaunchExitCode.UnknownProviderName;
         await Assert.That(code).IsEqualTo(8);
     }
 

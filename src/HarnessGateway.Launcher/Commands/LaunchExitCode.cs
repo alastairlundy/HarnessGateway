@@ -9,7 +9,7 @@ public enum LaunchExitCode
     EndpointUnreachable = 5,
     RequiredModelMissing = 6,
     ConfigRestoreFailure = 7,
-    UnknownBackendName = 8,
+    UnknownProviderName = 8,
     UnsupportedSettingsSchema = 9,
     ConfigConflict = 10,
 }

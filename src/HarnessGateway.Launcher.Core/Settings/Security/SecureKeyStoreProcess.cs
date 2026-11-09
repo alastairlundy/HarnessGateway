@@ -19,7 +19,7 @@ internal static class SecureKeyStoreProcess
     internal static async Task<BufferedProcessResult> RunAsync(
         string targetFilePath,
         IReadOnlyList<string> arguments,
-        string backendName,
+        string providerName,
         string operation,
         string failureDetail,
         StreamWriter? standardInput,
@@ -45,7 +45,28 @@ internal static class SecureKeyStoreProcess
         }
         catch (Exception ex)
         {
-            throw SecureKeyStoreException.OperationFailed(backendName, operation, failureDetail, ex);
+            throw SecureKeyStoreException.OperationFailed(providerName, operation, failureDetail, ex);
         }
     }
+
+    /// <summary>
+    /// Interprets a <c>secret-tool clear</c> exit code for the idempotent
+    /// delete contract: the Secret Service <c>Clear</c> call succeeds when
+    /// nothing matched, so a non-zero exit can only be an operational
+    /// failure - a locked collection, an unreachable session - and must be
+    /// reported instead of swallowed.
+    /// </summary>
+    internal static bool LinuxDeleteFailed(int exitCode) => exitCode != 0;
+
+    /// <summary>
+    /// Interprets a <c>security delete-generic-password</c> result: both the
+    /// idempotent miss and an operational failure exit non-zero, so only the
+    /// recognized "could not be found" miss succeeds. Ambiguity fails loud -
+    /// a miss whose wording does not match reports a failure rather than
+    /// silently orphaning a stored secret.
+    /// </summary>
+    internal static bool MacOsDeleteFailed(int exitCode, string? standardError) =>
+        exitCode != 0
+        && (standardError is null
+            || !standardError.Contains("could not be found", StringComparison.OrdinalIgnoreCase));
 }

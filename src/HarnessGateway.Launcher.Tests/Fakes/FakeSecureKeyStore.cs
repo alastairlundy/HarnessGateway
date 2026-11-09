@@ -5,7 +5,7 @@ namespace HarnessGateway.Launcher.Tests.Fakes;
 /// <summary>
 /// In-memory <see cref="ISecureKeyStore"/> for the test gate: no keychain, no
 /// external process, and no launcher-owned file. Call counters let tests prove
-/// that a keyless backend never reaches the store.
+/// that a keyless provider never reaches the store.
 /// </summary>
 public sealed class FakeSecureKeyStore : ISecureKeyStore
 {
@@ -29,7 +29,7 @@ public sealed class FakeSecureKeyStore : ISecureKeyStore
         if (FailStore)
         {
             throw SecureKeyStoreException.OperationFailed(
-                KeyReference.BackendName(reference) ?? "unknown",
+                KeyReference.ProviderName(reference) ?? "unknown",
                 "save to the platform credential store",
                 "the fake key store is configured to fail.");
         }
@@ -57,7 +57,7 @@ public sealed class FakeSecureKeyStore : ISecureKeyStore
         if (FailDelete)
         {
             throw SecureKeyStoreException.OperationFailed(
-                KeyReference.BackendName(reference) ?? "unknown",
+                KeyReference.ProviderName(reference) ?? "unknown",
                 "remove from the platform credential store",
                 "the fake key store is configured to fail.");
         }

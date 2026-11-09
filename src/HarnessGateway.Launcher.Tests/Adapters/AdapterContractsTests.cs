@@ -2,7 +2,7 @@ using HarnessGateway.Launcher.Core;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 
@@ -22,9 +22,9 @@ public class HarnessMetadataTests
             InstallHint: "Install via: npm install -g @anthropic-ai/opencode",
             DetectionCommand: "opencode --version",
             [".opencode/config.json", "~/.config/opencode/config.json"],
-            SupportedProtocols: new HashSet<Core.Backends.ProtocolKind>
+            SupportedProtocols: new HashSet<Core.Providers.ProtocolKind>
             {
-                Core.Backends.ProtocolKind.OpenAiChat
+                Core.Providers.ProtocolKind.OpenAiChat
             },
             SupportedSurfaces: new HashSet<ConfigurationSurface>(),
             InstanceProcessNames: []
@@ -40,7 +40,7 @@ public class HarnessMetadataTests
         await Assert.That(metadata.DetectionCommand).IsEqualTo("opencode --version");
         await Assert.That(metadata.ConfigFileCandidates).Count().IsEqualTo(2);
         await Assert.That(metadata.SupportedProtocols)
-            .IsEquivalentTo([Core.Backends.ProtocolKind.OpenAiChat]);
+            .IsEquivalentTo([Core.Providers.ProtocolKind.OpenAiChat]);
     }
 
     [Test]
@@ -55,7 +55,7 @@ public class HarnessMetadataTests
             InstallHint: "Install from kilo.dev",
             DetectionCommand: "kilo --version",
             [],
-            new HashSet<Core.Backends.ProtocolKind>(),
+            new HashSet<Core.Providers.ProtocolKind>(),
             SupportedSurfaces: new HashSet<ConfigurationSurface>(),
             InstanceProcessNames: []
         );
@@ -81,19 +81,19 @@ public class HarnessMetadataTests
             InstallHint: "Install via: npm i -g @anthropic-ai/claude-code",
             DetectionCommand: "claude --version",
             [],
-            new HashSet<Core.Backends.ProtocolKind>
+            new HashSet<Core.Providers.ProtocolKind>
             {
-                Core.Backends.ProtocolKind.Anthropic
+                Core.Providers.ProtocolKind.Anthropic
             },
             SupportedSurfaces: new HashSet<ConfigurationSurface>(),
             InstanceProcessNames: []
         );
 
-        await Assert.That(metadata.SupportedProtocols).Contains(Core.Backends.ProtocolKind.Anthropic);
+        await Assert.That(metadata.SupportedProtocols).Contains(Core.Providers.ProtocolKind.Anthropic);
         await Assert.That(metadata.SupportedProtocols)
-            .DoesNotContain(Core.Backends.ProtocolKind.OpenAiChat);
+            .DoesNotContain(Core.Providers.ProtocolKind.OpenAiChat);
         await Assert.That(metadata.SupportedProtocols)
-            .DoesNotContain(Core.Backends.ProtocolKind.OpenAiResponses);
+            .DoesNotContain(Core.Providers.ProtocolKind.OpenAiResponses);
     }
 
     [Test]
@@ -329,34 +329,44 @@ public class ConfigurationActionTests
 public class ResolvedLaunchTests
 {
     [Test]
-    public async Task ResolvedLaunch_stores_backend_model_and_working_directory()
+    public async Task ResolvedLaunch_carries_the_case_key_working_directory_and_planner()
     {
-        Backend backend = new Core.Backends.Backend
+        Provider provider = new Core.Providers.Provider
         {
             Name = "test",
             BaseUri = new Uri("https://api.example.com"),
-            Protocol = Core.Backends.ProtocolKind.OpenAiChat
+            DefaultProtocol = Core.Providers.ProtocolKind.OpenAiChat
         };
+        LaunchResolution.ProviderCase launch = new(
+            provider, "gpt-4", Core.Providers.ProtocolKind.OpenAiChat);
+        IProtocolEmissionPlanner planner = new ProtocolEmissionPlanner();
 
-        ResolvedLaunch request = new ResolvedLaunch(backend, "gpt-4", "/home/user/project");
+        ResolvedLaunch request = new ResolvedLaunch(
+            launch, "sk-test", "/home/user/project", planner);
 
-        await Assert.That(request.Backend).IsEqualTo(backend);
-        await Assert.That(request.Model).IsEqualTo("gpt-4");
+        // The family rides directly - no synthesized stored-looking provider
+        // between the resolution and the adapter (T021).
+        await Assert.That(request.Launch).IsSameReferenceAs(launch);
+        // The launch-scoped secret, never the at-rest key reference.
+        await Assert.That(request.ApiKey).IsEqualTo("sk-test");
         await Assert.That(request.WorkingDirectory).IsEqualTo("/home/user/project");
+        // The planner arrives through the payload, wired at the composition
+        // root - never reached through statics (T010).
+        await Assert.That(request.EmissionPlanner).IsSameReferenceAs(planner);
     }
 
     [Test]
-    public async Task ResolvedLaunch_allows_null_model()
+    public async Task ResolvedLaunch_allows_a_keyless_ad_hoc_launch()
     {
-        Backend backend = new Core.Backends.Backend
-        {
-            Name = "test",
-            BaseUri = new Uri("https://api.example.com"),
-            Protocol = Core.Backends.ProtocolKind.OpenAiChat
-        };
+        LaunchResolution.AdHocCase launch = new(
+            new Uri("https://api.example.com"),
+            Core.Providers.ProtocolKind.OpenAiChat,
+            model: null);
 
-        ResolvedLaunch request = new ResolvedLaunch(backend, null, "/tmp");
+        ResolvedLaunch request = new ResolvedLaunch(
+            launch, ApiKey: null, "/tmp", new ProtocolEmissionPlanner());
 
-        await Assert.That(request.Model).IsNull();
+        await Assert.That(request.Launch).IsEqualTo(launch);
+        await Assert.That(request.ApiKey).IsNull();
     }
 }
