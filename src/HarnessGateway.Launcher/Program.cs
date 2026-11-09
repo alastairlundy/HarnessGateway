@@ -1,7 +1,7 @@
 using CliInvoke;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
-using HarnessGateway.Launcher.Core.Backends.Models;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -20,10 +20,12 @@ List<IHarnessAdapter> adapters =
 
 string settingsDir = SettingsStore.GetPlatformConfigDirectory();
 ISecureKeyStore keyStore = SecureKeyStoreFactory.Create(settingsDir);
-SettingsStore settingsStore = new(settingsDir, keyStore);
 string backupsDir = Path.Combine(settingsDir, "backups");
 Directory.CreateDirectory(backupsDir);
 BackupService backupService = new(backupsDir);
+// The store shares the flow's backup service so the load-time migration's
+// backup-before-write markers live in the same directory SelfHeal replays.
+SettingsStore settingsStore = new(settingsDir, keyStore, backupService);
 LaunchRunner runner = new();
 
 // GUI collaborators, injected alongside the ones above: install discovery
@@ -36,6 +38,12 @@ IGuiInstallDiscovery installDiscovery = new GuiInstallDiscovery(new FilePathReso
 IRunningInstanceDetector instanceDetector = CreateInstanceDetector();
 IConfirmationPrompt confirmationPrompt = new TerminalConfirmationPrompt();
 
+// The one shared protocol-to-env-var mapping (T007): registered here at
+// the composition root and handed to the launch flow, which forwards it
+// to every adapter on the launch payload (T010) - the mapping is reached
+// through this wiring, never through statics.
+IProtocolEmissionPlanner emissionPlanner = new ProtocolEmissionPlanner();
+
 // One flow, both callers: the CLI-side orchestrator and the wizard
 // handoff below both submit through this instance.
 LaunchFlow flow = new(
@@ -46,7 +54,8 @@ LaunchFlow flow = new(
     keyStore,
     installDiscovery,
     instanceDetector,
-    confirmationPrompt);
+    confirmationPrompt,
+    emissionPlanner);
 LaunchOrchestrator orchestrator = new(flow);
 async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 {
@@ -54,29 +63,25 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     ModelCatalogClient catalogClient = new(new HttpClient());
     WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
 
-    WizardOutcome wizardOutcome;
-    try
+    // Load-time faults surface as messages with documented exit codes rather
+    // than escaping the wizard: unsupported schema, credential-store errors,
+    // and migration I/O faults (ConfigRestoreFailure, no stack trace).
+    (WizardOutcome? guardedOutcome, int guardExit) =
+        await RunWizardGuardedAsync(wizard, cancellationToken).ConfigureAwait(true);
+    if (guardedOutcome is null)
     {
-        wizardOutcome = await wizard.RunAsync(cancellationToken).ConfigureAwait(true);
+        return guardExit;
     }
-    catch (UnsupportedSettingsSchemaException ex)
-    {
-        Console.Error.WriteLine(ex.Message);
-        return (int)LaunchExitCode.UnsupportedSettingsSchema;
-    }
-    catch (SecureKeyStoreException ex)
-    {
-        Console.Error.WriteLine(ex.Message);
-        return (int)LaunchExitCode.ConfigRestoreFailure;
-    }
+
+    WizardOutcome wizardOutcome = guardedOutcome;
 
     if (wizardOutcome is WizardAborted aborted)
     {
         return aborted.Reason switch
         {
             WizardAbortReason.Cancelled => 0,
-            WizardAbortReason.DanglingDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
-            WizardAbortReason.AbsentDefaultBackend => (int)LaunchExitCode.UnknownBackendName,
+            WizardAbortReason.DanglingDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
+            WizardAbortReason.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
             WizardAbortReason.NoHarnessInstalled => (int)LaunchExitCode.HarnessUnavailable,
             WizardAbortReason.NoHarnessSupportsProtocol => (int)LaunchExitCode.UnknownAgent,
             WizardAbortReason.CredentialStoreError => (int)LaunchExitCode.ConfigRestoreFailure,
@@ -94,7 +99,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     // survive the launch, so the restore-on-exit default opts out.
     LaunchRequest request = new(
         wizardResult.AgentCommandName,
-        BackendName: null,
+        ProviderName: wizardResult.ProviderName,
         wizardResult.Endpoint,
         LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,
@@ -104,6 +109,40 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)
         .ConfigureAwait(true);
     return await LaunchOrchestrator.MapOutcomeAsync(outcome).ConfigureAwait(true);
+}
+
+/// <summary>
+/// Runs one wizard pass with its load-time faults folded into (null, exit
+/// code): unsupported schema, credential-store errors, and migration I/O
+/// faults (ConfigRestoreFailure, message only - no stack trace, exit code
+/// stays inside the documented set). Mirrors how ConfigCommand maps the same
+/// faults on its load path.
+/// </summary>
+static async Task<(WizardOutcome? Outcome, int ExitCode)> RunWizardGuardedAsync(
+    WizardPipeline wizard,
+    CancellationToken cancellationToken)
+{
+    try
+    {
+        return (await wizard.RunAsync(cancellationToken).ConfigureAwait(true), 0);
+    }
+    catch (UnsupportedSettingsSchemaException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return (null, (int)LaunchExitCode.UnsupportedSettingsSchema);
+    }
+    catch (SecureKeyStoreException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return (null, (int)LaunchExitCode.ConfigRestoreFailure);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        // The load-time migration writes (backup marker, temp file,
+        // atomic move); mapped the same way ConfigCommand maps it.
+        Console.Error.WriteLine($"Settings load failed: {ex.Message}");
+        return (null, (int)LaunchExitCode.ConfigRestoreFailure);
+    }
 }
 
 // Each detector is marked to the platform it serves, so the construction

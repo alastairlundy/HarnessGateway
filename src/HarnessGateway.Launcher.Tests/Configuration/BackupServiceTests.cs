@@ -31,6 +31,38 @@ public class BackupServiceTests
     }
 
     [Test]
+    public async Task Backup_and_commit_work_for_long_target_paths()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            // The backup marker's filename derives from the target path, so a
+            // deep target (the settings file under a long temp directory) must
+            // not blow past the platform's per-filename length limit.
+            string longDir = Path.Combine(tempDir, new string('a', 120), "settings");
+            Directory.CreateDirectory(longDir);
+            string targetFile = Path.Combine(longDir, "HarnessGateway-launcher.json");
+            await File.WriteAllTextAsync(targetFile, "legacy content");
+
+            string backupDir = Path.Combine(tempDir, "backups");
+            BackupService service = new BackupService(backupDir);
+
+            await service.BackupAsync(targetFile);
+            await Assert.That(Directory.GetFiles(backupDir, "*.json")).Count().IsEqualTo(1);
+
+            await service.RestoreOnExitAsync(persistConfig: true);
+            await Assert.That(Directory.GetFiles(backupDir, "*.json")).IsEmpty();
+
+            // The committed file is untouched by the commit itself.
+            await Assert.That(await File.ReadAllTextAsync(targetFile)).IsEqualTo("legacy content");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Backup_does_not_duplicate_same_target()
     {
         string tempDir = CreateTempDir();

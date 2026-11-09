@@ -2,5 +2,5 @@
 
 global using CliInvoke.Core;
 global using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-global using HarnessGateway.Launcher.Core.Backends;
+global using HarnessGateway.Launcher.Core.Providers;
 global using System.Text;

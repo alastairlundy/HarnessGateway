@@ -1,7 +1,7 @@
 using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 
@@ -52,18 +52,18 @@ public static class WizardTestHelper
     {
         return new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri(endpoint ?? "https://api.example.com/v1"),
-                    Protocol = protocol,
+                    DefaultProtocol = protocol,
                     ApiKey = apiKey,
                     DefaultModel = defaultModel
                 }
             ],
-            DefaultBackend = "default"
+            DefaultProvider = "default"
         };
     }
 

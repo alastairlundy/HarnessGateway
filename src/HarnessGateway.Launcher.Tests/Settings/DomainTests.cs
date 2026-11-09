@@ -1,4 +1,4 @@
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 
 namespace HarnessGateway.Launcher.Tests.Settings;
@@ -14,23 +14,23 @@ public class ProtocolKindTests
     }
 }
 
-public class BackendTests
+public class ProviderTests
 {
     [Test]
     public async Task Backend_record_stores_all_fields()
     {
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "my-api",
             BaseUri = new Uri("https://api.openai.com/v1"),
-            Protocol = ProtocolKind.OpenAiChat,
+            DefaultProtocol = ProtocolKind.OpenAiChat,
             DefaultModel = "gpt-4",
             ApiKey = "hgkey:my-api"
         };
 
         await Assert.That(backend.Name).IsEqualTo("my-api");
         await Assert.That(backend.BaseUri).IsEqualTo(new Uri("https://api.openai.com/v1"));
-        await Assert.That(backend.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+        await Assert.That(backend.DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
         await Assert.That(backend.DefaultModel).IsEqualTo("gpt-4");
         await Assert.That(backend.ApiKey).IsEqualTo("hgkey:my-api");
     }
@@ -38,11 +38,11 @@ public class BackendTests
     [Test]
     public async Task Backend_allows_null_optional_fields()
     {
-        Backend backend = new Backend
+        Provider backend = new Provider
         {
             Name = "minimal",
             BaseUri = new Uri("https://api.example.com"),
-            Protocol = ProtocolKind.Anthropic
+            DefaultProtocol = ProtocolKind.Anthropic
         };
 
         await Assert.That(backend.DefaultModel).IsNull();
@@ -57,26 +57,26 @@ public class LauncherSettingsTests
     {
         LauncherSettings settings = new LauncherSettings();
 
-        await Assert.That(settings.Backends).IsEmpty();
-        await Assert.That(settings.DefaultBackend).IsEmpty();
+        await Assert.That(settings.Providers).IsEmpty();
+        await Assert.That(settings.DefaultProvider).IsEmpty();
         await Assert.That(settings.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
     }
 
     [Test]
-    public async Task LauncherSettings_tolerates_multiple_backends_without_behavior_change()
+    public async Task LauncherSettings_tolerates_multiple_providers_without_behavior_change()
     {
         LauncherSettings settings = new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend { Name = "first", BaseUri = new Uri("https://a.com"), Protocol = ProtocolKind.OpenAiChat },
-                new Backend { Name = "second", BaseUri = new Uri("https://b.com"), Protocol = ProtocolKind.Anthropic }
+                new Provider { Name = "first", BaseUri = new Uri("https://a.com"), DefaultProtocol = ProtocolKind.OpenAiChat },
+                new Provider { Name = "second", BaseUri = new Uri("https://b.com"), DefaultProtocol = ProtocolKind.Anthropic }
             ],
-            DefaultBackend = "first",
+            DefaultProvider = "first",
             SchemaVersion = 1
         };
 
-        await Assert.That(settings.Backends).Count().IsEqualTo(2);
-        await Assert.That(settings.DefaultBackend).IsEqualTo("first");
+        await Assert.That(settings.Providers).Count().IsEqualTo(2);
+        await Assert.That(settings.DefaultProvider).IsEqualTo("first");
     }
 }

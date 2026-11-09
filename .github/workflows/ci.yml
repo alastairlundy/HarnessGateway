@@ -49,16 +49,18 @@ jobs:
           MA0011|src/HarnessGateway.Launcher.Core/Settings/SettingsStore.cs
           MA0015|src/HarnessGateway.Launcher/Commands/LaunchCommand.cs
           MA0016|src/HarnessGateway.Launcher.Core/Settings/LauncherSettings.cs
-          MA0048|src/HarnessGateway.Launcher.Core/Backends/Models/ModelCatalog.cs
+          MA0048|src/HarnessGateway.Launcher.Core/Providers/Models/ModelCatalog.cs
           MA0048|src/HarnessGateway.Launcher.Core/Configuration/ConfigurationAction.cs
           MA0048|src/HarnessGateway.Launcher.Core/Settings/ConfigKeyResolver.cs
           MA0048|src/HarnessGateway.Launcher.Core/Settings/Security/ISecureKeyStore.cs
           MA0048|src/HarnessGateway.Launcher.Core/Settings/SettingsStore.cs
-          MA0051|src/HarnessGateway.Launcher.Core/Backends/BackendResolution.cs
+          MA0048|src/HarnessGateway.Launcher/Wizard/ModelStep.cs
+          MA0051|src/HarnessGateway.Launcher.Core/Providers/ProviderResolution.cs
           MA0051|src/HarnessGateway.Launcher.Core/Launch/LaunchFlow.cs
-          MA0051|src/HarnessGateway.Launcher/Commands/BackendCommands.cs
+          MA0051|src/HarnessGateway.Launcher/Commands/ProviderCommands.cs
           MA0051|src/HarnessGateway.Launcher/Commands/LaunchCommand.cs
           MA0051|src/HarnessGateway.Launcher/Commands/LaunchOrchestrator.cs
+          MA0051|src/HarnessGateway.Launcher/Wizard/ModelStep.cs
           MA0051|src/HarnessGateway.Launcher/Wizard/WizardPipeline.cs
           EOF
           LC_ALL=C sort -o meziantou-baseline.txt meziantou-baseline.txt

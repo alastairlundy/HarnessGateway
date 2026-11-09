@@ -15,19 +15,19 @@ public sealed class LaunchCommand : Command
         Arity = ArgumentArity.ZeroOrOne,
     };
 
-    public static readonly Option<string?> BackendOption = new("--backend")
+    public static readonly Option<string?> ProviderOption = new("--provider")
     {
-        Description = "Select a saved backend entry by name to launch against",
+        Description = "Select a saved provider entry by name to launch against",
     };
 
     public static readonly Option<string?> EndpointOption = new("--endpoint")
     {
-        Description = "Override the backend endpoint URL (requires --protocol)",
+        Description = "Override the provider endpoint URL (requires --protocol)",
     };
 
     public static readonly Option<string?> ProtocolOption = new("--protocol")
     {
-        Description = "Override the backend protocol (openai-chat, openai-responses, anthropic)",
+        Description = "Override the provider protocol (openai-chat, openai-responses, anthropic)",
     };
 
     public static readonly Option<string?> ModelOption = new("--model", "-m")
@@ -64,7 +64,7 @@ public sealed class LaunchCommand : Command
         LaunchOrchestrator? orchestrator,
         Func<CancellationToken, Task<int>>? wizardAction = null,
         IEnumerable<IHarnessAdapter>? adapters = null)
-        : base("launch", "Launch an agent harness with the specified backend configuration")
+        : base("launch", "Launch an agent harness with the specified provider configuration")
     {
         _wizardAction = wizardAction;
 
@@ -73,7 +73,7 @@ public sealed class LaunchCommand : Command
         HarnessArgument.Description = BuildHarnessDescription(adapters);
 
         Add(HarnessArgument);
-        Add(BackendOption);
+        Add(ProviderOption);
         Add(EndpointOption);
         Add(ProtocolOption);
         Add(ModelOption);
@@ -119,7 +119,7 @@ public sealed class LaunchCommand : Command
             // Options without a harness stay a parse error, so the bare-`launch`
             // wizard fallback can never silently drop a flag the user typed.
             if (result.GetValue(HarnessArgument) is null &&
-                (result.GetValue(BackendOption) is not null
+                (result.GetValue(ProviderOption) is not null
                  || result.GetValue(EndpointOption) is not null
                  || result.GetValue(ProtocolOption) is not null
                  || result.GetValue(ModelOption) is not null
@@ -163,7 +163,7 @@ public sealed class LaunchCommand : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            string? backendName = result.GetValue(BackendOption);
+            string? providerName = result.GetValue(ProviderOption);
             string? endpoint = result.GetValue(EndpointOption);
             string? protocol = result.GetValue(ProtocolOption);
             string? model = result.GetValue(ModelOption);
@@ -185,7 +185,7 @@ public sealed class LaunchCommand : Command
 
             return await orchestrator.RunAsync(
                 harness,
-                backendName,
+                providerName,
                 endpoint,
                 protocol,
                 model,
@@ -212,13 +212,13 @@ public sealed class LaunchCommand : Command
             : $"The agent harness to launch ({identifiers}); omit to run the interactive wizard";
     }
 
-    public static bool IsValidProtocol(string? value) => BackendResolution.IsValidProtocol(value);
+    public static bool IsValidProtocol(string? value) => ProviderResolution.IsValidProtocol(value);
 
     public static ProtocolKind ParseProtocol(string value) =>
-        BackendResolution.TryParseProtocol(value)
+        ProviderResolution.TryParseProtocol(value)
         ?? throw new ArgumentException($"Unknown protocol: {value}");
 
-    public static string ProtocolName(ProtocolKind protocol) => BackendResolution.ProtocolName(protocol);
+    public static string ProtocolName(ProtocolKind protocol) => ProviderResolution.ProtocolName(protocol);
 
     public static Uri ParseEndpoint(string value) => new(value, UriKind.Absolute);
 

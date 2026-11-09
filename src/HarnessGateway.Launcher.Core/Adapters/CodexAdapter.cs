@@ -50,42 +50,46 @@ public sealed class CodexAdapter : IHarnessAdapter
 
     public async Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
+        // Direct case branching (T021): each case hands over its own
+        // effective protocol, base URL, and model - no stored-looking
+        // provider is synthesized in between, and no protocol is computed
+        // here (T018).
+        (ProtocolEmission emission, string? model) = request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
         string configPath = ResolveConfigPath(_getEnvironmentVariable);
         string existing = File.Exists(configPath)
             ? await File.ReadAllTextAsync(configPath, cancellationToken)
 .ConfigureAwait(false) : string.Empty;
 
-        TomlDocumentEditor editor = TomlDocumentEditor.Parse(existing);
-        if (editor.NameInUse(ProviderBlockName))
-        {
-            // Refuse before any write - never adopt or overwrite a user-authored block.
-            throw new LaunchRefusalException(
-                $"Refusing to launch codex: '{configPath}' already defines a '{ProviderBlockName}' provider. " +
-                "The launcher writes its own provider under the id 'harnessgateway' and never adopts or " +
-                "overwrites one you authored - remove or rename that provider block " +
-                "(or point CODEX_HOME at a different config) and launch again.");
-        }
+        // One shared mapping (T007): the emission's base URL - already
+        // slash-trimmed by the planner - feeds the harness-owned config
+        // block and the process environment alike.
+        TomlDocumentEditor editor = ApplyProviderConfig(
+            existing, configPath, emission.BaseUrlValue, model);
 
-        editor.UpsertBlock(ProviderBlockName, new Dictionary<string, object?>(StringComparer.Ordinal)
+        // The emission's base-url variable rides the spawned process
+        // environment too, so every launch carries exactly one base-url
+        // variable (T007). The key slot's canonical name is not this
+        // harness's: codex reads the variable its config block names
+        // (env_key), so the secret lands there and only there - never a
+        // dummy value, never a second copy under another name.
+        Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
-            ["name"] = "HarnessGateway",
-            ["base_url"] = request.Backend.BaseUri.ToString().TrimEnd('/'),
-            ["env_key"] = EnvKeyName,
-            ["wire_api"] = "responses",
-        });
-        editor.SetTopLevelValue("model_provider", ProviderId);
-        if (request.Model is { Length: > 0 })
+            [emission.BaseUrlVariable] = emission.BaseUrlValue,
+        };
+        if (request.ApiKey is { Length: > 0 })
         {
-            editor.SetTopLevelValue("model", request.Model);
-        }
-
-        // Inject the saved key only when one exists; never a dummy value. The
-        // key is scoped to the spawned codex process - codex reads it from
-        // the environment variable named by the config block's env_key.
-        Dictionary<string, string> envVars = new(StringComparer.Ordinal);
-        if (request.Backend.ApiKey is { Length: > 0 })
-        {
-            envVars[EnvKeyName] = request.Backend.ApiKey;
+            envVars[EnvKeyName] = request.ApiKey;
         }
 
         List<ConfigurationAction> actions =
@@ -102,6 +106,45 @@ public sealed class CodexAdapter : IHarnessAdapter
         };
 
         return new LaunchPlan(config, actions);
+    }
+
+    /// <summary>
+    /// Parses the existing config, refuses a user-authored harnessgateway
+    /// block before any write, and applies the provider block plus the
+    /// top-level model keys. The refusal is the adapter's own config shape
+    /// (T007): only the base-url value comes from the shared mapping.
+    /// </summary>
+    private static TomlDocumentEditor ApplyProviderConfig(
+        string existing,
+        string configPath,
+        string baseUrl,
+        string? model)
+    {
+        TomlDocumentEditor editor = TomlDocumentEditor.Parse(existing);
+        if (editor.NameInUse(ProviderBlockName))
+        {
+            // Refuse before any write - never adopt or overwrite a user-authored block.
+            throw new LaunchRefusalException(
+                $"Refusing to launch codex: '{configPath}' already defines a '{ProviderBlockName}' provider. " +
+                "The launcher writes its own provider under the id 'harnessgateway' and never adopts or " +
+                "overwrites one you authored - remove or rename that provider block " +
+                "(or point CODEX_HOME at a different config) and launch again.");
+        }
+
+        editor.UpsertBlock(ProviderBlockName, new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["name"] = "HarnessGateway",
+            ["base_url"] = baseUrl,
+            ["env_key"] = EnvKeyName,
+            ["wire_api"] = "responses",
+        });
+        editor.SetTopLevelValue("model_provider", ProviderId);
+        if (model is { Length: > 0 })
+        {
+            editor.SetTopLevelValue("model", model);
+        }
+
+        return editor;
     }
 
     /// <summary>

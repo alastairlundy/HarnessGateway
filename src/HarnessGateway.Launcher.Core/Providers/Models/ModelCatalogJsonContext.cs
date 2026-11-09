@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace HarnessGateway.Launcher.Core.Backends.Models;
+namespace HarnessGateway.Launcher.Core.Providers.Models;
 
 /// <summary>
 /// Source-generated serializer for model-catalog HTTP payloads. The DTO types are

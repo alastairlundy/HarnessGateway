@@ -38,7 +38,10 @@ public static class RootCommandFactory
         RootCommand rootCommand = new("harnessgateway - Configure and launch agent harnesses")
         {
             new LaunchCommand(orchestrator, wizardAction, adapters),
-            new ConfigCommand(settingsStore, keyStore),
+            new ConfigCommand(settingsStore),
+            // D004: the provider surface is top-level - `harnessgateway
+            // provider ...` - with no deprecated backend alias anywhere.
+            new ProviderCommands(settingsStore, keyStore, new TerminalKeyPrompt()),
         };
 
         // RootCommand ships a standard --version option: its help entry, its

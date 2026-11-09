@@ -4,10 +4,11 @@ using HarnessGateway.Launcher.Tests.Fakes;
 namespace HarnessGateway.Launcher.Tests.Settings;
 
 /// <summary>
-/// Construction-level coverage only: the gate never opens a real keychain or
-/// spawns a real credential process (fakes strategy) - the interface
-/// contract runs against <see cref="FakeSecureKeyStore"/>, and the real
-/// round-trips are review-level OS checks outside the gate.
+/// Construction-level coverage plus the delete-outcome policy: the gate never
+/// opens a real keychain or spawns a real credential process (fakes strategy) -
+/// the interface contract runs against <see cref="FakeSecureKeyStore"/>, the
+/// process stores' exit-code interpretation is pinned as pure logic here, and
+/// the real round-trips are review-level OS checks outside the gate.
 /// </summary>
 public class SecureKeyStoreTests
 {
@@ -29,6 +30,38 @@ public class SecureKeyStoreTests
         {
             return ex;
         }
+    }
+
+    [Test]
+    public async Task Linux_delete_policy_reports_every_non_zero_exit_as_failure()
+    {
+        // `secret-tool clear` succeeds when nothing matched (the Secret
+        // Service Clear call is vacuous), so a non-zero exit can only be an
+        // operational failure - a locked collection, an unreachable session -
+        // and must surface as one instead of being swallowed.
+        await Assert.That(SecureKeyStoreProcess.LinuxDeleteFailed(0)).IsFalse();
+        await Assert.That(SecureKeyStoreProcess.LinuxDeleteFailed(1)).IsTrue();
+        await Assert.That(SecureKeyStoreProcess.LinuxDeleteFailed(2)).IsTrue();
+    }
+
+    [Test]
+    public async Task MacOs_delete_policy_distinguishes_the_absent_item_from_a_real_failure()
+    {
+        // `security delete-generic-password` exits non-zero for both the
+        // idempotent miss and an operational failure; only the recognized
+        // "could not be found" miss succeeds, and ambiguity fails loud so a
+        // stored secret can never be orphaned silently.
+        await Assert.That(SecureKeyStoreProcess.MacOsDeleteFailed(0, string.Empty)).IsFalse();
+        await Assert.That(
+            SecureKeyStoreProcess.MacOsDeleteFailed(
+                1,
+                "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain."))
+            .IsFalse();
+        await Assert.That(
+            SecureKeyStoreProcess.MacOsDeleteFailed(1, "security: SecKeychainItemCopyAttributes: authentication failed"))
+            .IsTrue();
+        await Assert.That(SecureKeyStoreProcess.MacOsDeleteFailed(1, string.Empty)).IsTrue();
+        await Assert.That(SecureKeyStoreProcess.MacOsDeleteFailed(1, null)).IsTrue();
     }
 
     [Test]

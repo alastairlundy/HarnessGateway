@@ -2,7 +2,7 @@ using CliInvoke.Core;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
-using HarnessGateway.Launcher.Core.Backends;
+using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -25,23 +25,26 @@ public class LaunchOrchestratorTests
     // --- Outcome-to-exit-code mapping: exhaustive per kind ---
 
     [Test]
-    [Arguments(LaunchRefusalKind.NoBackend, (int)LaunchExitCode.UsageError)]
+    [Arguments(LaunchRefusalKind.NoProvider, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.UnknownHarness, (int)LaunchExitCode.UnknownAgent)]
     [Arguments(LaunchRefusalKind.HarnessUnavailable, (int)LaunchExitCode.HarnessUnavailable)]
     [Arguments(LaunchRefusalKind.ProtocolNotSupported, (int)LaunchExitCode.UnknownAgent)]
     [Arguments(LaunchRefusalKind.ProviderBlockConflict, (int)LaunchExitCode.ConfigConflict)]
-    [Arguments(LaunchRefusalKind.UnknownBackendName, (int)LaunchExitCode.UnknownBackendName)]
-    [Arguments(LaunchRefusalKind.DanglingDefaultBackend, (int)LaunchExitCode.UnknownBackendName)]
-    [Arguments(LaunchRefusalKind.AbsentDefaultBackend, (int)LaunchExitCode.UnknownBackendName)]
+    [Arguments(LaunchRefusalKind.UnknownProviderName, (int)LaunchExitCode.UnknownProviderName)]
+    [Arguments(LaunchRefusalKind.DanglingDefaultProvider, (int)LaunchExitCode.UnknownProviderName)]
+    [Arguments(LaunchRefusalKind.AbsentDefaultProvider, (int)LaunchExitCode.UnknownProviderName)]
     [Arguments(LaunchRefusalKind.ProtocolWithoutEndpoint, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.EndpointWithoutProtocol, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidEndpoint, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidProtocol, (int)LaunchExitCode.UsageError)]
+    // The unlisted-model refusal reuses exit 3 per T006: no new exit code, the
+    // README table keeps its size.
+    [Arguments(LaunchRefusalKind.UnlistedModel, (int)LaunchExitCode.UnknownAgent)]
     // The three GUI kinds are producer additions to existing families:
     // unconfirmed instance and incapable surface both ride the
     // unavailable-harness number, flag misuse rides the usage number.
     [Arguments(LaunchRefusalKind.RunningInstanceUnconfirmed, (int)LaunchExitCode.HarnessUnavailable)]
-    [Arguments(LaunchRefusalKind.GuiBackendUnsupported, (int)LaunchExitCode.HarnessUnavailable)]
+    [Arguments(LaunchRefusalKind.GuiProviderUnsupported, (int)LaunchExitCode.HarnessUnavailable)]
     [Arguments(LaunchRefusalKind.ConfirmUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
     public async Task MapOutcomeAsync_refusal_kind_maps_to_its_exit_code(
         LaunchRefusalKind kind, int expectedExitCode)
@@ -141,16 +144,16 @@ public class LaunchOrchestratorTests
         TestHarnessAdapter adapter = new TestHarnessAdapter("TestAgent");
         LauncherSettings settings = new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri("https://api.default.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat
+                    DefaultProtocol = ProtocolKind.OpenAiChat
                 }
             ],
-            DefaultBackend = "default"
+            DefaultProvider = "default"
         };
         (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(adapter: adapter, settings: settings);
         try
@@ -161,9 +164,12 @@ public class LaunchOrchestratorTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
             // Parsed flags reached the adapter as a resolved launch: the
             // orchestrator is a request-building adapter over the flow, and
-            // the default-backend pointer is what the request resolved to.
+            // the default-backend pointer is what the request resolved to -
+            // the stored entry riding the payload's provider case (T021).
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Backend.Name).IsEqualTo("default");
+            LaunchResolution.ProviderCase providerCase =
+                (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;
+            await Assert.That(providerCase.Provider.Name).IsEqualTo("default");
         }
         finally
         {
@@ -180,16 +186,16 @@ public class LaunchOrchestratorTests
         ILaunchRunner runner = new CallbackLaunchRunner(_ => Task.FromResult(3));
         LauncherSettings settings = new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "default",
                     BaseUri = new Uri("https://api.default.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat
+                    DefaultProtocol = ProtocolKind.OpenAiChat
                 }
             ],
-            DefaultBackend = "default"
+            DefaultProvider = "default"
         };
         (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(
             adapter: adapter, settings: settings, runner: runner);
@@ -212,16 +218,16 @@ public class LaunchOrchestratorTests
         TestHarnessAdapter adapter = new TestHarnessAdapter("TestAgent");
         LauncherSettings settings = new LauncherSettings
         {
-            Backends =
+            Providers =
             [
-                new Backend
+                new Provider
                 {
                     Name = "test-backend",
                     BaseUri = new Uri("https://api.example.com/v1"),
-                    Protocol = ProtocolKind.OpenAiChat
+                    DefaultProtocol = ProtocolKind.OpenAiChat
                 }
             ],
-            DefaultBackend = "test-backend"
+            DefaultProvider = "test-backend"
         };
         (LaunchOrchestrator orchestrator, string tempDir) = CreateOrchestrator(
             adapter: adapter, settings: settings);
@@ -236,7 +242,7 @@ public class LaunchOrchestratorTests
             // persist ran after run and restore.
             string settingsDir = Path.Combine(tempDir, "settings");
             LauncherSettings savedSettings = (await new SettingsStore(settingsDir).LoadAsync());
-            await Assert.That(savedSettings.Backends[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(savedSettings.Providers[0].DefaultModel).IsEqualTo("gpt-4");
         }
         finally
         {
@@ -281,7 +287,8 @@ public class LaunchOrchestratorTests
             keyStore,
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
-            new FakeConfirmationPrompt());
+            new FakeConfirmationPrompt(),
+            new ProtocolEmissionPlanner());
         return (new LaunchOrchestrator(flow), tempDir);
     }
 

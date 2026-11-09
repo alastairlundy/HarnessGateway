@@ -10,30 +10,17 @@ public sealed class ConfigCommand : Command
     }
 
     internal ConfigCommand(SettingsStore settingsStore)
-        : this(
-            settingsStore,
-            SecureKeyStoreFactory.Create(settingsStore.SettingsDirectory))
-    {
-    }
-
-    internal ConfigCommand(SettingsStore settingsStore, ISecureKeyStore keyStore)
-        : this(settingsStore, keyStore, new TerminalKeyPrompt())
-    {
-    }
-
-    internal ConfigCommand(SettingsStore settingsStore, ISecureKeyStore keyStore, IKeyPrompt keyPrompt)
         : base("config", "Show and manage saved default configuration")
     {
         _settingsStore = settingsStore;
 
-        Command showVerb = new("show", "Display the current default backend configuration");
+        Command showVerb = new("show", "Display the current default provider configuration");
         Command getVerb = CreateGetCommand();
         Command setVerb = CreateSetCommand();
 
         Add(showVerb);
         Add(getVerb);
         Add(setVerb);
-        Add(new BackendCommands(settingsStore, keyStore, keyPrompt));
 
         showVerb.SetAction(async (result, cancellationToken) =>
         {
@@ -44,20 +31,20 @@ public sealed class ConfigCommand : Command
                 return loadExitCode;
             }
 
-            Backend? backend = ResolveDefaultBackend(settings);
+            Provider? backend = ResolveDefaultProvider(settings);
 
             if (backend is null)
             {
-                Console.WriteLine("No default backend configured.");
-                if (settings.Backends.Count > 0)
+                Console.WriteLine("No default provider configured.");
+                if (settings.Providers.Count > 0)
                 {
                     Console.WriteLine(
-                        "Run 'harnessgateway config set defaultBackend <name>' to select one of the saved entries.");
+                        "Run 'harnessgateway config set defaultProvider <name>' to select one of the saved entries.");
                 }
                 else
                 {
                     Console.WriteLine(
-                        "Run 'harnessgateway config backend add <name> --endpoint <url> --protocol <protocol>' " +
+                        "Run 'harnessgateway provider add <name> --endpoint <url> --protocol <protocol>' " +
                         "to create one.");
                 }
 
@@ -65,7 +52,7 @@ public sealed class ConfigCommand : Command
             }
 
             Console.WriteLine($"Endpoint: {backend.BaseUri}");
-            Console.WriteLine($"Protocol: {FormatProtocol(backend.Protocol)}");
+            Console.WriteLine($"Protocol: {FormatProtocol(backend.DefaultProtocol)}");
             Console.WriteLine($"Saved key: {(string.IsNullOrEmpty(backend.ApiKey) ? "(not set)" : "(set)")}");
             Console.WriteLine($"Default model: {backend.DefaultModel ?? "(not set)"}");
             return 0;
@@ -77,8 +64,8 @@ public sealed class ConfigCommand : Command
         Argument<string> keyArg = new("key")
         {
             Description =
-                "The typed settings key: defaultBackend, schemaVersion, backends, " +
-                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel",
+                "The typed settings key: defaultProvider, schemaVersion, providers, " +
+                "providers.<name>.endpoint, providers.<name>.protocol, or providers.<name>.defaultModel",
         };
 
         Command cmd = new("get", "Read a non-secret setting by its typed key") { keyArg };
@@ -113,8 +100,8 @@ public sealed class ConfigCommand : Command
         Argument<string> keyArg = new("key")
         {
             Description =
-                "The typed settings key: defaultBackend, " +
-                "backends.<name>.endpoint, backends.<name>.protocol, or backends.<name>.defaultModel",
+                "The typed settings key: defaultProvider, " +
+                "providers.<name>.endpoint, providers.<name>.protocol, or providers.<name>.defaultModel",
         };
         Argument<string> valueArg = new("value")
         {
@@ -164,12 +151,12 @@ public sealed class ConfigCommand : Command
 
     /// <summary>
     /// Maps typed key failures to the documented exit-code contract: only the
-    /// default-pointer write has its own class (unknown backend name = 8);
+    /// default-pointer write has its own class (unknown provider name = 8);
     /// every other addressing failure is a usage error (2).
     /// </summary>
     internal static int ExitCodeFor(ConfigKeyFailure failure) =>
-        failure == ConfigKeyFailure.UnknownBackendName
-            ? (int)LaunchExitCode.UnknownBackendName
+        failure == ConfigKeyFailure.UnknownProviderName
+            ? (int)LaunchExitCode.UnknownProviderName
             : (int)LaunchExitCode.UsageError;
 
     internal static async Task<(LauncherSettings Settings, int ExitCode)> TryLoadSettingsAsync(
@@ -191,31 +178,41 @@ public sealed class ConfigCommand : Command
             Console.Error.WriteLine(ex.Message);
             return (new LauncherSettings(), (int)LaunchExitCode.ConfigRestoreFailure);
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The load-time migration writes (backup marker, temp file,
+            // atomic move); an operational fault there is surfaced as a
+            // message - no stack trace - and mapped to the documented
+            // ConfigRestoreFailure rather than escaping as an unhandled
+            // exception with an exit code outside the contract.
+            Console.Error.WriteLine($"Settings load failed: {ex.Message}");
+            return (new LauncherSettings(), (int)LaunchExitCode.ConfigRestoreFailure);
+        }
     }
 
-    internal static Backend? ResolveDefaultBackend(LauncherSettings settings)
+    internal static Provider? ResolveDefaultProvider(LauncherSettings settings)
     {
-        if (!string.IsNullOrEmpty(settings.DefaultBackend))
+        if (!string.IsNullOrEmpty(settings.DefaultProvider))
         {
-            return settings.Backends.FirstOrDefault(b =>
-                string.Equals(b.Name, settings.DefaultBackend, StringComparison.OrdinalIgnoreCase));
+            return settings.Providers.FirstOrDefault(b =>
+                string.Equals(b.Name, settings.DefaultProvider, StringComparison.OrdinalIgnoreCase));
         }
 
-        return settings.Backends.FirstOrDefault();
+        return settings.Providers.FirstOrDefault();
     }
 
-    internal static void UpdateBackend(LauncherSettings settings, Backend updated)
+    internal static void UpdateProvider(LauncherSettings settings, Provider updated)
     {
-        int index = settings.Backends.FindIndex(b =>
+        int index = settings.Providers.FindIndex(b =>
             string.Equals(b.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
 
         if (index >= 0)
         {
-            settings.Backends[index] = updated;
+            settings.Providers[index] = updated;
         }
         else
         {
-            settings.Backends.Add(updated);
+            settings.Providers.Add(updated);
         }
     }
 

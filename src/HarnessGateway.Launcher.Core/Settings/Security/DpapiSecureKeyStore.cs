@@ -41,8 +41,8 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
 
     public async Task StoreAsync(string reference, string secret, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
-        Dictionary<string, string> entries = await ReadEntries(backendName).ConfigureAwait(false);
+        string providerName = KeyReference.RequireProviderName(reference);
+        Dictionary<string, string> entries = await ReadEntries(providerName).ConfigureAwait(false);
 
         try
         {
@@ -55,16 +55,16 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         catch (Exception ex) when (ex is CryptographicException or ArgumentException)
         {
             throw SecureKeyStoreException.OperationFailed(
-                backendName, StoreOperation, "the data protection API rejected the secret.", ex);
+                providerName, StoreOperation, "the data protection API rejected the secret.", ex);
         }
 
-        await WriteEntries(backendName, entries, StoreOperation).ConfigureAwait(false);
+        await WriteEntries(providerName, entries, StoreOperation).ConfigureAwait(false);
     }
 
     public async Task<string> RetrieveAsync(string reference, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
-        Dictionary<string, string> entries = await ReadEntries(backendName).ConfigureAwait(false);
+        string providerName = KeyReference.RequireProviderName(reference);
+        Dictionary<string, string> entries = await ReadEntries(providerName).ConfigureAwait(false);
 
         if (!entries.TryGetValue(reference, out string? cipherText))
         {
@@ -87,29 +87,29 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
             throw SecureKeyStoreException.SecureOperationFailed(
                 "DPAPI",
                 $"the stored entry could not be decrypted on this machine; " +
-                $"re-save it with 'harnessgateway config backend set-key {backendName}'.");
+                $"re-save it with 'harnessgateway provider set-key {providerName}'.");
         }
     }
 
     public async Task DeleteAsync(string reference, CancellationToken cancellationToken = default)
     {
-        string backendName = KeyReference.RequireBackendName(reference);
+        string providerName = KeyReference.RequireProviderName(reference);
 
         if (!File.Exists(_keysFilePath))
         {
             return;
         }
 
-        Dictionary<string, string> entries = await ReadEntries(backendName).ConfigureAwait(false);
+        Dictionary<string, string> entries = await ReadEntries(providerName).ConfigureAwait(false);
         if (!entries.Remove(reference))
         {
             return;
         }
 
-        await WriteEntries(backendName, entries, DeleteOperation).ConfigureAwait(false);
+        await WriteEntries(providerName, entries, DeleteOperation).ConfigureAwait(false);
     }
 
-    private async Task<Dictionary<string, string>> ReadEntries(string backendName)
+    private async Task<Dictionary<string, string>> ReadEntries(string providerName)
     {
         if (!File.Exists(_keysFilePath))
         {
@@ -126,11 +126,11 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
             throw SecureKeyStoreException.OperationFailed(
-                backendName, LoadOperation, $"the key file '{KeysFileName}' could not be read.", ex);
+                providerName, LoadOperation, $"the key file '{KeysFileName}' could not be read.", ex);
         }
     }
 
-    private async Task WriteEntries(string backendName, Dictionary<string, string> entries, string operation)
+    private async Task WriteEntries(string providerName, Dictionary<string, string> entries, string operation)
     {
         try
         {
@@ -145,7 +145,7 @@ public sealed class DpapiSecureKeyStore : ISecureKeyStore
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             throw SecureKeyStoreException.OperationFailed(
-                backendName, operation, $"the key file '{KeysFileName}' could not be written.", ex);
+                providerName, operation, $"the key file '{KeysFileName}' could not be written.", ex);
         }
     }
 }
