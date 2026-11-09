@@ -11,8 +11,14 @@ permissions: {}
 
 jobs:
   build-and-test:
-    name: Build and test
-    runs-on: ubuntu-latest
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # fail-fast off: a failure on one OS must not cancel the others, so every
+    # platform's result is visible in a single run.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     permissions:
       contents: read
     steps:
@@ -41,7 +47,10 @@ jobs:
       # fails on any MA* signature that is not in the checked-in baseline below.
       # This is the incremental bar - existing warnings are recorded, not
       # retroactively fixed, and every warning added from here on must be fixed.
+      # Analyzer output is OS-independent, so the gate runs once (Linux) rather
+      # than three times across the matrix.
       - name: New Meziantou warnings fail the build
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
