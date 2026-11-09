@@ -5,6 +5,8 @@
         <TargetFramework>net10.0</TargetFramework>
         <!-- Binary is `harnessgateway`; project and namespace stay HarnessGateway.Launcher (one CLI project owns proxy verbs later). -->
         <AssemblyName>harnessgateway</AssemblyName>
+        <PackageId>HarnessGateway</PackageId>
+        <Authors>Alastair Lundy</Authors>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <!-- Pinned build identity: surfaced by the version flag and asserted
