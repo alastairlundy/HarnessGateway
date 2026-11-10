@@ -2,9 +2,10 @@
 
 <div align="center">
 
-[![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
-[![Latest release](https://img.shields.io/github/v/release/alastairlundy/HarnessGateway)](https://github.com/alastairlundy/HarnessGateway/releases)
-[![Downloads (latest release)](https://img.shields.io/github/downloads/alastairlundy/HarnessGateway/total)](https://github.com/alastairlundy/HarnessGateway/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/alastairlundy/HarnessGateway/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/alastairlundy/HarnessGateway/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg?style=flat-square)](https://www.mozilla.org/en-US/MPL/2.0/)
+[![Latest release](https://img.shields.io/github/v/release/alastairlundy/HarnessGateway?style=flat-square)](https://github.com/alastairlundy/HarnessGateway/releases)
+[![Downloads (latest release)](https://img.shields.io/github/downloads/alastairlundy/HarnessGateway/total?style=flat-square)](https://github.com/alastairlundy/HarnessGateway/releases)
 
 </div>
 
