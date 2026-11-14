@@ -1,0 +1,151 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <!--
+    Silent-install switches, declared so the WinGet manifest and other scripted callers can
+    reference them verbatim:
+
+      per-machine (default) : msiexec /i harnessgateway-<rid>.msi /quiet /norestart
+      per-user              : msiexec /i harnessgateway-<rid>.msi /quiet /norestart ALLUSERS=2 MSIINSTALLPERUSER=1
+      uninstall             : msiexec /x harnessgateway-<rid>.msi /quiet /norestart
+
+    ALLUSERS is the scope switch and MSIINSTALLPERUSER (declared as a secure public property
+    below, which is what makes it acceptable on a silent command line) refines it: ALLUSERS=1
+    is the package default and means every user, while ALLUSERS=2 together with
+    MSIINSTALLPERUSER=1 is the Windows Installer spelling of a current-user-only install.
+    The same two properties are what the install-scope dialog writes when it is used.
+  -->
+
+  <Package Name="HarnessGateway"
+           Manufacturer="Alastair Lundy"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="{EE8A9850-0882-44B0-99A6-896C64FEDA3C}"
+           Scope="perMachine">
+
+    <!-- ProductCode is auto-generated per build; MajorUpgrade plus the fixed UpgradeCode and
+         the ProductVersion above are what make a newer MSI replace an older one. -->
+    <MajorUpgrade Schedule="afterInstallInitialize"
+                  DowngradeErrorMessage="A newer version of [ProductName] is already installed. Setup cannot continue." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Default install is per-machine (Program Files, UAC); the per-machine default ALLUSERS
+         value itself comes from the package's scope above, so only the properties WiX does
+         not generate are declared here. -->
+    <Property Id="MSIINSTALLPERUSER" Secure="yes" />
+    <!-- Default selection of the install-scope radio button on InstallScopeDlg. -->
+    <Property Id="WixAppFolder" Value="WixPerMachineFolder" />
+    <!-- ARP shows Uninstall only; repair and change are reachable from re-running Setup. -->
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <!-- InstallScopeDlg renders one scope choice or both depending on these; both scopes are
+         offered, and per-machine is what the radio button starts on. -->
+    <WixVariable Id="WixUISupportPerUser" Value="1" />
+    <WixVariable Id="WixUISupportPerMachine" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="HarnessGateway" />
+    </StandardDirectory>
+
+    <!--
+      Resolves the install folder for whichever scope was selected. Runs in both sequences so
+      silent installs and the interactive UI agree on the destination. Both conditions read
+      the same selector the caller or the scope dialog wrote: ALLUSERS=1 for every user, and
+      ALLUSERS=2 with MSIINSTALLPERUSER=1 for the current user only. Runs before CostFinalize,
+      which is where Windows Installer resolves directory properties.
+    -->
+    <CustomAction Id="HGSetPerMachineFolder"
+                  Property="INSTALLFOLDER"
+                  Value="[ProgramFiles64Folder]HarnessGateway"
+                  Execute="immediate" />
+    <CustomAction Id="HGSetPerUserFolder"
+                  Property="INSTALLFOLDER"
+                  Value="[LocalAppDataFolder]Programs\HarnessGateway"
+                  Execute="immediate" />
+
+    <InstallExecuteSequence>
+      <Custom Action="HGSetPerMachineFolder"
+               Before="HGSetPerUserFolder"
+               Condition="ALLUSERS=&quot;1&quot; OR (ALLUSERS=&quot;2&quot; AND MSIINSTALLPERUSER&lt;&gt;&quot;1&quot;)" />
+      <Custom Action="HGSetPerUserFolder"
+               Before="CostFinalize"
+               Condition="ALLUSERS&lt;&gt;&quot;1&quot; AND (ALLUSERS&lt;&gt;&quot;2&quot; OR MSIINSTALLPERUSER=&quot;1&quot;)" />
+    </InstallExecuteSequence>
+
+    <InstallUISequence>
+      <Custom Action="HGSetPerMachineFolder"
+               Before="HGSetPerUserFolder"
+               Condition="ALLUSERS=&quot;1&quot; OR (ALLUSERS=&quot;2&quot; AND MSIINSTALLPERUSER&lt;&gt;&quot;1&quot;)" />
+      <Custom Action="HGSetPerUserFolder"
+               Before="CostFinalize"
+               Condition="ALLUSERS&lt;&gt;&quot;1&quot; AND (ALLUSERS&lt;&gt;&quot;2&quot; OR MSIINSTALLPERUSER=&quot;1&quot;)" />
+    </InstallUISequence>
+
+    <Feature Id="MainFeature" Title="HarnessGateway" Level="1">
+      <ComponentGroupRef Id="LauncherPayload" />
+    </Feature>
+
+    <!--
+      Wizard: welcome -> install scope -> ready -> progress -> finished. The install-scope
+      step is where per-machine (default) versus per-user is chosen; it writes ALLUSERS,
+      which the sequence custom actions above turn into an install folder.
+    -->
+    <UI Id="HarnessGatewayInstallUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+
+      <DialogRef Id="WelcomeDlg" />
+      <DialogRef Id="InstallScopeDlg" />
+      <DialogRef Id="VerifyReadyDlg" />
+      <DialogRef Id="MaintenanceWelcomeDlg" />
+      <DialogRef Id="MaintenanceTypeDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ExitDialog" />
+      <DialogRef Id="CancelDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="WaitForCostingDlg" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="OutOfDiskDlg" />
+      <DialogRef Id="OutOfRbDiskDlg" />
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallScopeDlg" Condition="NOT Installed" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceWelcomeDlg" Condition="Installed" />
+
+      <Publish Dialog="InstallScopeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" />
+      <Publish Dialog="InstallScopeDlg" Control="Next" Property="WixAppFolder" Value="WixPerUserFolder" Order="1" Condition="NOT Privileged" />
+      <Publish Dialog="InstallScopeDlg" Control="Next" Property="MSIINSTALLPERUSER" Value="1" Order="2" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+      <Publish Dialog="InstallScopeDlg" Control="Next" Property="ALLUSERS" Value="2" Order="3" Condition="WixAppFolder = &quot;WixPerUserFolder&quot;" />
+      <Publish Dialog="InstallScopeDlg" Control="Next" Property="ALLUSERS" Value="1" Order="4" Condition="WixAppFolder = &quot;WixPerMachineFolder&quot;" />
+      <Publish Dialog="InstallScopeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="5" />
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallScopeDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed" />
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+
+      <UIRef Id="WixUI_Common" />
+      <UIRef Id="WixUI_ErrorProgressText" />
+    </UI>
+
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="LauncherPayload" Directory="INSTALLFOLDER">
+      <Files Include="$(var.LauncherPublishDir)\**" />
+    </ComponentGroup>
+  </Fragment>
+
+</Wix>
