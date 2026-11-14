@@ -39,6 +39,14 @@
     <IntermediateOutputPath>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(InstallerRuntimeIdentifier)\</IntermediateOutputPath>
     <!-- Where the Launcher's self-contained publish output is staged for this MSI's payload. -->
     <LauncherPublishDir>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(InstallerRuntimeIdentifier)\launcher-publish</LauncherPublishDir>
+    <!--
+      Build root for the payload publish. The solution also builds the Launcher and its
+      references in this same build, and a referenced project's output folder does not
+      change with the Runtime Identifier - so publishing into the shared bin/obj would put
+      two writes to the same file in flight at once. Keeping this build under its own root
+      makes the payload build disjoint from every other project in the solution.
+    -->
+    <LauncherBuildDir>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(InstallerRuntimeIdentifier)\launcher-build\</LauncherBuildDir>
   </PropertyGroup>
 
   <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixToolsetVersion)" />
@@ -51,7 +59,7 @@
   <Target Name="PublishLauncherPayload" BeforeTargets="CoreCompile">
     <MSBuild Projects="$(MSBuildProjectDirectory)\..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj"
              Targets="Publish"
-             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(InstallerRuntimeIdentifier);SelfContained=true;PublishSingleFile=false;PublishTrimmed=false;PublishReadyToRun=false;CopyOutputSymbolsToPublishDirectory=false;PublishDir=$(LauncherPublishDir)" />
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(InstallerRuntimeIdentifier);SelfContained=true;PublishSingleFile=false;PublishTrimmed=false;PublishReadyToRun=false;CopyOutputSymbolsToPublishDirectory=false;BaseOutputPath=$(LauncherBuildDir)bin\;IntermediateOutputPath=$(LauncherBuildDir)obj\;PublishDir=$(LauncherPublishDir)" />
 
     <!-- The release archives ship without symbols, so the staged payload must too. -->
     <ItemGroup>
