@@ -12,4 +12,6 @@ public enum LaunchExitCode
     UnknownProviderName = 8,
     UnsupportedSettingsSchema = 9,
     ConfigConflict = 10,
+    UpdateAvailable = 11,
+    CheckFailed = 12,
 }

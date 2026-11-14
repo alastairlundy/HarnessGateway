@@ -75,6 +75,22 @@ public class LaunchExitCodeTests
     }
 
     [Test]
+    public async Task UpdateAvailable_is_eleven()
+    {
+        // Subject held in a local so the assertion is not on a constant.
+        int code = (int)LaunchExitCode.UpdateAvailable;
+        await Assert.That(code).IsEqualTo(11);
+    }
+
+    [Test]
+    public async Task CheckFailed_is_twelve()
+    {
+        // Subject held in a local so the assertion is not on a constant.
+        int code = (int)LaunchExitCode.CheckFailed;
+        await Assert.That(code).IsEqualTo(12);
+    }
+
+    [Test]
     public async Task All_exit_codes_are_distinct()
     {
         LaunchExitCode[] values = Enum.GetValues<LaunchExitCode>();
