@@ -52,6 +52,17 @@
   <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixToolsetVersion)" />
 
   <!--
+    WiX authors Windows Installer packages and its toolchain runs on Windows only: on any
+    other platform wix.exe refuses outright rather than degrading. Restrict the installer to
+    Windows builds. Elsewhere the project still restores and evaluates, so solution builds
+    stay green across the whole CI matrix; it just produces nothing. The payload publish and
+    the second RID pass below are both downstream of Build, so they never run either.
+  -->
+  <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' != 'true'">
+    <BuildDependsOn></BuildDependsOn>
+  </PropertyGroup>
+
+  <!--
     Publish the Launcher for this RID and hand the payload path plus the product version to
     Package.wxs. The payload and the version both come from the Launcher build, so neither
     is restated in this project.
@@ -80,7 +91,9 @@
   </Target>
 
   <!-- Second pass: the win-arm64 MSI, built after this project's own build so a single solution build ships both. -->
-  <Target Name="BuildWinArm64Installer" AfterTargets="Build" Condition="'$(InstallerRuntimeIdentifier)' != 'win-arm64'">
+  <Target Name="BuildWinArm64Installer"
+          AfterTargets="Build"
+          Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true' and '$(InstallerRuntimeIdentifier)' != 'win-arm64'">
     <MSBuild Projects="$(MSBuildProjectFullPath)"
              Targets="Build"
              Properties="Configuration=$(Configuration);InstallerRuntimeIdentifier=win-arm64" />
