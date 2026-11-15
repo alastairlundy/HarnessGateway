@@ -8,10 +8,6 @@ A step the launcher performs to make a harness use a chosen provider: passing CL
 
 A mechanism a harness can be handed launcher configuration through: environment variables, command-line flags, or configuration files. The launcher only uses the ones a harness declares, and picks no surface of its own.
 
-## Configuration surface
-
-A mechanism a harness can be handed launcher configuration through: environment variables, command-line flags, or configuration files. The launcher only uses the ones a harness declares, and picks no surface of its own.
-
 ## Default endpoint
 
 The user-saved provider that `launch` uses when no per-launch endpoint override is given.
@@ -47,3 +43,7 @@ The set of models a Provider declares as available.
 ## Provider
 
 An API identity that owns one endpoint, one API key reference, and a set of models, where each model may use its own wire protocol.
+
+## Update check
+
+An on-demand CLI verb that queries GitHub Releases for a newer HarnessGateway version and reports the result without downloading, installing, or applying anything.
