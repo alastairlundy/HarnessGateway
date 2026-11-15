@@ -7,7 +7,7 @@ public class ProtocolEmissionPlannerTests
 {
     private static readonly Uri BaseUri = new("https://gw.example/v1/");
 
-    // The table pins the consolidated mapping (T007): each protocol kind to
+    // The table pins the consolidated mapping: each protocol kind to
     // its base-url variable and its API-key variable name, with the trailing
     // slash trimmed the way every adapter normalizes today.
     [Test]
@@ -27,13 +27,13 @@ public class ProtocolEmissionPlannerTests
         await Assert.That(emission.BaseUrlVariable).IsEqualTo(expectedBaseUrlVariable);
         await Assert.That(emission.BaseUrlValue).IsEqualTo("https://gw.example/v1");
 
-        // The API-key variable name rides in ExtraVariables (T017): an empty
+        // The API-key variable name rides in ExtraVariables: an empty
         // value is the key slot - the planner receives no key, so the
         // adapter that has the secret fills the value.
         await Assert.That(emission.ExtraVariables.ContainsKey(expectedApiKeyVariable)).IsTrue();
         await Assert.That(emission.ExtraVariables[expectedApiKeyVariable]).IsEmpty();
 
-        // Variables of an unrelated protocol are never emitted (T007).
+        // Variables of an unrelated protocol are never emitted.
         bool anthropic = protocol == ProtocolKind.Anthropic;
         string unrelatedBaseUrl = anthropic ? "OPENAI_BASE_URL" : "ANTHROPIC_BASE_URL";
         string unrelatedApiKey = anthropic ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
@@ -48,7 +48,7 @@ public class ProtocolEmissionPlannerTests
 
         await Assert.That(plan).IsNotNull();
 
-        // The whole-result and async signatures were declined (T017): two
+        // The whole-result and async signatures were declined: two
         // plain values in, one emission out, synchronous.
         ParameterInfo[] parameters = plan!.GetParameters();
         await Assert.That(parameters).Count().IsEqualTo(2);
@@ -87,7 +87,7 @@ public class ProtocolEmissionPlannerTests
 
         foreach (Type type in plannerTypes)
         {
-            // One inward arrow into Core/Providers (T011).
+            // One inward arrow into Core/Providers.
             await Assert.That(type.Namespace).IsEqualTo("HarnessGateway.Launcher.Core.Providers");
 
             foreach (Type referenced in ReferencedTypes(type))

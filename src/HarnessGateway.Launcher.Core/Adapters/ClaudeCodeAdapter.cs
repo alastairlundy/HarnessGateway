@@ -44,10 +44,10 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
-        // Direct case branching (T021): each case hands over its own
+        // Direct case branching: each case hands over its own
         // effective protocol, base URL, and model - no stored-looking
         // provider is synthesized in between, and no protocol is computed
-        // here (T018).
+        // here.
         (ProtocolEmission emission, string? model) = request.Launch switch
         {
             LaunchResolution.ProviderCase providerCase => (
@@ -72,7 +72,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
             [emission.BaseUrlVariable] = emission.BaseUrlValue,
         };
 
-        // Token choice (harness-owned rename, adapter-side per T007):
+        // Token choice (a harness-owned rename, adapter-side):
         // ANTHROPIC_AUTH_TOKEN, never the emission's ANTHROPIC_API_KEY slot -
         // the latter makes Claude Code raise an interactive approval prompt.
         // The key therefore lands under this harness's own name and the

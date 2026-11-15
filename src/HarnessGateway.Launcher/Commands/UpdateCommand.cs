@@ -3,19 +3,19 @@ using HarnessGateway.Launcher.Core.Update;
 namespace HarnessGateway.Launcher.Commands;
 
 /// <summary>
-/// The <c>update</c> top-level command and its <c>check</c> subcommand
-/// (T003). The check compares this build against the latest GitHub release
-/// and maps the outcome onto the documented exit codes (T014); it never
-/// downloads, installs, or applies anything (D005). Bare <c>update</c>
+/// The <c>update</c> top-level command and its <c>check</c> subcommand.
+/// The check compares this build against the latest GitHub release
+/// and maps the outcome onto the documented exit codes; it never
+/// downloads, installs, or applies anything. Bare <c>update</c>
 /// refuses with a suggestion naming <c>update check</c> instead of
 /// defaulting to a behavior.
 /// </summary>
 public sealed class UpdateCommand : Command
 {
     /// <summary>
-    /// Force-check flag: bypasses the 10-minute cooldown window (T017). The
+    /// Force-check flag: bypasses the 10-minute cooldown window. The
     /// name is implementation-chosen here and documented for users with the
-    /// rest of the command surface in TK004.
+    /// rest of the command surface.
     /// </summary>
     public static readonly Option<bool> ForceOption = new("--force")
     {
@@ -60,7 +60,7 @@ public sealed class UpdateCommand : Command
 
         Add(checkCommand);
 
-        // Bare `update` must not guess (T003): refuse with the subcommand
+        // Bare `update` must not guess: refuse with the subcommand
         // name and run nothing - no network call, no cooldown stamp.
         SetAction(async (result, cancellationToken) =>
         {
@@ -73,15 +73,15 @@ public sealed class UpdateCommand : Command
 
     /// <summary>
     /// Prints the outcome and returns its documented exit code: up to date
-    /// and the cooldown notice are 0 (T018), update available and check
-    /// failed are the two appended contract codes (T014).
+    /// and the cooldown notice are 0; update available and check
+    /// failed are the two appended contract codes.
     /// </summary>
     private async Task<int> ReportAsync(UpdateCheckResult check)
     {
         switch (check.Outcome)
         {
             case UpdateCheckOutcome.CooldownActive:
-                // T018: the notice exits 0 with the remaining time on stdout;
+                // The notice exits 0 with the remaining time on stdout;
                 // scripts wanting a fresh check pass --force.
                 Console.WriteLine(
                     $"Update check is cooling down ({FormatRemaining(check.CooldownRemaining)} remaining); " +

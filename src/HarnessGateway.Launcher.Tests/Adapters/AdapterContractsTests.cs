@@ -345,13 +345,13 @@ public class ResolvedLaunchTests
             launch, "sk-test", "/home/user/project", planner);
 
         // The family rides directly - no synthesized stored-looking provider
-        // between the resolution and the adapter (T021).
+        // between the resolution and the adapter.
         await Assert.That(request.Launch).IsSameReferenceAs(launch);
         // The launch-scoped secret, never the at-rest key reference.
         await Assert.That(request.ApiKey).IsEqualTo("sk-test");
         await Assert.That(request.WorkingDirectory).IsEqualTo("/home/user/project");
         // The planner arrives through the payload, wired at the composition
-        // root - never reached through statics (T010).
+        // root - never reached through statics.
         await Assert.That(request.EmissionPlanner).IsSameReferenceAs(planner);
     }
 

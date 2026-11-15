@@ -37,7 +37,7 @@ public class LaunchOrchestratorTests
     [Arguments(LaunchRefusalKind.EndpointWithoutProtocol, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidEndpoint, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.InvalidProtocol, (int)LaunchExitCode.UsageError)]
-    // The unlisted-model refusal reuses exit 3 per T006: no new exit code, the
+    // The unlisted-model refusal reuses exit 3: no new exit code, the
     // README table keeps its size.
     [Arguments(LaunchRefusalKind.UnlistedModel, (int)LaunchExitCode.UnknownAgent)]
     // The three GUI kinds are producer additions to existing families:
@@ -165,7 +165,7 @@ public class LaunchOrchestratorTests
             // Parsed flags reached the adapter as a resolved launch: the
             // orchestrator is a request-building adapter over the flow, and
             // the default-backend pointer is what the request resolved to -
-            // the stored entry riding the payload's provider case (T021).
+            // the stored entry riding the payload's provider case.
             await Assert.That(adapter.LastRequest).IsNotNull();
             LaunchResolution.ProviderCase providerCase =
                 (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;

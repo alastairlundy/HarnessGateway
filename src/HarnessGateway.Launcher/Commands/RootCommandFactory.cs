@@ -40,10 +40,10 @@ public static class RootCommandFactory
         {
             new LaunchCommand(orchestrator, wizardAction, adapters),
             new ConfigCommand(settingsStore),
-            // D004: the provider surface is top-level - `harnessgateway
+            // The provider surface is top-level - `harnessgateway
             // provider ...` - with no deprecated backend alias anywhere.
             new ProviderCommands(settingsStore, keyStore, new TerminalKeyPrompt()),
-            // T003: `update` is check-only (D005) and refuses when invoked
+            // `update` is check-only and refuses when invoked
             // bare; the production instance is built here so the tests drive
             // the same registration path the entry point uses.
             new UpdateCommand(),

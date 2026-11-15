@@ -1,7 +1,7 @@
 namespace HarnessGateway.Launcher.Core.Update;
 
 /// <summary>
-/// What one update check concluded (D005, T014, T017): the three compared
+/// What one update check concluded: the three compared
 /// outcomes plus the cooldown skip. The exit-code mapping lives in the CLI
 /// layer - this enum stays free of command-line concerns.
 /// </summary>

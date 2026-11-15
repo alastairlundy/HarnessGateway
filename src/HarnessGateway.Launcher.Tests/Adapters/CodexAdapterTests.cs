@@ -436,8 +436,8 @@ public class CodexAdapterTests
     [Test]
     public async Task PlanLaunch_consumes_the_planners_emission_in_config_and_environment()
     {
-        // A sentinel emission proves the base URL comes from the planner
-        // (T007): it lands in the harness-owned TOML block and as the
+        // A sentinel emission proves the base URL comes from the planner:
+        // it lands in the harness-owned TOML block and as the
         // launch's one base-url environment variable, while the key stays
         // under this harness's env_key name - never the planner's slot.
         (string tempDir, string codexHome, string configPath) = CreateCodexHome();
@@ -484,7 +484,7 @@ public class CodexAdapterTests
     public async Task PlanLaunch_from_the_ad_hoc_case_plans_the_ad_hoc_values()
     {
         // The family's other arm: a raw-URL launch reaches the same planner
-        // call with its own base URL (T021), and the session key still
+        // call with its own base URL, and the session key still
         // credentials it under this harness's env_key.
         (string tempDir, string codexHome, _) = CreateCodexHome();
         try
@@ -517,7 +517,7 @@ public class CodexAdapterTests
     public async Task PlanLaunch_emits_exactly_one_base_url_variable_and_no_unrelated_protocol_vars()
     {
         // Exactly one base-url variable per launch - this protocol's - and
-        // never an ANTHROPIC_* variable beside it (T007).
+        // never an ANTHROPIC_* variable beside it.
         (string tempDir, string codexHome, _) = CreateCodexHome();
         try
         {

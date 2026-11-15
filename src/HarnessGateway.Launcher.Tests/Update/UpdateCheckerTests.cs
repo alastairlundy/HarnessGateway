@@ -5,7 +5,7 @@ using HarnessGateway.Launcher.Tests.Fakes;
 namespace HarnessGateway.Launcher.Tests.Update;
 
 /// <summary>
-/// Component tests for the update check (D005, T014, T015, T017): every
+/// Component tests for the update check: every
 /// outcome is driven through a stub HTTP layer and a fake clock, so the suite
 /// never reaches the network and never waits out the real cooldown window.
 /// </summary>
@@ -209,7 +209,7 @@ public class UpdateCheckerTests
             await Assert.That(handler.LastRequest!.RequestUri).IsEqualTo(
                 new Uri("https://api.github.com/repos/alastairlundy/HarnessGateway/releases/latest"));
 
-            // Unauthenticated only (T015): no credential rides along, and the
+            // Unauthenticated only: no credential rides along, and the
             // User-Agent GitHub's API requires is present.
             await Assert.That(handler.LastRequest.Headers.Authorization).IsNull();
             await Assert.That(handler.LastRequest.Headers.UserAgent.ToString()).IsNotEmpty();
@@ -318,7 +318,7 @@ public class UpdateCheckerTests
     public async Task Failed_check_stamps_the_window_too()
     {
         // A failed call still spent rate-limit budget, so the retry inside
-        // the window is skipped like any other (T017).
+        // the window is skipped like any other.
         string dir = CreateTempDir();
         try
         {

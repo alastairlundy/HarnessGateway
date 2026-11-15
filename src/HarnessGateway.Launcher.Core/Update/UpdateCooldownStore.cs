@@ -3,7 +3,7 @@ using System.Globalization;
 namespace HarnessGateway.Launcher.Core.Update;
 
 /// <summary>
-/// The on-disk last-check timestamp behind the update-check cooldown (T017):
+/// The on-disk last-check timestamp behind the update-check cooldown:
 /// the file lives in the per-OS config directory next to the settings file
 /// and is implementation-named. Reads and writes are best effort - a missing,
 /// damaged, or unwritable stamp costs one extra network call, never the check
@@ -11,7 +11,7 @@ namespace HarnessGateway.Launcher.Core.Update;
 /// </summary>
 public sealed class UpdateCooldownStore
 {
-    /// <summary>The file's name inside the config directory (T017 leaves it implementation-chosen).</summary>
+    /// <summary>The file's name inside the config directory; it is implementation-chosen.</summary>
     public const string FileName = "update-check.timestamp";
 
     private readonly string _filePath;

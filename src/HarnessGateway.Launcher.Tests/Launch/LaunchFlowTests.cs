@@ -656,7 +656,7 @@ public class LaunchFlowTests
     [Test]
     public async Task ExecuteAsync_unlisted_model_folds_to_refusal()
     {
-        // T006: a non-empty models array is the closed set launch accepts; a
+        // A non-empty models array is the closed set launch accepts; a
         // --model naming no entry is a user-rectifiable refusal (exit 3 via
         // the UnknownAgent row, mapped in LaunchOrchestratorTests).
         LauncherSettings settings = new()
@@ -929,8 +929,7 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             // No stored provider exists, so the payload carries the ad-hoc
-            // case itself - never a synthesized stored-looking provider
-            // (T021).
+            // case itself - never a synthesized stored-looking provider.
             await Assert.That(adapter.LastRequest!.Launch)
                 .IsTypeOf<LaunchResolution.AdHocCase>();
             await Assert.That(adapter.LastRequest!.Launch.BaseUri)
@@ -946,7 +945,7 @@ public class LaunchFlowTests
     [Test]
     public async Task ExecuteAsync_hands_the_injected_planner_and_family_to_the_adapter()
     {
-        // T010: the planner reaches the adapter through wiring - the
+        // The planner reaches the adapter through wiring - the
         // composition root registers it and the flow forwards it on the
         // payload - never through a static. The payload carries the
         // resolved family itself alongside it.
@@ -990,7 +989,7 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             // The payload carries the family itself: the stored entry the
-            // default pointer selected rides the provider case (T021).
+            // default pointer selected rides the provider case.
             LaunchResolution.ProviderCase providerCase =
                 (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;
             await Assert.That(providerCase.Provider.Name).IsEqualTo("default");

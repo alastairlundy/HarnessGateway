@@ -910,7 +910,7 @@ public class ProviderCommandsTests
     [Test]
     public async Task Remove_key_delete_failure_is_reported_and_entry_still_goes()
     {
-        // T005: the key-deletion failure is reported (exit 7, the same class
+        // The key-deletion failure is reported (exit 7, the same class
         // as every other credential-store fault) but must not block entry
         // removal - the removed identity still leaves the list, with the
         // orphaned store record called out on stderr.
@@ -1061,7 +1061,7 @@ public class ProviderCommandsTests
     [Test]
     public async Task Add_is_case_insensitively_unique_and_updates_in_place()
     {
-        // T002/D004: provider names are unique case-insensitively - adding
+        // Provider names are unique case-insensitively - adding
         // the same name in different casing updates the one entry instead of
         // creating a duplicate identity.
         string tempDir = CreateTempDir();
@@ -1150,7 +1150,7 @@ public class ProviderCommandsTests
     [Test]
     public async Task Model_add_duplicate_name_is_refused_case_insensitively()
     {
-        // T002: model entry names are unique within a provider.
+        // Model entry names are unique within a provider.
         string tempDir = CreateTempDir();
         try
         {
@@ -1349,7 +1349,7 @@ public class ProviderCommandsTests
     public async Task Production_root_exposes_provider_and_drops_backend_spellings()
     {
         // Step 4 verify: `harnessgateway provider --help` lists the new verbs,
-        // and the backend spelling no longer parses anywhere (D004: no
+        // and the backend spelling no longer parses anywhere (no
         // deprecated aliases).
         (RootCommand root, string tempDir) = CreateProductionRoot();
         try

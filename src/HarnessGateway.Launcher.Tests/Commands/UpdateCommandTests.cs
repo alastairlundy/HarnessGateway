@@ -12,7 +12,7 @@ using HarnessGateway.Launcher.Tests.Fakes;
 namespace HarnessGateway.Launcher.Tests.Commands;
 
 /// <summary>
-/// Parse-and-invoke tests for `update` (T003, T014, T017, T018): the command
+/// Parse-and-invoke tests for `update`: the command
 /// is driven through the real System.CommandLine pipeline over a stub HTTP
 /// layer and a fake clock, so exit codes and the cooldown's remaining time
 /// are what these tests pin - message wording is user experience, not
@@ -56,7 +56,7 @@ public class UpdateCommandTests
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(
                 () => root.Parse("update").InvokeAsync());
 
-            // Non-zero refusal (T003); only the subcommand's name is
+            // Non-zero refusal; only the subcommand's name is
             // contractual - the surrounding sentence is UX.
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("update check");
@@ -161,7 +161,7 @@ public class UpdateCommandTests
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(
                 () => root.Parse("update check").InvokeAsync());
 
-            // T017/T018: no second network call, the remaining window on
+            // No second network call, the remaining window on
             // stdout, and exit 0 - the notice is not a contract row.
             await Assert.That(handler.CallCount).IsEqualTo(1);
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
@@ -208,7 +208,7 @@ public class UpdateCommandTests
             Command? update = root.Subcommands.FirstOrDefault(c => c.Name == "update");
             await Assert.That(update).IsNotNull();
 
-            // The surface itself (T003): update on top, check beneath it,
+            // The surface itself: update on top, check beneath it,
             // and the force flag on check - not on the bare command.
             await Assert.That(update!.Subcommands.Select(c => c.Name)).Contains("check");
             await Assert.That(update.Options).IsEmpty();

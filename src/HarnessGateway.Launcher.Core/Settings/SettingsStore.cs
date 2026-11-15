@@ -51,7 +51,7 @@ public sealed class SettingsStore
     {
         // Crash recovery runs before the file is read: replaying leftover
         // backup markers first means a legacy conversion below always
-        // converts the bytes the user actually has after the replay (T003).
+        // converts the bytes the user actually has after the replay.
         await _backupService.SelfHealAsync(cancellationToken).ConfigureAwait(false);
 
         if (!File.Exists(_settingsFilePath))
@@ -168,7 +168,7 @@ public sealed class SettingsStore
     /// <summary>
     /// Reads a schemaVersion 1 or 2 file through the legacy read model and
     /// converts it to the current shape: the v1 plaintext-key sweep runs
-    /// first (unchanged behavior), then the T020 mapping rules apply. The
+    /// first (unchanged behavior), then the legacy-key mapping rules apply. The
     /// result is stamped with the current schema version. Also returns the
     /// bytes the rewrite should back up - for v1 the swept legacy shape, so
     /// the marker never becomes a second copy of a plaintext key; for v2
@@ -207,7 +207,7 @@ public sealed class SettingsStore
     }
 
     /// <summary>
-    /// Rewrites the settings file through the BackupService flow (T003):
+    /// Rewrites the settings file through the BackupService flow:
     /// backup the current state first (the explicit swept bytes for v1,
     /// otherwise the file as it stands), then write the converted shape
     /// through a temp file and an atomic move - a failed write leaves the old

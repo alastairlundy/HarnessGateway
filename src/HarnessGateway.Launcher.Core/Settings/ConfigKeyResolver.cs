@@ -9,7 +9,7 @@ namespace HarnessGateway.Launcher.Core.Settings;
 /// <c>providers.&lt;name&gt;.defaultModel</c>. Nothing here addresses secret
 /// material, provider creation/deletion, or raw JSON paths - unknown or
 /// unaddressable keys are usage errors. Model entries are deliberately not
-/// scriptable: the catalog belongs to the <c>provider model</c> verbs (T004).
+/// scriptable: the catalog belongs to the <c>provider model</c> verbs.
 /// </summary>
 public static class ConfigKeyResolver
 {

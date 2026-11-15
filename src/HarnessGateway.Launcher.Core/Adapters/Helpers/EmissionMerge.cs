@@ -1,7 +1,7 @@
 namespace HarnessGateway.Launcher.Core.Adapters.Helpers;
 
 /// <summary>
-/// The one consumption rule for the shared protocol emission (T007): the
+/// The one consumption rule for the shared protocol emission: the
 /// base-url variable always lands, each extra variable lands with its
 /// planned value - or with the launch-scoped key filling its empty slot -
 /// and a slot that stays empty is skipped, never emitted as an empty

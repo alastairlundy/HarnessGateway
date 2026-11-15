@@ -4,20 +4,20 @@ using System.Text.Json;
 namespace HarnessGateway.Launcher.Core.Update;
 
 /// <summary>
-/// The update check itself (D005): compares this build's version against the
+/// The update check itself: compares this build's version against the
 /// latest published GitHub release and reports one of the
 /// <see cref="UpdateCheckOutcome"/> values. It is check-only - nothing is
-/// ever downloaded, installed, or applied - and the cooldown (T017) keeps
+/// ever downloaded, installed, or applied - and the cooldown keeps
 /// repeat invocations inside the window from reaching the unauthenticated
-/// rate limit (T015).
+/// rate limit.
 /// </summary>
 public sealed class UpdateChecker
 {
-    /// <summary>The cooldown window: within it a non-forced check makes no network call (T017).</summary>
+    /// <summary>The cooldown window: within it a non-forced check makes no network call.</summary>
     public static readonly TimeSpan CooldownWindow = TimeSpan.FromMinutes(10);
 
     /// <summary>
-    /// GitHub's Releases latest endpoint for this repository (T015). This is
+    /// GitHub's Releases latest endpoint for this repository. This is
     /// the only version source: NuGet-based sources are deliberately refused,
     /// no token is ever attached, and the endpoint's own filtering decides
     /// which release counts as latest.
@@ -70,7 +70,7 @@ public sealed class UpdateChecker
 
         // Every attempt that reached the network is stamped, failed or not:
         // a failed call still spent unauthenticated rate-limit budget, and
-        // the window exists to keep repeat use clear of that budget (T017).
+        // the window exists to keep repeat use clear of that budget.
         _cooldownStore.WriteLastCheck(_timeProvider.GetUtcNow());
 
         return result;
@@ -80,7 +80,7 @@ public sealed class UpdateChecker
     /// Fetches the latest release payload and hands it to the comparison.
     /// Every fault - unreachable host, HTTP error, malformed payload - maps
     /// to <see cref="UpdateCheckOutcome.CheckFailed"/> so no exception
-    /// escapes with an exit code outside the contract (T014);
+    /// escapes with an exit code outside the contract;
     /// caller-initiated cancellation is the one rethrow.
     /// </summary>
     private async Task<UpdateCheckResult> QueryLatestReleaseAsync(CancellationToken cancellationToken)
@@ -115,7 +115,7 @@ public sealed class UpdateChecker
         catch (Exception ex)
         {
             // Unreachable host, timeout, malformed JSON, or a payload shape
-            // the reader rejects: all of them are a failed check (T014).
+            // the reader rejects: all of them are a failed check.
             return new UpdateCheckResult(
                 UpdateCheckOutcome.CheckFailed,
                 FailureDetail: ex.Message);
@@ -124,7 +124,7 @@ public sealed class UpdateChecker
 
     /// <summary>
     /// Reads the tag from one latest-release payload and compares it with
-    /// this build. A payload this reader rejects is a failed check (T014),
+    /// this build. A payload this reader rejects is a failed check,
     /// never an escaping exception.
     /// </summary>
     private UpdateCheckResult CompareLatestRelease(string payload)

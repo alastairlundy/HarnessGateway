@@ -45,7 +45,7 @@ public class LegacySettingsTests
 
         LauncherSettings converted = LegacySettings.ToLauncherSettings(legacy!);
 
-        // defaultBackend maps to defaultProvider verbatim (T020).
+        // defaultBackend maps to defaultProvider verbatim.
         await Assert.That(converted.DefaultProvider).IsEqualTo("work");
         await Assert.That(converted.SchemaVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
 
@@ -88,7 +88,7 @@ public class LegacySettingsTests
         LauncherSettings converted = LegacySettings.ToLauncherSettings(legacy);
 
         // No healing here: the pointer stays dangling and fails later at the
-        // strict-pointer read (T020).
+        // strict-pointer read.
         await Assert.That(converted.DefaultProvider).IsEqualTo("ghost");
         await Assert.That(converted.Providers.Select(p => p.Name)).DoesNotContain("ghost");
     }

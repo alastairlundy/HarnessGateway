@@ -5,7 +5,7 @@ namespace HarnessGateway.Launcher.Core.Update;
 /// window when <see cref="Outcome"/> is <see cref="UpdateCheckOutcome.CooldownActive"/>,
 /// the published tag when one was read, and a failure detail when it is
 /// <see cref="UpdateCheckOutcome.CheckFailed"/>. Message wording stays with
-/// the CLI - only these values are testable contract (T017).
+/// the CLI - only these values are testable contract.
 /// </summary>
 public sealed record UpdateCheckResult(
     UpdateCheckOutcome Outcome,

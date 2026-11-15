@@ -279,7 +279,7 @@ public class ConfigKeyResolverTests
     [Test]
     public async Task Get_model_level_key_is_outside_the_closed_set()
     {
-        // Models are deliberately not scriptable through config (T004): the
+        // Models are deliberately not scriptable through config: the
         // model catalog is owned by the `provider model` verbs.
         ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "providers.default.models");
 

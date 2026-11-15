@@ -20,11 +20,11 @@ permissions: {}
 jobs:
   # Builds the two installers from the tagged commit. WiX tooling runs on
   # Windows only, so this is its own windows-latest job; publish needs it so
-  # the MSIs can be staged beside the archives before attach (T009). No MSI
+  # the MSIs can be staged beside the archives before attach. No MSI
   # smoke/install step exists anywhere in this workflow - the wixproj
-  # compiling is the sole pre-attach validation, and the accepted risk of an
-  # MSI whose payload mis-references the published binaries reaching the
-  # release is documented in DECISIONS-harnessgateway-windows-installer-winget.md#T010.
+  # compiling is the sole pre-attach validation, and the risk of an MSI
+  # whose payload mis-references the published binaries reaching the
+  # release is accepted as-is.
   msi:
     name: Build win-x64 and win-arm64 MSIs
     runs-on: windows-latest
@@ -144,7 +144,7 @@ jobs:
 
       # Stage the two MSIs beside the archives so the attach loop below ships
       # them with everything else. The draft carried no installers until this
-      # dispatch (T009) - they exist on the release only from here on.
+      # dispatch - they exist on the release only from here on.
       - name: Stage the Windows installers with the built binaries
         uses: actions/download-artifact@v8
         with:
