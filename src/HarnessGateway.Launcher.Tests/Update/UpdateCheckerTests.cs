@@ -7,7 +7,8 @@ namespace HarnessGateway.Launcher.Tests.Update;
 /// <summary>
 /// Component tests for the update check: every
 /// outcome is driven through a stub HTTP layer and a fake clock, so the suite
-/// never reaches the network and never waits out the real cooldown window.
+/// never reaches the network and never waits out the real cooldown window or
+/// the real request deadline.
 /// </summary>
 public class UpdateCheckerTests
 {
@@ -24,13 +25,15 @@ public class UpdateCheckerTests
         StubHttpMessageHandler handler,
         FakeTimeProvider clock,
         string directory,
-        string currentVersion = "0.1.0")
+        string currentVersion = "0.1.0",
+        TimeSpan? requestTimeout = null)
     {
         return new UpdateChecker(
             new HttpClient(handler),
             clock,
             new UpdateCooldownStore(directory),
-            currentVersion);
+            currentVersion,
+            requestTimeout);
     }
 
     [Test]
@@ -87,6 +90,100 @@ public class UpdateCheckerTests
 
             await Assert.That(result.Outcome).IsEqualTo(UpdateCheckOutcome.CheckFailed);
             await Assert.That(result.FailureDetail).IsNotNull();
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Test]
+    public async Task Deadline_miss_reports_check_failed_naming_the_timeout()
+    {
+        string dir = CreateTempDir();
+        try
+        {
+            // The stub throws the cancellation the 30-second deadline would
+            // produce, so the suite never waits out the real bound.
+            StubHttpMessageHandler handler = new(
+                body: null,
+                failure: new TaskCanceledException());
+            UpdateChecker checker = CreateChecker(handler, new FakeTimeProvider(Baseline), dir);
+
+            UpdateCheckResult result = await checker.CheckAsync(force: false);
+
+            await Assert.That(result.Outcome).IsEqualTo(UpdateCheckOutcome.CheckFailed);
+            await Assert.That(result.FailureDetail).Contains("timed out");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Test]
+    public async Task Check_completes_within_thirty_seconds_when_the_endpoint_hangs()
+    {
+        string dir = CreateTempDir();
+        try
+        {
+            // The endpoint never answers, so only the request deadline can
+            // end the check. The deadline is shortened to skip the real
+            // 30-second wait; the production value itself is pinned by the
+            // RequestTimeout test below.
+            HangingHttpMessageHandler handler = new();
+            UpdateChecker checker = new(
+                new HttpClient(handler),
+                new FakeTimeProvider(Baseline),
+                new UpdateCooldownStore(dir),
+                currentVersion: "0.1.0",
+                requestTimeout: TimeSpan.FromMilliseconds(250));
+
+            Task<UpdateCheckResult> check = checker.CheckAsync(force: false);
+
+            // The expectation under test: one update check never takes
+            // longer than 30 seconds - the deadline ends a hung endpoint
+            // instead of riding the HTTP client's 100-second default or
+            // hanging forever.
+            await Assert.That(async () => { await check; }).CompletesWithin(TimeSpan.FromSeconds(30));
+
+            UpdateCheckResult result = await check;
+
+            await Assert.That(result.Outcome).IsEqualTo(UpdateCheckOutcome.CheckFailed);
+            await Assert.That(result.FailureDetail).Contains("timed out");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Test]
+    public async Task RequestTimeout_is_thirty_seconds()
+    {
+        // Subject held in a local so the assertion is not on a constant.
+        TimeSpan bound = UpdateChecker.RequestTimeout;
+        await Assert.That(bound).IsEqualTo(TimeSpan.FromSeconds(30));
+    }
+
+    [Test]
+    public async Task Caller_cancellation_rethrows_instead_of_mapping_to_an_outcome()
+    {
+        string dir = CreateTempDir();
+        try
+        {
+            StubHttpMessageHandler handler = new(
+                body: null,
+                failure: new OperationCanceledException());
+            UpdateChecker checker = CreateChecker(handler, new FakeTimeProvider(Baseline), dir);
+
+            using CancellationTokenSource cancelled = new();
+            cancelled.Cancel();
+
+            // Cancellation is not a check outcome: it escapes CheckAsync
+            // rather than folding into CheckFailed.
+            await Assert.That(async () => await checker.CheckAsync(force: false, cancelled.Token))
+                .Throws<OperationCanceledException>();
         }
         finally
         {

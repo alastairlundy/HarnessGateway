@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 
 namespace HarnessGateway.Launcher.Core.Update;
@@ -17,6 +18,16 @@ public sealed class UpdateChecker
     public static readonly TimeSpan CooldownWindow = TimeSpan.FromMinutes(10);
 
     /// <summary>
+    /// The default wall-clock bound on one check's network exchange: a hung
+    /// or slow endpoint fails the check with a nameable cause after this
+    /// long, and never holds the CLI for the HTTP client's own default
+    /// timeout. The constructor's <c>requestTimeout</c> parameter overrides
+    /// the bound per instance, so tests can prove the deadline fires without
+    /// waiting out the real 30 seconds.
+    /// </summary>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// GitHub's Releases latest endpoint for this repository. This is
     /// the only version source: NuGet-based sources are deliberately refused,
     /// no token is ever attached, and the endpoint's own filtering decides
@@ -29,17 +40,20 @@ public sealed class UpdateChecker
     private readonly TimeProvider _timeProvider;
     private readonly UpdateCooldownStore _cooldownStore;
     private readonly string _currentVersion;
+    private readonly TimeSpan _requestTimeout;
 
     public UpdateChecker(
         HttpClient httpClient,
         TimeProvider timeProvider,
         UpdateCooldownStore cooldownStore,
-        string currentVersion)
+        string currentVersion,
+        TimeSpan? requestTimeout = null)
     {
         _httpClient = httpClient;
         _timeProvider = timeProvider;
         _cooldownStore = cooldownStore;
         _currentVersion = currentVersion;
+        _requestTimeout = requestTimeout ?? RequestTimeout;
     }
 
     /// <summary>This build's version, for the CLI's report lines.</summary>
@@ -81,10 +95,20 @@ public sealed class UpdateChecker
     /// Every fault - unreachable host, HTTP error, malformed payload - maps
     /// to <see cref="UpdateCheckOutcome.CheckFailed"/> so no exception
     /// escapes with an exit code outside the contract;
-    /// caller-initiated cancellation is the one rethrow.
+    /// caller-initiated cancellation is the one rethrow. The network
+    /// exchange is bounded by <see cref="RequestTimeout"/>.
     /// </summary>
     private async Task<UpdateCheckResult> QueryLatestReleaseAsync(CancellationToken cancellationToken)
     {
+        // One deadline over the whole exchange, linked to the caller's token:
+        // the caller's cancellation must still rethrow, while the deadline's
+        // own firing is a failed check with a nameable cause. The deadline
+        // rides the real clock (CancellationTokenSource takes no
+        // TimeProvider), so tests simulate the firing with a stubbed throw.
+        using CancellationTokenSource deadline =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(_requestTimeout);
+
         try
         {
             using HttpRequestMessage request = new(HttpMethod.Get, LatestReleaseEndpoint);
@@ -95,7 +119,7 @@ public sealed class UpdateChecker
             request.Headers.Accept.ParseAdd("application/vnd.github+json");
 
             using HttpResponseMessage response =
-                await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                await _httpClient.SendAsync(request, deadline.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 return new UpdateCheckResult(
@@ -103,7 +127,7 @@ public sealed class UpdateChecker
                     FailureDetail: $"the GitHub releases endpoint returned HTTP {(int)response.StatusCode}.");
             }
 
-            string payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            string payload = await response.Content.ReadAsStringAsync(deadline.Token).ConfigureAwait(false);
             return CompareLatestRelease(payload);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -112,10 +136,18 @@ public sealed class UpdateChecker
             // must never be mapped onto the exit-code contract.
             throw;
         }
+        catch (OperationCanceledException)
+        {
+            // The request deadline fired, not the caller's token: a hung or
+            // slow endpoint is a failed check, not a hang.
+            return new UpdateCheckResult(
+                UpdateCheckOutcome.CheckFailed,
+                FailureDetail: $"the update check timed out after {FormatSeconds(_requestTimeout)} seconds.");
+        }
         catch (Exception ex)
         {
-            // Unreachable host, timeout, malformed JSON, or a payload shape
-            // the reader rejects: all of them are a failed check.
+            // Unreachable host, malformed JSON, or a payload shape the
+            // reader rejects: all of them are a failed check.
             return new UpdateCheckResult(
                 UpdateCheckOutcome.CheckFailed,
                 FailureDetail: ex.Message);
@@ -159,6 +191,14 @@ public sealed class UpdateChecker
             ? new UpdateCheckResult(UpdateCheckOutcome.UpdateAvailable, LatestVersion: tagName)
             : new UpdateCheckResult(UpdateCheckOutcome.UpToDate, LatestVersion: tagName);
     }
+
+    /// <summary>
+    /// Formats a duration as seconds with trailing zeros dropped, so the
+    /// timeout detail reads "after 30 seconds" for the production bound and
+    /// "after 0.25 seconds" for a test-shortened one.
+    /// </summary>
+    private static string FormatSeconds(TimeSpan time) =>
+        time.TotalSeconds.ToString("0.##", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Parses a release tag or the build's own version, tolerating the leading
