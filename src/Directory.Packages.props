@@ -15,7 +15,7 @@
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.324" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
     <PackageVersion Include="System.CommandLine" Version="2.0.14" />
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.14" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="11.0.0" />
     <PackageVersion Include="Tomlyn" Version="2.11.1" />
     <PackageVersion Include="TUnit" Version="1.83.0" />
     <PackageVersion Include="WixToolset.Sdk" Version="$(WixToolsetVersion)" />
