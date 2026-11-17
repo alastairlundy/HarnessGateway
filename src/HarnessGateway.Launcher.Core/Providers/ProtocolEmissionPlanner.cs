@@ -1,10 +1,10 @@
 namespace HarnessGateway.Launcher.Core.Providers;
 
 /// <summary>
-/// The one shared protocol-to-env-var mapping (T007), consolidated from the
+/// The one shared protocol-to-env-var mapping, consolidated from the
 /// per-adapter spellings every adapter emits today. Pure and stateless: no
-/// settings or provider context in, one <see cref="ProtocolEmission"/> out
-/// (T017). Per-harness config shapes (OpenCode's inline session config,
+/// settings or provider context in, one <see cref="ProtocolEmission"/> out.
+/// Per-harness config shapes (OpenCode's inline session config,
 /// Copilot's provider block, Claude Code's auth-token rename) stay
 /// adapter-owned and are never emitted here.
 /// </summary>
@@ -39,7 +39,7 @@ public sealed class ProtocolEmissionPlanner : IProtocolEmissionPlanner
 
     /// <summary>
     /// The API-key variable of a protocol as an empty-valued slot: the
-    /// planner is given no key (T017), so it contributes the name and the
+    /// planner is given no key, so it contributes the name and the
     /// adapter fills the value from the resolved secret - or omits the entry
     /// entirely when there is no secret, so keyless launches never emit an
     /// empty environment variable.

@@ -3,7 +3,7 @@ using HarnessGateway.Launcher.Core.Providers;
 namespace HarnessGateway.Launcher.Tests.Fakes;
 
 /// <summary>
-/// <see cref="IProtocolEmissionPlanner"/> test double (T010): records every
+/// <see cref="IProtocolEmissionPlanner"/> test double: records every
 /// <c>Plan</c> call so a test can assert which case values an adapter
 /// handed over, and returns <see cref="CannedEmission"/> when one is set -
 /// a sentinel emission proves the adapter consumes whatever the planner

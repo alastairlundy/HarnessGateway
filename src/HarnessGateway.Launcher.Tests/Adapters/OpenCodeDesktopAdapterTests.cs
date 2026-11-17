@@ -8,7 +8,7 @@ namespace HarnessGateway.Launcher.Tests.Adapters;
 
 /// <summary>
 /// The GUI sibling plans through the same two-case family and the same
-/// shared emission as the CLI adapter it mirrors (T007, T021): only its
+/// shared emission as the CLI adapter it mirrors: only its
 /// launch target and declared GUI members differ.
 /// </summary>
 public class OpenCodeDesktopAdapterTests
@@ -56,7 +56,7 @@ public class OpenCodeDesktopAdapterTests
     {
         // A sentinel emission proves the adapter merges whatever the
         // planner returns: it computes no protocol and hardcodes no
-        // variable names of its own (T018, T007).
+        // variable names of its own.
         FakeProtocolEmissionPlanner planner = new()
         {
             CannedEmission = new ProtocolEmission
@@ -93,7 +93,7 @@ public class OpenCodeDesktopAdapterTests
     public async Task PlanLaunch_from_the_ad_hoc_case_plans_the_ad_hoc_values()
     {
         // The family's other arm: a raw-URL launch reaches the same planner
-        // call with its own protocol and base URL (T021), and the session
+        // call with its own protocol and base URL, and the session
         // key still credentials it.
         FakeProtocolEmissionPlanner planner = new();
         OpenCodeDesktopAdapter adapter = new OpenCodeDesktopAdapter();
@@ -124,7 +124,7 @@ public class OpenCodeDesktopAdapterTests
     {
         // Exactly one base-url variable per launch - never both protocol
         // spellings beside each other, and never the other protocol's key
-        // variable either (T007).
+        // variable either.
         OpenCodeDesktopAdapter adapter = new OpenCodeDesktopAdapter();
         ResolvedLaunch request = CreateRequest(protocol: protocol);
 

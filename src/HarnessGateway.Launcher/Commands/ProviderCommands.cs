@@ -256,7 +256,7 @@ internal sealed class ProviderCommands : Command
                 return (int)LaunchExitCode.UsageError;
             }
 
-            // T005: the key-deletion failure is reported but must never block
+            // The key-deletion failure is reported but must never block
             // entry removal - a removed identity leaves the list either way,
             // with the orphaned store record called out for the user.
             string? keyFailure = null;
@@ -497,7 +497,7 @@ internal sealed class ProviderCommands : Command
                 return resolutionExitCode;
             }
 
-            // T002: entry names are unique within a provider, matched with the
+            // Entry names are unique within a provider, matched with the
             // same case-insensitive rule launch resolution uses.
             if (entry.Models.Any(m => string.Equals(m.Name, modelName, StringComparison.OrdinalIgnoreCase)))
             {

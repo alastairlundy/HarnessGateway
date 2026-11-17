@@ -5,8 +5,9 @@ namespace HarnessGateway.Launcher.Commands;
 
 /// <summary>
 /// Builds the CLI root command: the standard <c>--version</c> flag wired to
-/// this build's identity, the <c>launch</c> and <c>config</c> subcommands, and
-/// the root action (the interactive wizard). Root wiring lives here rather
+/// this build's identity, the <c>launch</c>, <c>config</c>, <c>provider</c>,
+/// and <c>update</c> subcommands, and the root action (the interactive
+/// wizard). Root wiring lives here rather
 /// than inline in Program.cs so tests can exercise the real parse-and-invoke
 /// path: System.CommandLine fails silently when wiring is missing, which is
 /// exactly the bug LaunchCommandInvocationTests exists to catch, and a flag
@@ -39,9 +40,13 @@ public static class RootCommandFactory
         {
             new LaunchCommand(orchestrator, wizardAction, adapters),
             new ConfigCommand(settingsStore),
-            // D004: the provider surface is top-level - `harnessgateway
+            // The provider surface is top-level - `harnessgateway
             // provider ...` - with no deprecated backend alias anywhere.
             new ProviderCommands(settingsStore, keyStore, new TerminalKeyPrompt()),
+            // `update` is check-only and refuses when invoked
+            // bare; the production instance is built here so the tests drive
+            // the same registration path the entry point uses.
+            new UpdateCommand(),
         };
 
         // RootCommand ships a standard --version option: its help entry, its

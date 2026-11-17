@@ -212,9 +212,9 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_consumes_the_planners_emission_and_renames_the_key_slot()
     {
         // A sentinel emission proves the base-url variable comes from the
-        // planner (T007), while the key slot keeps this harness's own
+        // planner, while the key slot keeps this harness's own
         // rename: ANTHROPIC_AUTH_TOKEN, never the planner's
-        // ANTHROPIC_API_KEY spelling (T007, harness-owned per the
+        // ANTHROPIC_API_KEY spelling (harness-owned per the
         // planner's contract).
         FakeProtocolEmissionPlanner planner = new()
         {
@@ -251,7 +251,7 @@ public class ClaudeCodeAdapterTests
     public async Task PlanLaunch_from_the_ad_hoc_case_plans_the_ad_hoc_values()
     {
         // The family's other arm: a raw-URL launch reaches the same planner
-        // call with its own base URL (T021), and the session key still
+        // call with its own base URL, and the session key still
         // credentials it under the harness's rename.
         FakeProtocolEmissionPlanner planner = new();
         ClaudeCodeAdapter adapter = CreateAdapter();
@@ -278,7 +278,7 @@ public class ClaudeCodeAdapterTests
     {
         // Exactly one base-url variable per launch - this harness's own -
         // and never an OPENAI_* variable or the planner's API-key spelling
-        // beside it (T007).
+        // beside it.
         ClaudeCodeAdapter adapter = CreateAdapter();
         ResolvedLaunch request = CreateRequest();
 

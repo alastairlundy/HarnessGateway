@@ -175,7 +175,7 @@ public class CopilotCliAdapterTests
     {
         // A sentinel emission proves the adapter takes its values from the
         // planner: the base URL and protocol land under this harness's own
-        // provider-block names (harness-owned, adapter-side per T007), and
+        // provider-block names (harness-owned, adapter-side), and
         // the planner's canonical spellings never appear beside them.
         FakeProtocolEmissionPlanner planner = new()
         {
@@ -214,7 +214,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_from_the_ad_hoc_case_plans_the_ad_hoc_values()
     {
         // The family's other arm: a raw-URL launch reaches the same planner
-        // call with its own protocol and base URL (T021), and the session
+        // call with its own protocol and base URL, and the session
         // key still credentials it.
         FakeProtocolEmissionPlanner planner = new();
         CopilotCliAdapter adapter = new CopilotCliAdapter();
@@ -242,7 +242,7 @@ public class CopilotCliAdapterTests
     public async Task PlanLaunch_emits_exactly_one_base_url_variable_and_no_unrelated_protocol_vars()
     {
         // Exactly one base-url variable per launch - this harness's own -
-        // and never a variable of an unrelated protocol beside it (T007).
+        // and never a variable of an unrelated protocol beside it.
         CopilotCliAdapter adapter = new CopilotCliAdapter();
         ResolvedLaunch request = CreateRequest();
 

@@ -1,0 +1,102 @@
+<Project DefaultTargets="Build">
+
+  <!--
+    MSBuild resolves a project SDK's version from this file or from global.json; it never
+    reads Central Package Management. To keep the WiX tooling version in
+    Directory.Packages.props like every other package version in this repository, import
+    that file first and hand its pinned value to the SDK imports below. The three NuGet
+    properties tell restore where the central versions came from and stop NuGet.props
+    importing the file a second time now that it is already imported here.
+  -->
+  <PropertyGroup>
+    <_CentralPackageVersions>$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)'))</_CentralPackageVersions>
+    <ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>
+    <DirectoryPackagesPropsPath Condition="Exists('$(_CentralPackageVersions)')">$(_CentralPackageVersions)</DirectoryPackagesPropsPath>
+    <CentralPackageVersionsFileImported Condition="Exists('$(_CentralPackageVersions)')">true</CentralPackageVersionsFileImported>
+  </PropertyGroup>
+  <Import Project="$(_CentralPackageVersions)" Condition="Exists('$(_CentralPackageVersions)')" />
+
+  <PropertyGroup>
+    <!--
+      One solution build produces one MSI per Windows RID: this project builds the win-x64
+      MSI itself and runs a second pass below for win-arm64.
+    -->
+    <InstallerRuntimeIdentifier Condition="'$(InstallerRuntimeIdentifier)' == ''">win-x64</InstallerRuntimeIdentifier>
+    <InstallerPlatform Condition="'$(InstallerRuntimeIdentifier)' == 'win-arm64'">arm64</InstallerPlatform>
+    <InstallerPlatform Condition="'$(InstallerPlatform)' == ''">x64</InstallerPlatform>
+    <!-- Output names mirror the release archives: harnessgateway-<rid>.msi. -->
+    <OutputName>harnessgateway-$(InstallerRuntimeIdentifier)</OutputName>
+  </PropertyGroup>
+
+  <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="$(WixToolsetVersion)" />
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" />
+  </ItemGroup>
+
+  <!-- Per-RID intermediate output so each pass keeps its own objects and bind tracking. -->
+  <PropertyGroup>
+    <IntermediateOutputPath>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(InstallerRuntimeIdentifier)\</IntermediateOutputPath>
+    <!-- Where the Launcher's self-contained publish output is staged for this MSI's payload. -->
+    <LauncherPublishDir>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(InstallerRuntimeIdentifier)\launcher-publish</LauncherPublishDir>
+    <!--
+      Build root for the payload publish. The solution also builds the Launcher and its
+      references in this same build, and a referenced project's output folder does not
+      change with the Runtime Identifier - so publishing into the shared bin/obj would put
+      two writes to the same file in flight at once. Keeping this build under its own root
+      makes the payload build disjoint from every other project in the solution.
+    -->
+    <LauncherBuildDir>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(InstallerRuntimeIdentifier)\launcher-build\</LauncherBuildDir>
+  </PropertyGroup>
+
+  <Import Project="Sdk.targets" Sdk="WixToolset.Sdk" Version="$(WixToolsetVersion)" />
+
+  <!--
+    WiX authors Windows Installer packages and its toolchain runs on Windows only: on any
+    other platform wix.exe refuses outright rather than degrading. Restrict the installer to
+    Windows builds. Elsewhere the project still restores and evaluates, so solution builds
+    stay green across the whole CI matrix; it just produces nothing. The payload publish and
+    the second RID pass below are both downstream of Build, so they never run either.
+  -->
+  <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' != 'true'">
+    <BuildDependsOn></BuildDependsOn>
+  </PropertyGroup>
+
+  <!--
+    Publish the Launcher for this RID and hand the payload path plus the product version to
+    Package.wxs. The payload and the version both come from the Launcher build, so neither
+    is restated in this project.
+  -->
+  <Target Name="PublishLauncherPayload" BeforeTargets="CoreCompile">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(InstallerRuntimeIdentifier);SelfContained=true;PublishSingleFile=false;PublishTrimmed=false;PublishReadyToRun=false;CopyOutputSymbolsToPublishDirectory=false;BaseOutputPath=$(LauncherBuildDir)bin\;IntermediateOutputPath=$(LauncherBuildDir)obj\;PublishDir=$(LauncherPublishDir)" />
+
+    <!-- The release archives ship without symbols, so the staged payload must too. -->
+    <ItemGroup>
+      <_PayloadSymbols Include="$(LauncherPublishDir)\**\*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(_PayloadSymbols)" />
+
+    <GetAssemblyIdentity AssemblyFiles="$(LauncherPublishDir)\harnessgateway.dll">
+      <Output TaskParameter="Assemblies" ItemName="_LauncherAssembly" />
+    </GetAssemblyIdentity>
+
+    <PropertyGroup>
+      <_LauncherVersion>@(_LauncherAssembly->'%(Version)')</_LauncherVersion>
+      <!-- Windows Installer takes Major.Minor.Build only, so drop the revision component. -->
+      <LauncherProductVersion>$([System.Text.RegularExpressions.Regex]::Match($(_LauncherVersion), '^\d+\.\d+\.\d+').Value)</LauncherProductVersion>
+      <DefineConstants>ProductVersion=$(LauncherProductVersion);LauncherPublishDir=$(LauncherPublishDir);$(DefineConstants)</DefineConstants>
+    </PropertyGroup>
+  </Target>
+
+  <!-- Second pass: the win-arm64 MSI, built after this project's own build so a single solution build ships both. -->
+  <Target Name="BuildWinArm64Installer"
+          AfterTargets="Build"
+          Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true' and '$(InstallerRuntimeIdentifier)' != 'win-arm64'">
+    <MSBuild Projects="$(MSBuildProjectFullPath)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);InstallerRuntimeIdentifier=win-arm64" />
+  </Target>
+
+</Project>

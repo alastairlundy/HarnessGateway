@@ -16,6 +16,43 @@ never in the settings file.
 
 ## Install
 
+### WinGet (Windows)
+
+```bash
+winget install AlastairLundy.HarnessGateway
+```
+
+The manifest lives in WinGet's official source (`microsoft/winget-pkgs`) and
+pins a per-user scope, so installs and upgrades need no elevation. The
+installer binaries themselves are hosted on this repository's releases; the
+source carries only the manifest that points at them.
+
+### MSI installer (Windows)
+
+| Architecture | Installer |
+|--------------|-----------|
+| Windows x64 | `harnessgateway-win-x64.msi` |
+| Windows ARM64 | `harnessgateway-win-arm64.msi` |
+
+Download the one for your architecture from
+[GitHub Releases](https://github.com/alastairlundy/HarnessGateway/releases)
+and run it. Installed that way, it defaults to per-machine: Program Files,
+with a UAC prompt. To install for the current user's account instead, pass
+the per-user switch:
+
+```bash
+msiexec /i harnessgateway-win-x64.msi ALLUSERS=2 MSIINSTALLPERUSER=1
+```
+
+The switch combines with the silent flags too — put `/quiet /norestart`
+before it — and the interactive installer offers the same per-user or
+per-machine choice as a scope step. Either mode registers an Add/Remove
+Programs entry, so uninstalling is the standard Windows uninstall path. The
+MSI ships unsigned like everything else here, so SmartScreen warns about it
+exactly as described below.
+
+### Archives
+
 Download the archive for your platform from
 [GitHub Releases](https://github.com/alastairlundy/HarnessGateway/releases):
 
@@ -251,6 +288,36 @@ provider or model override against a harness that declares no configuration
 surface that could carry it. Keys still come only from saved provider
 entries; there is no per-launch key for GUI harnesses either.
 
+## Update check
+
+```bash
+harnessgateway update check
+```
+
+The Update check compares this build's version against the latest published
+GitHub release and reports the result. It never downloads, installs, or
+applies anything — upgrading stays your package manager's job (or your next
+manual download). The outcomes are:
+
+- **Up to date** — prints the current version and exits 0.
+- **Newer release available** — prints the latest version next to this
+  build's and exits 11.
+- **Check failed** — prints the reason (network failure, an HTTP error from
+  the releases endpoint, or a response it can't parse) to stderr and exits
+  12.
+
+Checks are throttled to one network call per 10 minutes. The time of the last
+check that reached the network is stored next to your settings file, and a
+check inside that window makes no network call, prints how much cooldown
+time remains, and exits 0. Pass `--force` to bypass the window:
+
+```bash
+harnessgateway update check --force
+```
+
+Bare `harnessgateway update` runs nothing: it exits 2 (usage error) with a
+suggestion naming `update check`, rather than defaulting to a behavior.
+
 ## Migration note
 
 This release renames the configuration surface from "backend" to "provider"
@@ -258,7 +325,7 @@ This release renames the configuration surface from "backend" to "provider"
 old `backend` spellings no longer parse and there are no deprecated aliases.
 Saved entries from a previous build are converted to the new `providers`
 shape automatically on first launch (schemaVersion 3); no action is required
-from you. The exit-code table is unchanged in size.
+from you. The rename itself changes no exit codes.
 
 ## Configuration
 
@@ -411,6 +478,8 @@ leaves it untouched.
 | 8 | UnknownProviderName | `--provider` matched no entry (unknown provider name), the default-provider pointer is set but names no saved entry (DanglingDefaultProvider), or the pointer is empty while saved entries exist (AbsentDefaultProvider — no first-entry fallback) |
 | 9 | UnsupportedSettingsSchema | `schemaVersion` is missing, malformed, or newer than this build. Nothing is written |
 | 10 | ConfigConflict | A user-authored `model_providers.harnessgateway` block already exists in the codex config |
+| 11 | UpdateAvailable | `update check` found a newer release and reports both versions; it downloads, installs, and applies nothing |
+| 12 | CheckFailed | `update check` could not complete: a network failure, an HTTP error from the releases endpoint, or a response it cannot parse |
 
 Exit codes 5 and 6 are reserved and won't appear in this release. The enum
 keeps them so that a future build can claim those numbers without

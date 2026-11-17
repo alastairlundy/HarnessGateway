@@ -81,7 +81,7 @@ public class ConfigCommandTests
         await Assert.That(verbs).Contains("show");
         await Assert.That(verbs).Contains("get");
         await Assert.That(verbs).Contains("set");
-        // The provider surface moved to the top level (D004): config carries
+        // The provider surface moved to the top level: config carries
         // no backend subcommand and no deprecated alias.
         await Assert.That(verbs).DoesNotContain("backend");
         await Assert.That(verbs.Count).IsEqualTo(3);

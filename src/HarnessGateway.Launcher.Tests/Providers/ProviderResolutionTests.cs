@@ -263,7 +263,7 @@ public class ProviderResolutionTests
     [Test]
     public async Task Ad_hoc_case_carries_no_provider_or_key_reference()
     {
-        // T021: the type system forbids a keyless launch from reaching
+        // The type system forbids a keyless launch from reaching
         // consumers that assume a stored provider exists.
         await Assert.That(typeof(LaunchResolution.AdHocCase).GetProperty("Provider")).IsNull();
         await Assert.That(typeof(LaunchResolution.AdHocCase).GetProperty("ApiKey")).IsNull();
@@ -430,7 +430,7 @@ public class ProviderResolutionTests
     [Test]
     public async Task Resolve_flag_pair_skips_the_unlisted_model_guard()
     {
-        // T013: the flag pair replaces endpoint and protocol wholesale for
+        // The flag pair replaces endpoint and protocol wholesale for
         // the session - stored bindings are ignored and the unlisted-model
         // guard does not apply to the overridden launch.
         LauncherSettings settings = SettingsWith(

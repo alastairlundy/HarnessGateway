@@ -20,6 +20,12 @@
              PDB. -->
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
+        <!-- The Windows RIDs this launcher publishes for: the release zip matrix and the
+             installer's two MSIs package the same self-contained publish output. Declared
+             here so one `dotnet restore` covers every RID the build publishes, which keeps
+             RID-specific publishes out of the build phase (no mid-build restore). -->
+        <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+
         <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/alastairlundy/HarnessGateway</RepositoryUrl>
     </PropertyGroup>

@@ -43,10 +43,10 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
-        // Direct case branching (T021): each case hands over its own
+        // Direct case branching: each case hands over its own
         // effective protocol, base URL, and model - no stored-looking
         // provider is synthesized in between, and no protocol is computed
-        // here (T018).
+        // here.
         (ProtocolEmission emission, string? model) = request.Launch switch
         {
             LaunchResolution.ProviderCase providerCase => (
@@ -59,7 +59,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
-        // One shared mapping (T007): the emission carries this protocol's
+        // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
         EmissionMerge.MergeInto(envVars, emission, request.ApiKey);

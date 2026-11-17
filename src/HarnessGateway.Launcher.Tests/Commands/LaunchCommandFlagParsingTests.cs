@@ -201,7 +201,7 @@ public class LaunchCommandFlagParsingTests
     [Test]
     public async Task Parse_backend_option_is_rejected()
     {
-        // D004: the backend spelling breaks at this version - --provider is
+        // The backend spelling breaks at this version - --provider is
         // the only accepted selector, with no deprecated alias.
         LaunchCommand command = new LaunchCommand();
         ParseResult result = command.Parse("launch opencode --backend production");

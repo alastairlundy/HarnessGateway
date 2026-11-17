@@ -50,10 +50,10 @@ public sealed class CodexAdapter : IHarnessAdapter
 
     public async Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
-        // Direct case branching (T021): each case hands over its own
+        // Direct case branching: each case hands over its own
         // effective protocol, base URL, and model - no stored-looking
         // provider is synthesized in between, and no protocol is computed
-        // here (T018).
+        // here.
         (ProtocolEmission emission, string? model) = request.Launch switch
         {
             LaunchResolution.ProviderCase providerCase => (
@@ -71,7 +71,7 @@ public sealed class CodexAdapter : IHarnessAdapter
             ? await File.ReadAllTextAsync(configPath, cancellationToken)
 .ConfigureAwait(false) : string.Empty;
 
-        // One shared mapping (T007): the emission's base URL - already
+        // One shared mapping: the emission's base URL - already
         // slash-trimmed by the planner - feeds the harness-owned config
         // block and the process environment alike.
         TomlDocumentEditor editor = ApplyProviderConfig(
@@ -79,7 +79,7 @@ public sealed class CodexAdapter : IHarnessAdapter
 
         // The emission's base-url variable rides the spawned process
         // environment too, so every launch carries exactly one base-url
-        // variable (T007). The key slot's canonical name is not this
+        // variable. The key slot's canonical name is not this
         // harness's: codex reads the variable its config block names
         // (env_key), so the secret lands there and only there - never a
         // dummy value, never a second copy under another name.
@@ -111,8 +111,8 @@ public sealed class CodexAdapter : IHarnessAdapter
     /// <summary>
     /// Parses the existing config, refuses a user-authored harnessgateway
     /// block before any write, and applies the provider block plus the
-    /// top-level model keys. The refusal is the adapter's own config shape
-    /// (T007): only the base-url value comes from the shared mapping.
+    /// top-level model keys. The refusal is the adapter's own config shape;
+    /// only the base-url value comes from the shared mapping.
     /// </summary>
     private static TomlDocumentEditor ApplyProviderConfig(
         string existing,

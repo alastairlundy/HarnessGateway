@@ -144,9 +144,9 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
     /// </summary>
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
-        // Direct case branching (T021): same family handoff as the CLI
+        // Direct case branching: same family handoff as the CLI
         // sibling - each case carries its own effective protocol, base URL,
-        // and model, and no protocol is computed here (T018).
+        // and model, and no protocol is computed here.
         (ProtocolEmission emission, string? model) = request.Launch switch
         {
             LaunchResolution.ProviderCase providerCase => (
@@ -159,7 +159,7 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
-        // One shared mapping (T007): the emission carries this protocol's
+        // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
         EmissionMerge.MergeInto(envVars, emission, request.ApiKey);

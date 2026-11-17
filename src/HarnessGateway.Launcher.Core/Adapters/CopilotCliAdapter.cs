@@ -43,10 +43,10 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
     {
-        // Direct case branching (T021): each case hands over its own
+        // Direct case branching: each case hands over its own
         // effective protocol, base URL, and model - no stored-looking
         // provider is synthesized in between, and no protocol is computed
-        // here (T018).
+        // here.
         (ProtocolEmission emission, string? model) = request.Launch switch
         {
             LaunchResolution.ProviderCase providerCase => (
@@ -59,9 +59,9 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
-        // One shared mapping (T007): the emission carries this protocol's
+        // One shared mapping: the emission carries this protocol's
         // base URL and protocol. This harness reads its own provider-block
-        // names (harness-owned, adapter-side per T007), so the block below
+        // names (harness-owned, adapter-side), so the block below
         // supplies the variable names and the emission supplies the values -
         // the plan therefore carries exactly this harness's three variables
         // and never the canonical OPENAI_*/ANTHROPIC_* spellings.

@@ -2,4 +2,5 @@
   <Project Path="HarnessGateway.Launcher/HarnessGateway.Launcher.csproj" />
   <Project Path="HarnessGateway.Launcher.Core/HarnessGateway.Launcher.Core.csproj" />
   <Project Path="HarnessGateway.Launcher.Tests/HarnessGateway.Launcher.Tests.csproj" />
+  <Project Path="HarnessGateway.Installer/HarnessGateway.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />
 </Solution>
