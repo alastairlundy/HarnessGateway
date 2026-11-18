@@ -2,14 +2,14 @@ namespace HarnessGateway.Launcher.Core.Execution;
 
 /// <summary>
 /// The shipped install discovery: resolver-first, then the current OS's
-/// conventional install roots, then an honest miss. Neither pass writes to
+/// conventional installation roots, then an honest miss. Neither pass writes to
 /// disk, starts a process, or depends on adapter-declared paths - the declared
 /// identity strings are the only per-harness input, and the roots are
 /// launcher-owned operating-system facts, so one implementation serves every
 /// harness.
 /// </summary>
 /// <remarks>
-/// Deliberately shallow: an executable must sit where a conventional install
+/// Deliberately shallow: an executable must sit where a conventional installation
 /// puts it (directly under a root), and a miss never throws - it is the input
 /// the caller's refusal is built from.
 /// </remarks>
@@ -92,7 +92,7 @@ public sealed class GuiInstallDiscovery : IGuiInstallDiscovery
     }
 
     /// <summary>
-    /// The conventional install roots of the OS this process runs on:
+    /// The conventional installation roots of the OS this process runs on:
     /// <c>Program Files</c> and <c>Program Files (x86)</c> on Windows,
     /// <c>/Applications</c> on macOS, and <c>/usr/bin</c> on Linux. These are
     /// operating-system conventions, not harness facts - there is exactly one
