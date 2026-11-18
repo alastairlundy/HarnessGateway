@@ -357,8 +357,8 @@ public class CodexAdapterTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("model_providers.harnessgateway");
-            await Assert.That(caught!.Message).Contains("remove or rename", StringComparison.Ordinal);
+            await Assert.That(caught.Message).Contains("model_providers.harnessgateway");
+            await Assert.That(caught.Message).Contains("remove or rename", StringComparison.Ordinal);
             // Refusal happens before any write: the user's file is untouched.
             string after = await File.ReadAllTextAsync(configPath);
             await Assert.That(after).IsEqualTo(userOwned.ReplaceLineEndings("\n"));

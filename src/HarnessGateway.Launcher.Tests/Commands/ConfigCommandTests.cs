@@ -113,7 +113,7 @@ public class ConfigCommandTests
         Provider? backend = ConfigCommand.ResolveDefaultProvider(settings);
 
         await Assert.That(backend).IsNotNull();
-        await Assert.That(backend!.Name).IsEqualTo("default");
+        await Assert.That(backend.Name).IsEqualTo("default");
         await Assert.That(backend.BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
     }
 
@@ -137,7 +137,7 @@ public class ConfigCommandTests
         Provider? backend = ConfigCommand.ResolveDefaultProvider(settings);
 
         await Assert.That(backend).IsNotNull();
-        await Assert.That(backend!.Name).IsEqualTo("first");
+        await Assert.That(backend.Name).IsEqualTo("first");
     }
 
     [Test]
@@ -555,7 +555,7 @@ public class ConfigCommandTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -616,7 +616,7 @@ public class ConfigCommandTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[],"defaultProvider":"","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -788,7 +788,7 @@ public class ConfigCommandTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[{"name":"default","baseUri":"https://api.example.com/v1","protocol":0,"apiKey":"hgkey:default"}],"defaultProvider":"default","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -950,17 +950,17 @@ public class ConfigCommandTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
-            string before = File.ReadAllText(store.SettingsFilePath);
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config get defaultProvider")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
             await Assert.That(errorOutput).Contains("unsupported settings schema version");
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -975,10 +975,10 @@ public class ConfigCommandTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
-            string before = File.ReadAllText(store.SettingsFilePath);
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(
@@ -987,7 +987,7 @@ public class ConfigCommandTests
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
             await Assert.That(errorOutput).Contains("unsupported settings schema version");
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -1002,17 +1002,17 @@ public class ConfigCommandTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
-            string before = File.ReadAllText(store.SettingsFilePath);
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeConfig(store, "config show")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
             await Assert.That(errorOutput).Contains("unsupported settings schema version");
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -1027,7 +1027,7 @@ public class ConfigCommandTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"backends":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultBackend":"work","schemaVersion":2}""");
 
@@ -1057,7 +1057,7 @@ public class ConfigCommandTests
         {
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """
                 {
@@ -1079,7 +1079,7 @@ public class ConfigCommandTests
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
             await Assert.That(keyStore.Contains("hgkey:default")).IsTrue();
 
-            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
             await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
             await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();

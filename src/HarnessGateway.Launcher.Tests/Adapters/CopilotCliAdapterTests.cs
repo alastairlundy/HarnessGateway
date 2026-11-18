@@ -104,8 +104,8 @@ public class CopilotCliAdapterTests
     [Test]
     public async Task PlanLaunch_sets_provider_type_for_openai()
     {
-        CopilotCliAdapter adapter = new CopilotCliAdapter();
-        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
+        CopilotCliAdapter adapter = new();
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

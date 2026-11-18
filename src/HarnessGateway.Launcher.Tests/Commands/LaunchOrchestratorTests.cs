@@ -1,13 +1,11 @@
 using CliInvoke.Core;
 using HarnessGateway.Launcher.Commands;
-using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Settings;
-using HarnessGateway.Launcher.Core.Settings.Security;
 using HarnessGateway.Launcher.Tests.Fakes;
 
 namespace HarnessGateway.Launcher.Tests.Commands;
@@ -168,7 +166,7 @@ public class LaunchOrchestratorTests
             // the stored entry riding the payload's provider case.
             await Assert.That(adapter.LastRequest).IsNotNull();
             LaunchResolution.ProviderCase providerCase =
-                (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;
+                (LaunchResolution.ProviderCase)adapter.LastRequest.Launch;
             await Assert.That(providerCase.Provider.Name).IsEqualTo("default");
         }
         finally

@@ -105,7 +105,7 @@ public class OpenCodeAdapterTests
     public async Task PlanLaunch_openai_sets_env_vars()
     {
         OpenCodeAdapter adapter = new OpenCodeAdapter();
-        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

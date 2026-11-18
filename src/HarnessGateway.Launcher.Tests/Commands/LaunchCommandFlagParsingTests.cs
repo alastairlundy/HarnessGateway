@@ -183,7 +183,7 @@ public class LaunchCommandFlagParsingTests
         await Assert.That(result.Errors).IsEmpty();
         string[]? persistValues = result.GetValue(LaunchCommand.PersistOption);
         await Assert.That(persistValues).IsNotNull();
-        IReadOnlyList<string> parsed = LaunchCommand.ParsePersistValues(persistValues!);
+        IReadOnlyList<string> parsed = LaunchCommand.ParsePersistValues(persistValues);
         await Assert.That(parsed).Contains("config");
         await Assert.That(parsed).Contains("model");
     }

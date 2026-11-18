@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CliInvoke;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
+using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 

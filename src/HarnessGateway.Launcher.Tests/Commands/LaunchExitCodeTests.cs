@@ -106,7 +106,7 @@ public class LaunchExitCodeTests
         {
             string? name = Enum.GetName(value);
             await Assert.That(name).IsNotNull();
-            await Assert.That(name!.Length).IsGreaterThan(0);
+            await Assert.That(name.Length).IsGreaterThan(0);
         }
     }
 }

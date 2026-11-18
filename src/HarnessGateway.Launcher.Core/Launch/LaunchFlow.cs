@@ -412,9 +412,11 @@ public sealed class LaunchFlow
     /// harness declaring no surface at all. A launch that asks for neither
     /// never produces this refusal.
     /// </summary>
+    /// <param name="request"></param>
     /// <param name="apiKey">
     /// The launch-scoped resolved secret, if this launch carries one.
     /// </param>
+    /// <param name="adapter"></param>
     /// <returns>The refusal to stop with, or <c>null</c> to proceed.</returns>
     private static LaunchRefused? DeclaredSurfaceRefusal(
         IHarnessAdapter adapter,

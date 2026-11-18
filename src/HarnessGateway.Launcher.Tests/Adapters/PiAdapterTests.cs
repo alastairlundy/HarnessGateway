@@ -69,8 +69,8 @@ public class PiAdapterTests
         await Assert.That(adapter.Metadata.SupportedProtocols).IsEquivalentTo(
         [
             ProtocolKind.OpenAiChat,
-                ProtocolKind.OpenAiResponses,
-                ProtocolKind.Anthropic
+            ProtocolKind.OpenAiResponses,
+            ProtocolKind.Anthropic
         ]);
     }
 
@@ -92,7 +92,7 @@ public class PiAdapterTests
     public async Task PlanLaunch_openai_sets_env_vars()
     {
         PiAdapter adapter = new PiAdapter();
-        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

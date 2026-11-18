@@ -72,10 +72,8 @@ public sealed class WindowsInstanceDetector : IRunningInstanceDetector
     private static HashSet<string> Normalize(IReadOnlyList<string> processNames)
     {
         HashSet<string> candidates = new(NameComparer);
-        if (processNames is null)
-        {
+        if (processNames.Count == 0)
             return candidates;
-        }
 
         foreach (string name in processNames)
         {
