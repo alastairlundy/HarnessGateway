@@ -44,8 +44,8 @@ the per-user switch:
 msiexec /i harnessgateway-win-x64.msi ALLUSERS=2 MSIINSTALLPERUSER=1
 ```
 
-The switch combines with the silent flags too — put `/quiet /norestart`
-before it — and the interactive installer offers the same per-user or
+The switch combines with the silent flags too. Put `/quiet /norestart`
+before it. The interactive installer offers the same per-user or
 per-machine choice as a scope step. Either mode registers an Add/Remove
 Programs entry, so uninstalling is the standard Windows uninstall path. The
 MSI ships unsigned like everything else here, so SmartScreen warns about it
@@ -128,9 +128,9 @@ The **Harness Identifier** column holds what you actually type:
 `harnessgateway launch copilot`. The **Harness Name** column is only a display
 label, used by the wizard and quoted in error messages; the launcher does not
 accept it as input. This distinction is easy to miss because the identifier
-and the name match for most harnesses. It bites with Copilot, whose name is
-"GitHub Copilot CLI" but whose identifier is `copilot`, and with OpenCode
-Desktop, whose identifier is `opencode-desktop`. Matching is
+and the name match for most harnesses. It causes confusion in two cases.
+Copilot's name is "GitHub Copilot CLI" but its identifier is `copilot`.
+OpenCode Desktop's identifier is `opencode-desktop`. Matching is
 case-insensitive, so `launch COPILOT` works too. Aliases are also
 accepted: `claude` for `claude-code` and `github-copilot-cli` for `copilot`.
 The `--help` output lists harness identifiers only.
@@ -148,7 +148,7 @@ GUI harnesses are located differently: the launcher asks your operating
 system where the app is, checking your `PATH` first and then the
 conventional install locations for your platform (`Program Files` on
 Windows, `/Applications` on macOS, `/usr/bin` on Linux). A GUI app
-installed anywhere else - a portable install, say - looks missing.
+installed anywhere else, such as a portable install, looks missing.
 
 If you name a harness that isn't found, `launch` exits with exit code 4 and
 prints the install command for that harness. In the wizard, undetectable
@@ -216,12 +216,12 @@ key.
 
 Without `--provider`, the launcher uses only the `defaultProvider` pointer. It
 never falls back to the first entry, and the two pointer failures are
-distinct refusals — both exit with exit code 8:
+distinct refusals. Both exit with exit code 8:
 
-- **DanglingDefaultProvider** — the default-provider pointer is set but names no
+- **DanglingDefaultProvider**. The default-provider pointer is set but names no
   saved entry.
-- **AbsentDefaultProvider** — the pointer is empty while saved entries exist —
-  no first-entry fallback.
+- **AbsentDefaultProvider**. The pointer is empty while saved entries exist,
+  with no first-entry fallback.
 
 Run `config set defaultProvider <name>` to fix either one. A `--provider` name
 that matches no entry is the third exit-code-8 refusal; it prints
@@ -267,9 +267,9 @@ the same in both modes; only the timing differs.
 **A running instance asks for confirmation.** If the app is already open,
 `launch` prints a `Proceed anyway? [y/N]` question, because configuration
 applied to an open application may be overwritten or ignored by the
-instance that is running. Declining - and a non-interactive launch, where
-stdin is piped and nothing can answer the question - stops the launch with
-exit code 4 and writes nothing. Pass `--confirm-running` to assert the
+instance that is running. Declining stops the launch with
+exit code 4 and writes nothing. The same happens for a non-interactive launch,
+where stdin is piped and nothing can answer the question. Pass `--confirm-running` to assert the
 answer yourself and skip the prompt in every context, interactive or not:
 
 ```bash
@@ -280,12 +280,12 @@ Using `--confirm-running` with a CLI harness is a usage error (exit code 2):
 CLI harnesses have no running instance to confirm.
 
 **Keys never touch disk.** A saved API key is handed to the app as an
-environment variable on the child process - only when the harness declares
-that surface - and the launcher never writes key material to a
+environment variable on the child process, only when the harness declares
+support for it. The launcher never writes key material to a
 configuration file. A key-carrying provider pointed at a GUI harness that
-declares no environment surface refuses with exit code 4, as does a
+declares no environment support refuses with exit code 4, as does a
 provider or model override against a harness that declares no configuration
-surface that could carry it. Keys still come only from saved provider
+support that could carry it. Keys still come only from saved provider
 entries; there is no per-launch key for GUI harnesses either.
 
 ## Update check
@@ -296,15 +296,15 @@ harnessgateway update check
 
 The Update check compares this build's version against the latest published
 GitHub release and reports the result. It never downloads, installs, or
-applies anything — upgrading stays your package manager's job (or your next
-manual download). The outcomes are:
+applies anything. Upgrading stays your package manager's job, or your next
+manual download. The outcomes are:
 
-- **Up to date** — prints the current version and exits 0.
-- **Newer release available** — prints the latest version next to this
+- **Up to date**. Prints the current version and exits 0.
+- **Newer release available**. Prints the latest version next to this
   build's and exits 11.
-- **Check failed** — prints the reason (network failure, an HTTP error from
-  the releases endpoint, or a response it can't parse) to stderr and exits
-  12.
+- **Check failed**. Prints the reason to stderr and exits 12: a network
+  failure, an HTTP error from the releases endpoint, or a response it can't
+  parse.
 
 Checks are throttled to one network call per 10 minutes. The time of the last
 check that reached the network is stored next to your settings file, and a
@@ -320,7 +320,7 @@ suggestion naming `update check`, rather than defaulting to a behavior.
 
 ## Migration note
 
-This release renames the configuration surface from "backend" to "provider"
+This release renames the configuration layer from "backend" to "provider"
 (`provider` verbs, `--provider`, `defaultProvider`, `providers.<name>.*`). The
 old `backend` spellings no longer parse and there are no deprecated aliases.
 Saved entries from a previous build are converted to the new `providers`
@@ -365,7 +365,7 @@ the pointer already names that entry. An unknown name exits with code 8, as
 do both default-pointer refusals the command exists to fix:
 DanglingDefaultProvider (the default-provider pointer is set but names no saved
 entry) and AbsentDefaultProvider (the pointer is empty while saved entries
-exist — no first-entry fallback).
+exist, with no first-entry fallback).
 
 ### Providers
 
@@ -435,8 +435,8 @@ deletes the entry; a model name that is not listed exits with code 2.
 
 A provider with an empty catalog launches any model on its default protocol
 (or the entry's own override once one is listed). A provider with a non-empty
-catalog is the opposite: launching with a model that is not in the list —
-whether passed with `--model` or stored as the entry's default model — is a
+catalog is the opposite: launching with a model that is not in the list,
+whether passed with `--model` or stored as the entry's default model, is a
 user-rectifiable refusal that exits with code 3. Passing a complete
 `--endpoint <url> --protocol <protocol>` pair for the launch exempts it from
 that guard.
@@ -468,14 +468,14 @@ leaves it untouched.
 
 | Code | Name | Meaning |
 |------|------|---------|
-| 0 | Ok | Command succeeded; for `launch`, the harness process itself exited 0 — or, for a detached GUI launch (`--persist config`), the app was handed off successfully and there is no exit status to wait for |
+| 0 | Ok | Command succeeded. For `launch`, the harness process itself exited 0. For a detached GUI launch (`--persist config`), the app was handed off successfully and there is no exit status to wait for |
 | 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), a `remove` that would break the default pointer or empty the entry list, or `--confirm-running` against a CLI harness, which has no running instance to confirm (ConfirmUnsupportedForHarness) |
 | 3 | UnknownAgent | Unrecognized harness identifier, a protocol the chosen harness doesn't support, or a launch whose effective model is not listed in a provider's non-empty catalog (UnlistedModel). A near miss prompts a suggestion of the correct identifier or entry name |
-| 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` (for a GUI harness: not found on `PATH` or in the OS's conventional install locations), or a GUI launch stopped because an already-running instance was not confirmed (RunningInstanceUnconfirmed), or because the harness's declared configuration surfaces cannot carry the launch's key or overrides (GuiProviderUnsupported) |
+| 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` (for a GUI harness: not found on `PATH` or in the OS's conventional install locations), or a GUI launch stopped because an already-running instance was not confirmed (RunningInstanceUnconfirmed), or because the harness's declared configuration support cannot carry the launch's key or overrides (GuiProviderUnsupported) |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
 | 6 | RequiredModelMissing | **Reserved.** Declared but never returned; the launcher prints a warning when a harness requires a model but has none, then launches it anyway |
-| 7 | ConfigRestoreFailure | Credential-store failure (absent key or store error), or an unexpected fault inside the launch flow — including a config restore that fails. Messages from the unexpected path start with `Launch failed:` |
-| 8 | UnknownProviderName | `--provider` matched no entry (unknown provider name), the default-provider pointer is set but names no saved entry (DanglingDefaultProvider), or the pointer is empty while saved entries exist (AbsentDefaultProvider — no first-entry fallback) |
+| 7 | ConfigRestoreFailure | Credential-store failure (absent key or store error), or an unexpected fault inside the launch flow, including a config restore that fails. Messages from the unexpected path start with `Launch failed:` |
+| 8 | UnknownProviderName | `--provider` matched no entry (unknown provider name), the default-provider pointer is set but names no saved entry (DanglingDefaultProvider), or the pointer is empty while saved entries exist (AbsentDefaultProvider, no first-entry fallback) |
 | 9 | UnsupportedSettingsSchema | `schemaVersion` is missing, malformed, or newer than this build. Nothing is written |
 | 10 | ConfigConflict | A user-authored `model_providers.harnessgateway` block already exists in the codex config |
 | 11 | UpdateAvailable | `update check` found a newer release and reports both versions; it downloads, installs, and applies nothing |
@@ -491,7 +491,7 @@ The three GUI refusals are producers of the existing numbers above, not new
 codes: RunningInstanceUnconfirmed and GuiProviderUnsupported exit 4 like
 every other unavailable-harness stop, and ConfirmUnsupportedForHarness
 exits 2 like every other usage error. Scripts that need to tell those
-stops apart should read the stderr message, which names the reason - the
+stops apart should read the stderr message, which names the reason. The
 exit code alone cannot.
 
 ## License
