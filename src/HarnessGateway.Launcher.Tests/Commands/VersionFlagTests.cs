@@ -121,12 +121,12 @@ public class VersionFlagTests
             ConsoleErrorCapture.Depth.Value = previous + 1;
             if (ownsGate)
             {
-                ConsoleErrorCapture.Gate.Wait();
+                await ConsoleErrorCapture.Gate.WaitAsync();
             }
             int exitCode;
             try
             {
-                exitCode = root.Parse(Array.Empty<string>()).Invoke();
+                exitCode = await root.Parse([]).InvokeAsync();
             }
             finally
             {

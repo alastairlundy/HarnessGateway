@@ -343,7 +343,7 @@ public class LaunchOrchestratorTests
                 HarnessKind.Cli,
                 RequiresModel: false,
                 InstallHint: "Install via: test-install",
-                DetectionCommand: $"{name} --version",
+                $"{name} --version",
                 [],
                 new HashSet<ProtocolKind>
                 {
@@ -351,8 +351,8 @@ public class LaunchOrchestratorTests
                     ProtocolKind.OpenAiResponses,
                     ProtocolKind.Anthropic
                 },
-                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
-                InstanceProcessNames: []);
+                new HashSet<ConfigurationSurface>(),
+                []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

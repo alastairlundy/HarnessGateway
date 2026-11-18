@@ -137,7 +137,7 @@ public class UpdateCheckerTests
                 new FakeTimeProvider(Baseline),
                 new UpdateCooldownStore(dir),
                 currentVersion: "0.1.0",
-                requestTimeout: TimeSpan.FromMilliseconds(250));
+                TimeSpan.FromMilliseconds(250));
 
             Task<UpdateCheckResult> check = checker.CheckAsync(force: false);
 
@@ -178,7 +178,7 @@ public class UpdateCheckerTests
             UpdateChecker checker = CreateChecker(handler, new FakeTimeProvider(Baseline), dir);
 
             using CancellationTokenSource cancelled = new();
-            cancelled.Cancel();
+            await cancelled.CancelAsync();
 
             // Cancellation is not a check outcome: it escapes CheckAsync
             // rather than folding into CheckFailed.
@@ -303,7 +303,7 @@ public class UpdateCheckerTests
 
             await Assert.That(handler.CallCount).IsEqualTo(1);
             await Assert.That(handler.LastRequest).IsNotNull();
-            await Assert.That(handler.LastRequest!.RequestUri).IsEqualTo(
+            await Assert.That(handler.LastRequest.RequestUri).IsEqualTo(
                 new Uri("https://api.github.com/repos/alastairlundy/HarnessGateway/releases/latest"));
 
             // Unauthenticated only: no credential rides along, and the

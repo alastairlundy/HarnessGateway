@@ -41,7 +41,7 @@ public sealed class GuiInstallDiscovery : IGuiInstallDiscovery
     /// <inheritdoc />
     public (bool Found, string? ExecutablePath) Discover(IReadOnlyList<string> instanceProcessNames)
     {
-        if (instanceProcessNames is null || instanceProcessNames.Count == 0)
+        if (instanceProcessNames.Count == 0)
         {
             return (false, null);
         }

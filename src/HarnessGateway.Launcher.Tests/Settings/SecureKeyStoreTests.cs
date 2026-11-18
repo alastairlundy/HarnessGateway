@@ -53,12 +53,12 @@ public class SecureKeyStoreTests
         // stored secret can never be orphaned silently.
         await Assert.That(SecureKeyStoreProcess.MacOsDeleteFailed(0, string.Empty)).IsFalse();
         await Assert.That(
-            SecureKeyStoreProcess.MacOsDeleteFailed(
-                1,
-                "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain."))
+                SecureKeyStoreProcess.MacOsDeleteFailed(
+                    1,
+                    "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain."))
             .IsFalse();
         await Assert.That(
-            SecureKeyStoreProcess.MacOsDeleteFailed(1, "security: SecKeychainItemCopyAttributes: authentication failed"))
+                SecureKeyStoreProcess.MacOsDeleteFailed(1, "security: SecKeychainItemCopyAttributes: authentication failed"))
             .IsTrue();
         await Assert.That(SecureKeyStoreProcess.MacOsDeleteFailed(1, string.Empty)).IsTrue();
         await Assert.That(SecureKeyStoreProcess.MacOsDeleteFailed(1, null)).IsTrue();
@@ -126,7 +126,7 @@ public class SecureKeyStoreTests
         }
 
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message).Contains("macOS");
+        await Assert.That(caught.Message).Contains("macOS");
     }
 
     [Test]
@@ -141,7 +141,7 @@ public class SecureKeyStoreTests
         }
 
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message).Contains("Linux");
+        await Assert.That(caught.Message).Contains("Linux");
     }
 
     [Test]
@@ -173,7 +173,7 @@ public class SecureKeyStoreTests
         }
 
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message)
+        await Assert.That(caught.Message)
             .IsEqualTo(SecureKeyStoreException.AbsentKey("hgkey:absent").Message);
     }
 
@@ -197,7 +197,7 @@ public class SecureKeyStoreTests
         }
 
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message)
+        await Assert.That(caught.Message)
             .IsEqualTo(SecureKeyStoreException.AbsentKey("hgkey:default").Message);
         await Assert.That(keyStore.DeleteCallCount).IsEqualTo(2);
     }

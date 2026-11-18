@@ -127,8 +127,7 @@ internal sealed class ProviderCommands : Command
                     "provider add reached the create path without --endpoint and --protocol.");
             }
 
-            string? secret = key ??
-                             _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
+            string? secret = key ?? _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
 
             if (secret is not null)
             {
@@ -152,8 +151,7 @@ internal sealed class ProviderCommands : Command
             Console.WriteLine($"Provider '{entry.Name}' {(isCreate ? "created" : "updated")}.");
             if (isCreate)
             {
-                Console.WriteLine(
-                    $"Run 'harnessgateway config set defaultProvider {entry.Name}' to make it the default.");
+                Console.WriteLine($"Run 'harnessgateway config set defaultProvider {entry.Name}' to make it the default.");
             }
 
             return 0;

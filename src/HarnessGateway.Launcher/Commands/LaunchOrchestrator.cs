@@ -75,7 +75,7 @@ public sealed class LaunchOrchestrator
                     CompletedPayload.ExitStatus exitStatus => exitStatus.Value,
                     CompletedPayload.HandedOff => (int)LaunchExitCode.Ok,
                     _ => throw new InvalidOperationException(
-                        $"unexpected completed payload variant '{completed.Payload?.GetType().Name}'"),
+                        $"unexpected completed payload variant '{completed.Payload.GetType().Name}'"),
                 };
 
             case LaunchRefused refused:
@@ -101,7 +101,7 @@ public sealed class LaunchOrchestrator
 
             default:
                 throw new InvalidOperationException(
-                    $"unexpected launch outcome variant '{outcome?.GetType().Name}'");
+                    $"unexpected launch outcome variant '{outcome.GetType().Name}'");
         }
     }
 

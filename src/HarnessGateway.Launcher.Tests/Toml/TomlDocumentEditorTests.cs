@@ -313,7 +313,7 @@ public class TomlDocumentEditorTests
         }
 
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message.Contains("Cannot edit invalid TOML", StringComparison.Ordinal)).IsTrue();
+        await Assert.That(caught.Message.Contains("Cannot edit invalid TOML", StringComparison.Ordinal)).IsTrue();
         await Assert.That(caught.Diagnostics).IsNotEmpty();
     }
 
@@ -331,7 +331,7 @@ public class TomlDocumentEditorTests
         }
 
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Diagnostics).IsNotEmpty();
+        await Assert.That(caught.Diagnostics).IsNotEmpty();
     }
 
     private static Dictionary<string, object?> ProviderBlockValues()

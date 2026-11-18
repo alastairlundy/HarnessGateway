@@ -57,9 +57,10 @@ public class ConfigKeyResolverTests
         ConfigKeyResult result = ConfigKeyResolver.Get(settings, "providers");
 
         await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Value).IsNotNull();
         await Assert.That(result.Value).Contains("default");
         await Assert.That(result.Value).Contains("work");
-        await Assert.That(result.Value!.Contains("https://")).IsFalse();
+        await Assert.That(result.Value.Contains("https://")).IsFalse();
         await Assert.That(result.Value.Contains("openai")).IsFalse();
         await Assert.That(result.Value.Contains("anthropic")).IsFalse();
         await Assert.That(result.Value.Contains("hgkey")).IsFalse();
@@ -125,7 +126,8 @@ public class ConfigKeyResolverTests
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.AlreadySatisfied).IsFalse();
         // The pointer stores the canonical entry name, not the typed casing.
-        await Assert.That(result.Settings!.DefaultProvider).IsEqualTo("work");
+        await Assert.That(result.Settings).IsNotNull();
+        await Assert.That(result.Settings.DefaultProvider).IsEqualTo("work");
         await Assert.That(result.Message).Contains("'work'");
     }
 
@@ -138,7 +140,8 @@ public class ConfigKeyResolverTests
 
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.AlreadySatisfied).IsTrue();
-        await Assert.That(result.Settings!.DefaultProvider).IsEqualTo("default");
+        await Assert.That(result.Settings).IsNotNull();
+        await Assert.That(result.Settings.DefaultProvider).IsEqualTo("default");
     }
 
     [Test]
@@ -185,7 +188,8 @@ public class ConfigKeyResolverTests
             settings, "providers.work.endpoint", "https://new.example.com/v1");
 
         await Assert.That(result.IsSuccess).IsTrue();
-        Provider updated = result.Settings!.Providers.Single(b => b.Name == "work");
+        await Assert.That(result.Settings).IsNotNull();
+        Provider updated = result.Settings.Providers.Single(b => b.Name == "work");
         await Assert.That(updated.BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
         await Assert.That(updated.DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
         await Assert.That(updated.DefaultModel).IsNull();
@@ -202,7 +206,8 @@ public class ConfigKeyResolverTests
         ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.protocol", "anthropic");
 
         await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Settings!.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(result.Settings).IsNotNull();
+        await Assert.That(result.Settings.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
         await Assert.That(result.Settings.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.example.com/v1"));
     }
 
@@ -212,9 +217,9 @@ public class ConfigKeyResolverTests
         LauncherSettings settings = SettingsWith();
 
         ConfigKeyResult result = ConfigKeyResolver.Set(settings, "providers.default.defaultModel", "claude-sonnet-5");
-
+        await Assert.That(result.Settings).IsNotNull();
         await Assert.That(result.IsSuccess).IsTrue();
-        await Assert.That(result.Settings!.Providers[0].DefaultModel).IsEqualTo("claude-sonnet-5");
+        await Assert.That(result.Settings.Providers[0].DefaultModel).IsEqualTo("claude-sonnet-5");
     }
 
     [Test]
@@ -280,7 +285,7 @@ public class ConfigKeyResolverTests
     public async Task Get_model_level_key_is_outside_the_closed_set()
     {
         // Models are deliberately not scriptable through config: the
-        // model catalog is owned by the `provider model` verbs.
+        // model catalogue is owned by the `provider model` verbs.
         ConfigKeyResult result = ConfigKeyResolver.Get(SettingsWith(), "providers.default.models");
 
         await Assert.That(result.IsSuccess).IsFalse();

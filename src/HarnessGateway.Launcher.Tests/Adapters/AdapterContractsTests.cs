@@ -16,18 +16,18 @@ public class HarnessMetadataTests
         HarnessMetadata metadata = new HarnessMetadata(
             Name: "opencode",
             CommandName: "opencode",
-            Aliases: ["oc"],
+            ["oc"],
             Kind: HarnessKind.Cli,
             RequiresModel: true,
             InstallHint: "Install via: npm install -g @anthropic-ai/opencode",
             DetectionCommand: "opencode --version",
             [".opencode/config.json", "~/.config/opencode/config.json"],
-            SupportedProtocols: new HashSet<ProtocolKind>
+            new HashSet<ProtocolKind>
             {
                 ProtocolKind.OpenAiChat
             },
-            SupportedSurfaces: new HashSet<ConfigurationSurface>(),
-            InstanceProcessNames: []
+            new HashSet<ConfigurationSurface>(),
+            []
         );
 
         await Assert.That(metadata.Name).IsEqualTo("opencode");
@@ -49,15 +49,15 @@ public class HarnessMetadataTests
         HarnessMetadata metadata = new HarnessMetadata(
             Name: "kilo",
             CommandName: "kilo",
-            Aliases: [],
+            [],
             Kind: HarnessKind.Cli,
             RequiresModel: false,
             InstallHint: "Install from kilo.dev",
             DetectionCommand: "kilo --version",
             [],
             new HashSet<ProtocolKind>(),
-            SupportedSurfaces: new HashSet<ConfigurationSurface>(),
-            InstanceProcessNames: []
+            new HashSet<ConfigurationSurface>(),
+            []
         );
 
         await Assert.That(metadata.DetectionCommand).IsEqualTo("kilo --version");
@@ -75,7 +75,7 @@ public class HarnessMetadataTests
         HarnessMetadata metadata = new HarnessMetadata(
             Name: "claude-code",
             CommandName: "claude-code",
-            Aliases: [],
+            [],
             Kind: HarnessKind.Cli,
             RequiresModel: false,
             InstallHint: "Install via: npm i -g @anthropic-ai/claude-code",
@@ -86,7 +86,7 @@ public class HarnessMetadataTests
                 ProtocolKind.Anthropic
             },
             new HashSet<ConfigurationSurface>(),
-            InstanceProcessNames: []
+            []
         );
 
         await Assert.That(metadata.SupportedProtocols).Contains(ProtocolKind.Anthropic);

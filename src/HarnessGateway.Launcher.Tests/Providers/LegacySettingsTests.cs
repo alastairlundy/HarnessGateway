@@ -43,7 +43,7 @@ public class LegacySettingsTests
 
         await Assert.That(legacy).IsNotNull();
 
-        LauncherSettings converted = LegacySettings.ToLauncherSettings(legacy!);
+        LauncherSettings converted = LegacySettings.ToLauncherSettings(legacy);
 
         // defaultBackend maps to defaultProvider verbatim.
         await Assert.That(converted.DefaultProvider).IsEqualTo("work");
@@ -103,7 +103,7 @@ public class LegacySettingsTests
 
         await Assert.That(settingsMarker).IsNotNull();
         await Assert.That(backendMarker).IsNotNull();
-        await Assert.That(settingsMarker!.Message).Contains("first release after v1");
-        await Assert.That(backendMarker!.Message).Contains("first release after v1");
+        await Assert.That(settingsMarker.Message).Contains("first release after v1");
+        await Assert.That(backendMarker.Message).Contains("first release after v1");
     }
 }

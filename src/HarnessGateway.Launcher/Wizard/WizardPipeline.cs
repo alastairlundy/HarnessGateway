@@ -143,7 +143,7 @@ public sealed class WizardPipeline
             Provider effectiveProvider = new()
             {
                 Name = resolvedProvider?.Name ?? "wizard",
-                BaseUri = new Uri(providerResult.endpoint!),
+                BaseUri = new Uri(providerResult.endpoint),
                 DefaultProtocol = providerResult.protocol,
                 ApiKey = resolvedProvider?.ApiKey,
                 DefaultModel = resolvedProvider?.DefaultModel,
@@ -161,7 +161,7 @@ public sealed class WizardPipeline
             return new WizardCompleted(new WizardResult(
                 harnessName!,
                 ProviderName: providerResult.provider?.Name,
-                providerResult.endpoint!,
+                providerResult.endpoint,
                 Protocol: effectiveProtocol,
                 ApiKey: apiKey,
                 Model: modelSelection.Model));

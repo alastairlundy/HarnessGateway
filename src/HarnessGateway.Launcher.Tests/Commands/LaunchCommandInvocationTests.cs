@@ -12,12 +12,11 @@ using HarnessGateway.Launcher.Tests.Fakes;
 namespace HarnessGateway.Launcher.Tests.Commands;
 
 /// <summary>
-/// Regression tests for the launch wiring: `harnessgateway launch <harness>`
+/// Regression tests for the launch wiring: `harnessgateway launch [harness]`
 /// must reach the orchestrator through the real parse-and-invoke pipeline.
 /// System.CommandLine's no-action fallback silently succeeds with exit 0, and
 /// the orchestrator-level tests call RunAsync directly instead of parsing, so
-/// neither can catch missing wiring on its own.
-/// </summary>
+/// neither can catch missing wiring on its own. </summary>
 public class LaunchCommandInvocationTests
 {
     private static string CreateTempDir()
@@ -111,7 +110,7 @@ public class LaunchCommandInvocationTests
     [Test]
     public async Task Invoke_launch_subcommand_runs_the_orchestrator()
     {
-        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        FakeHarnessAdapter adapter = new("TestAgent");
         (RootCommand root, _, string tempDir) = CreateRoot(adapter);
         try
         {
@@ -146,7 +145,7 @@ public class LaunchCommandInvocationTests
         // Kind=Cli harness (the misuse refusal) is pinned here through its
         // exit code; the GUI-side skip and prompt chain are pinned in
         // LaunchFlowGuiTests.
-        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        FakeHarnessAdapter adapter = new("TestAgent");
         (RootCommand root, _, string tempDir) = CreateRoot(adapter);
         try
         {
@@ -172,7 +171,7 @@ public class LaunchCommandInvocationTests
     [Test]
     public async Task Invoke_unknown_agent_surfaces_exit_3_instead_of_silent_success()
     {
-        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        FakeHarnessAdapter adapter = new("TestAgent");
         (RootCommand root, _, string tempDir) = CreateRoot(adapter);
         try
         {
@@ -192,7 +191,7 @@ public class LaunchCommandInvocationTests
     [Test]
     public async Task Invoke_unknown_provider_name_surfaces_exit_8_through_the_cli()
     {
-        FakeHarnessAdapter adapter = new FakeHarnessAdapter("TestAgent");
+        FakeHarnessAdapter adapter = new("TestAgent");
         (RootCommand root, _, string tempDir) = CreateRoot(adapter, settingsJson: """
             {
               "backends": [
@@ -235,7 +234,7 @@ public class LaunchCommandInvocationTests
                 HarnessKind.Cli,
                 RequiresModel: false,
                 InstallHint: "Install via: test-install",
-                DetectionCommand: $"{name} --version",
+                $"{name} --version",
                 [],
                 new HashSet<ProtocolKind>
                 {
@@ -243,8 +242,8 @@ public class LaunchCommandInvocationTests
                     ProtocolKind.OpenAiResponses,
                     ProtocolKind.Anthropic
                 },
-                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
-                InstanceProcessNames: []);
+                new HashSet<ConfigurationSurface>(),
+                []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

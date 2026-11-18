@@ -10,7 +10,7 @@ namespace HarnessGateway.Launcher.Core;
 public sealed record Result<T>(bool Success, T Value, string Error)
 {
     /// <summary>Creates a successful outcome. <see cref="Error"/> is set to the empty string.</summary>
-    public static Result<T> Ok(T value) => new(true, value, string.Empty);
+    public static Result<T> Ok(T value) => new(Success: true, value, string.Empty);
 
     /// <summary>Creates a failed outcome with a non-empty, secret-free description.</summary>
     public static Result<T> Fail(string error) => new(Success: false, default!, error);

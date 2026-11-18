@@ -10,7 +10,7 @@ public class KiloAdapterTests
 {
     private static ResolvedLaunch CreateRequest(
         ProtocolKind protocol = ProtocolKind.OpenAiChat,
-        string? model = "gpt-4",
+        string? model = "gpt-5",
         string? apiKey = "sk-test",
         bool adHoc = false,
         IProtocolEmissionPlanner? planner = null)
@@ -91,7 +91,7 @@ public class KiloAdapterTests
     public async Task PlanLaunch_openai_sets_env_vars()
     {
         KiloAdapter adapter = new KiloAdapter();
-        ResolvedLaunch request = CreateRequest(ProtocolKind.OpenAiChat);
+        ResolvedLaunch request = CreateRequest();
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 

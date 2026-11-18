@@ -60,7 +60,7 @@ public class KeyReferenceTests
         }
 
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message).Contains("not a HarnessGateway key reference");
+        await Assert.That(caught.Message).Contains("not a HarnessGateway key reference");
         await Assert.That(caught.Message.Contains("not-a-reference")).IsFalse();
     }
 }

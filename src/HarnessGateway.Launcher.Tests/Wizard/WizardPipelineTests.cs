@@ -25,7 +25,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentCommandName).IsEqualTo("AvailableAgent");
+            await Assert.That(result.AgentCommandName).IsEqualTo("AvailableAgent");
             await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
         }
         finally
@@ -54,7 +54,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentCommandName).IsEqualTo("AvailableAgent");
+            await Assert.That(result.AgentCommandName).IsEqualTo("AvailableAgent");
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(2);
             // The refusal comes first and names the install hint; no endpoint
@@ -153,7 +153,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.Endpoint).IsEqualTo("https://saved.example.com/v1");
+            await Assert.That(result.Endpoint).IsEqualTo("https://saved.example.com/v1");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
         }
         finally
@@ -183,7 +183,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.Endpoint).IsEqualTo("https://new.example.com/v1");
+            await Assert.That(result.Endpoint).IsEqualTo("https://new.example.com/v1");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
         }
         finally
@@ -209,7 +209,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.Endpoint).IsEqualTo("https://api.example.com/v1");
+            await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
             await Assert.That(console.Prompts.Count(p => p.Title == "Endpoint URL:")).IsEqualTo(2);
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Endpoint URL is required");
@@ -237,7 +237,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.ApiKey).IsEqualTo("my-api-key");
+            await Assert.That(result.ApiKey).IsEqualTo("my-api-key");
         }
         finally
         {
@@ -263,7 +263,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.ApiKey).IsEqualTo("saved-key");
+            await Assert.That(result.ApiKey).IsEqualTo("saved-key");
         }
         finally
         {
@@ -313,8 +313,8 @@ public class WizardPipelineTests
             console.EnqueueChoice("TestAgent");
             console.EnqueueText("https://api.example.com/v1");
 
-            WizardResult? result = await pipeline.RunAsync();
-
+            WizardResult? _ = await pipeline.RunAsync();
+            
             LauncherSettings savedSettings = await store.LoadAsync();
             await Assert.That(savedSettings.Providers).IsEmpty();
             await Assert.That(savedSettings.DefaultProvider).IsEmpty();
@@ -336,7 +336,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             using CancellationTokenSource cts = new CancellationTokenSource();
-            cts.Cancel();
+            await cts.CancelAsync();
 
             WizardResult? result = await pipeline.RunAsync(cts.Token);
 
@@ -354,7 +354,7 @@ public class WizardPipelineTests
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
         try
         {
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
 
@@ -373,7 +373,7 @@ public class WizardPipelineTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("unsupported settings schema version");
         }
         finally
         {
@@ -399,7 +399,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.Model).IsEqualTo("saved-model");
+            await Assert.That(result.Model).IsEqualTo("saved-model");
             await Assert.That(console.WrittenMessages.Any(m => m.Contains("saved-model"))).IsTrue();
             await Assert.That(
                 console.Prompts.Any(p => p.Title == "Model catalogue unavailable:")).IsFalse();
@@ -498,26 +498,26 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Endpoint).IsEqualTo("https://api.anthropic.example.com/v1");
             await Assert.That(result.ApiKey).IsEqualTo("anthropic-key");
 
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(2);
             await Assert.That(
-                console.Prompts[0].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
+                    console.Prompts[0].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
                 .IsNull();
             await Assert.That(
-                console.Prompts[0].Choices.Single(c => c.Name == "UnavailableOpenAi").Annotation)
+                    console.Prompts[0].Choices.Single(c => c.Name == "UnavailableOpenAi").Annotation)
                 .IsEqualTo("not installed");
             await Assert.That(
-                console.Prompts[1].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
+                    console.Prompts[1].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
                 .IsEqualTo("incompatible: anthropic");
             await Assert.That(
-                console.Prompts[1].Choices.Single(c => c.Name == "UnavailableOpenAi").Annotation)
+                    console.Prompts[1].Choices.Single(c => c.Name == "UnavailableOpenAi").Annotation)
                 .IsEqualTo("not installed; incompatible: anthropic");
             await Assert.That(
-                console.Prompts[1].Choices.Single(c => c.Name == "AnthropicCapable").Annotation)
+                    console.Prompts[1].Choices.Single(c => c.Name == "AnthropicCapable").Annotation)
                 .IsNull();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
@@ -589,7 +589,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Endpoint).IsEqualTo("https://new.example.com/v1");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
             await Assert.That(result.ProviderName).IsNull();
@@ -604,7 +604,7 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts[5].Title).IsEqualTo("API key (will not be saved):");
             await Assert.That(console.Prompts[6].Title).IsEqualTo("Model catalogue unavailable:");
             await Assert.That(
-                console.Prompts[4].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
+                    console.Prompts[4].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
                 .IsEqualTo("incompatible: anthropic");
             await Assert.That(console.ErrorMessages.Count).IsEqualTo(1);
             await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
@@ -637,7 +637,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.AgentCommandName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result.AgentCommandName).IsEqualTo("AnthropicCapable");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
             await Assert.That(result.ApiKey).IsEqualTo("first-run-key");
 
@@ -653,7 +653,7 @@ public class WizardPipelineTests
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("anthropic");
             await Assert.That(
-                console.Prompts[3].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
+                    console.Prompts[3].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
                 .IsEqualTo("incompatible: anthropic");
         }
         finally
@@ -783,7 +783,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.Model).IsEqualTo("required-model");
+            await Assert.That(result.Model).IsEqualTo("required-model");
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Enter model name (required):")).IsEqualTo(1);
             // Skip is never offered when the harness requires a model.
@@ -815,7 +815,7 @@ public class WizardPipelineTests
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
-            await Assert.That(result!.Model).IsNull();
+            await Assert.That(result.Model).IsNull();
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Model catalogue unavailable:")).IsEqualTo(1);
         }

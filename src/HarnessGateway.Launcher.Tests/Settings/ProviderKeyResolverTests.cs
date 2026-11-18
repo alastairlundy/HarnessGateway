@@ -58,7 +58,7 @@ public class ProviderKeyResolverTests
         // The store classifies absence at its source, so the message the
         // caller sees is the store's.
         await Assert.That(caught).IsNotNull();
-        await Assert.That(caught!.Message)
+        await Assert.That(caught.Message)
             .IsEqualTo(SecureKeyStoreException.AbsentKey("hgkey:default").Message);
     }
 

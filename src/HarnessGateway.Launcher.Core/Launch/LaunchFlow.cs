@@ -156,7 +156,7 @@ public sealed class LaunchFlow
             {
                 // The refusal prose quotes a provider name: the stored
                 // entry's for the provider case, and the "override"
-                // spelling today's synthesized bridge printed for a
+                // spelling today's synthesised bridge printed for a
                 // raw-URL launch for the ad-hoc case.
                 string providerName = launch switch
                 {
@@ -209,7 +209,7 @@ public sealed class LaunchFlow
             // supplies a key only when the resolved entry had none or the user
             // typed one, so this layering can only fill a gap; it never masks
             // a stored key with a stale copy. It is also what makes a
-            // first-run ad-hoc launch credentialed at all.
+            // first-run ad-hoc launch credentialled at all.
             if (!string.IsNullOrEmpty(request.SessionKey))
             {
                 apiKey = request.SessionKey;
@@ -417,7 +417,7 @@ public sealed class LaunchFlow
     /// The launch-scoped resolved secret, if this launch carries one.
     /// </param>
     /// <param name="adapter"></param>
-    /// <returns>The refusal to stop with, or <c>null</c> to proceed.</returns>
+    /// <returns>The refusal to stop with, or <see langword="null"/> to proceed.</returns>
     private static LaunchRefused? DeclaredSurfaceRefusal(
         IHarnessAdapter adapter,
         LaunchRequest request,
@@ -439,8 +439,8 @@ public sealed class LaunchFlow
         }
 
         bool backendOverride = request.ProviderName is not null
-            || request.Endpoint is not null
-            || request.Protocol is not null;
+                               || request.Endpoint is not null
+                               || request.Protocol is not null;
         if ((backendOverride || request.Model is not null) && surfaces.Count == 0)
         {
             return new LaunchRefused(

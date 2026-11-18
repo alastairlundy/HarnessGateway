@@ -126,7 +126,7 @@ public class BackupServiceTests
             string json = await File.ReadAllTextAsync(backupFiles[0]);
             BackupRecord? record = System.Text.Json.JsonSerializer.Deserialize<BackupRecord>(json);
             await Assert.That(record).IsNotNull();
-            await Assert.That(record!.TargetPath).IsEqualTo(targetFile);
+            await Assert.That(record.TargetPath).IsEqualTo(targetFile);
         }
         finally
         {

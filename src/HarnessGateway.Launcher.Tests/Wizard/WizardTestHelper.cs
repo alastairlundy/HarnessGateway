@@ -98,11 +98,11 @@ public static class WizardTestHelper
                 HarnessKind.Cli,
                 requiresModel,
                 $"Install {name}",
-                DetectionCommand: $"{name} --version",
+                $"{name} --version",
                 [],
                 supportedProtocols ?? AllProtocols,
-                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
-                InstanceProcessNames: []);
+                new HashSet<ConfigurationSurface>(),
+                []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
@@ -112,7 +112,7 @@ public static class WizardTestHelper
 
         public Task<Core.Launch.LaunchPlan> PlanLaunchAsync(Core.Launch.ResolvedLaunch request, CancellationToken cancellationToken = default)
         {
-            ProcessConfiguration config = new CliInvoke.Core.ProcessConfiguration("test")
+            ProcessConfiguration config = new ProcessConfiguration("test")
             {
                 WorkingDirectoryPath = request.WorkingDirectory,
                 OutputRedirection = true

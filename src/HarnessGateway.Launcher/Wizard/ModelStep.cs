@@ -2,17 +2,6 @@ using HarnessGateway.Launcher.Core.Providers.Models;
 
 namespace HarnessGateway.Launcher.Wizard;
 
-/// <summary>
-/// The outcome of one <see cref="ModelStep"/> run: the selected model name (or
-/// <c>null</c> when skipped/unavailable) and the effective protocol for that
-/// selection (null when the selection carries no protocol finding). The wizard
-/// is write-free: model entries are saved only through the
-/// <c>provider model</c> verbs, never here.
-/// </summary>
-public sealed record ModelSelection(
-    string? Model,
-    ProtocolKind? Protocol);
-
 public sealed class ModelStep
 {
     private readonly IConsoleAbstraction _console;
@@ -37,7 +26,7 @@ public sealed class ModelStep
 
     public async Task<ModelSelection> RunAsync(bool requiresModel, string? savedDefaultModel, CancellationToken cancellationToken = default)
     {
-        // Fetch the catalog once per wire family, not per protocol kind, merging
+        // Fetch the catalogue once per wire family, not per protocol kind, merging
         // the results into one listing tagged with every protocol each model was
         // found under. Chat and responses produce identical client requests
         // (both hit /v1/models with bearer auth), so sharing one fetch and
@@ -77,7 +66,7 @@ public sealed class ModelStep
                 catch
                 {
                     await Task.Run(() => _console.WriteError(
-                        "Could not fetch model catalogue. Endpoint may be unreachable."),
+                            "Could not fetch model catalogue. Endpoint may be unreachable."),
                         cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -106,7 +95,8 @@ public sealed class ModelStep
             choices.Add(new ConsoleChoice("[skip]", "do not set a model"));
         }
 
-        foreach (KeyValuePair<string, HashSet<ProtocolKind>> entry in found.OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase))
+        foreach (KeyValuePair<string, HashSet<ProtocolKind>> entry in found.OrderBy(e => e.Key,
+                     StringComparer.OrdinalIgnoreCase))
         {
             List<string> annotationParts = [];
 
@@ -132,12 +122,12 @@ public sealed class ModelStep
 
         if (string.Equals(selected, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
-            return new ModelSelection(null, null);
+            return new ModelSelection(Model: null, Protocol: null);
         }
 
-        if (!found.TryGetValue(selected, out HashSet<ProtocolKind>? selectedProtocols) || selectedProtocols is null)
+        if (!found.TryGetValue(selected, out HashSet<ProtocolKind>? selectedProtocols))
         {
-            return new ModelSelection(selected, null);
+            return new ModelSelection(selected, Protocol: null);
         }
 
         // Determine the effective protocol: prompt only when more than one
@@ -145,14 +135,18 @@ public sealed class ModelStep
         ProtocolKind effectiveProtocol;
         if (selectedProtocols.Count > 1)
         {
-            List<ProtocolKind> ordered = selectedProtocols
-                .OrderBy(p => p == _provider!.DefaultProtocol ? 0 : 1)
-                .ThenBy(p => p)
-                .ToList();
+            List<ProtocolKind> ordered =
+            [
+                .. selectedProtocols
+                    .OrderBy(p => p == _provider?.DefaultProtocol ? 0 : 1)
+                    .ThenBy(p => p)
+            ];
 
-            List<ConsoleChoice> protocolChoices = ordered
-                .Select(p => new ConsoleChoice(ProviderResolution.ProtocolName(p)))
-                .ToList();
+            List<ConsoleChoice> protocolChoices =
+            [
+                .. ordered
+                    .Select(p => new ConsoleChoice(ProviderResolution.ProtocolName(p)))
+            ];
 
             string protocolStr = await _console.PromptChoiceAsync(
                 "Protocol:", protocolChoices, cancellationToken).ConfigureAwait(true);
@@ -182,7 +176,7 @@ public sealed class ModelStep
 
             return new ModelSelection(
                 savedDefaultModel,
-                null);
+                Protocol: null);
         }
 
         if (requiresModel)
@@ -193,7 +187,7 @@ public sealed class ModelStep
 
             return new ModelSelection(
                 trimmed,
-                null);
+                Protocol: null);
         }
 
         string skip = await _console.PromptChoiceAsync("Model catalogue unavailable:", [
@@ -203,7 +197,7 @@ public sealed class ModelStep
 
         if (string.Equals(skip, "[skip]", StringComparison.OrdinalIgnoreCase))
         {
-            return new ModelSelection(null, null);
+            return new ModelSelection(Model: null, Protocol: null);
         }
 
         string manualModel = await _console.PromptTextAsync("Enter model name:", cancellationToken: cancellationToken).ConfigureAwait(true);
@@ -211,7 +205,7 @@ public sealed class ModelStep
 
         return new ModelSelection(
             manual,
-            null);
+            Protocol: null);
     }
 
     private static ProtocolKind? ParseProtocol(string value) => value switch
@@ -219,6 +213,6 @@ public sealed class ModelStep
         "openai-chat" => ProtocolKind.OpenAiChat,
         "openai-responses" => ProtocolKind.OpenAiResponses,
         "anthropic" => ProtocolKind.Anthropic,
-        _ => null
+        _ => null,
     };
 }

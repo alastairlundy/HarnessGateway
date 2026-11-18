@@ -92,7 +92,7 @@ public class UpdateCommandTests
     [Test]
     public async Task Update_check_with_a_newer_release_exits_update_available()
     {
-        (RootCommand root, StubHttpMessageHandler handler, _, string dir) =
+        (RootCommand root, _, _, string dir) =
             CreateRoot(responseBody: """{"tag_name":"v0.2.0"}""");
         try
         {
@@ -210,7 +210,7 @@ public class UpdateCommandTests
 
             // The surface itself: update on top, check beneath it,
             // and the force flag on check - not on the bare command.
-            await Assert.That(update!.Subcommands.Select(c => c.Name)).Contains("check");
+            await Assert.That(update.Subcommands.Select(c => c.Name)).Contains("check");
             await Assert.That(update.Options).IsEmpty();
             await Assert.That(update.Subcommands.Single(c => c.Name == "check").Options)
                 .Contains(UpdateCommand.ForceOption);

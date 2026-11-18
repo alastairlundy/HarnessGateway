@@ -65,7 +65,7 @@ public class ProviderRecordTests
         Provider? roundTripped = JsonSerializer.Deserialize<Provider>(JsonSerializer.Serialize(provider));
 
         await Assert.That(roundTripped).IsNotNull();
-        await Assert.That(roundTripped!.Name).IsEqualTo("work");
+        await Assert.That(roundTripped.Name).IsEqualTo("work");
         await Assert.That(roundTripped.BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
         await Assert.That(roundTripped.DefaultProtocol).IsEqualTo(ProtocolKind.OpenAiChat);
         await Assert.That(roundTripped.DefaultModel).IsEqualTo("gpt-4o");

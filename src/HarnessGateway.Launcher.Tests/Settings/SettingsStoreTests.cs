@@ -8,10 +8,15 @@ namespace HarnessGateway.Launcher.Tests.Settings;
 
 public class SettingsStoreTests
 {
-    private static void WriteRawSettings(SettingsStore store, string json)
+    private static async Task WriteRawSettings(SettingsStore store, string json)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(store.SettingsFilePath)!);
-        File.WriteAllText(store.SettingsFilePath, json);
+        string? dirName = Path.GetDirectoryName(store.SettingsFilePath) ?? Path.GetDirectoryName(store.SettingsDirectory);
+        
+        if(string.IsNullOrEmpty(dirName))
+            throw new DirectoryNotFoundException($"Directory for settings file path '{store.SettingsFilePath}' not found.");
+        
+        Directory.CreateDirectory(dirName);
+        await File.WriteAllTextAsync(store.SettingsFilePath, json);
     }
 
     private static string RawV1Json(string apiKey) =>
@@ -148,7 +153,7 @@ public class SettingsStoreTests
         {
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             SettingsStore store = new SettingsStore(tempDir, keyStore);
-            WriteRawSettings(store, RawV1Json("sk-legacy-plaintext"));
+            await WriteRawSettings(store, RawV1Json("sk-legacy-plaintext"));
 
             LauncherSettings loaded = await store.LoadAsync();
 
@@ -158,7 +163,7 @@ public class SettingsStoreTests
             string stored = await keyStore.RetrieveAsync("hgkey:default");
             await Assert.That(stored).IsEqualTo("sk-legacy-plaintext");
 
-            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
             await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
             await Assert.That(fileBytes.Contains("hgkey:default")).IsTrue();
@@ -181,7 +186,7 @@ public class SettingsStoreTests
         {
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             SettingsStore store = new SettingsStore(tempDir, keyStore);
-            WriteRawSettings(store, RawV1Json("hgkey:default"));
+            await WriteRawSettings(store, RawV1Json("hgkey:default"));
 
             LauncherSettings loaded = await store.LoadAsync();
 
@@ -189,7 +194,7 @@ public class SettingsStoreTests
             await Assert.That(loaded.Providers[0].ApiKey).IsEqualTo("hgkey:default");
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
 
-            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             string expectedStamp = $"\"schemaVersion\": {LauncherSettings.CurrentSchemaVersion}";
             await Assert.That(fileBytes.Contains(expectedStamp)).IsTrue();
         }
@@ -210,14 +215,13 @@ public class SettingsStoreTests
         {
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             SettingsStore store = new SettingsStore(tempDir, keyStore);
-            WriteRawSettings(store, RawVersionJson(LauncherSettings.CurrentSchemaVersion + 1));
-            string before = File.ReadAllText(store.SettingsFilePath);
+            await WriteRawSettings(store, RawVersionJson(LauncherSettings.CurrentSchemaVersion + 1));
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             Exception? caught = null;
             try
             {
                 await store.LoadAsync();
-
             }
             catch (UnsupportedSettingsSchemaException ex)
             {
@@ -225,9 +229,9 @@ public class SettingsStoreTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("unsupported settings schema version");
             await Assert.That(caught.Message).Contains(store.SettingsFilePath);
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
         }
         finally
@@ -246,14 +250,13 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
-            WriteRawSettings(store, """{ "backends": [], "defaultBackend": "" }""");
-            string before = File.ReadAllText(store.SettingsFilePath);
+            await WriteRawSettings(store, """{ "backends": [], "defaultBackend": "" }""");
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             Exception? caught = null;
             try
             {
                 await store.LoadAsync();
-
             }
             catch (UnsupportedSettingsSchemaException ex)
             {
@@ -261,7 +264,7 @@ public class SettingsStoreTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("unsupported settings schema version");
             await Assert.That(caught.Message).Contains("delete the file");
             // A versionless file that carries the legacy backends shape may
             // only ever be told to declare 1 - recommending the current
@@ -269,7 +272,7 @@ public class SettingsStoreTests
             // its entries at the next save.
             await Assert.That(caught.Message).Contains("legacy backends shape");
             await Assert.That(caught.Message.Contains("3 for a current one")).IsFalse();
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -287,8 +290,8 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
-            WriteRawSettings(store, """{ "providers": [], "defaultProvider": "" }""");
-            string before = File.ReadAllText(store.SettingsFilePath);
+            await WriteRawSettings(store, """{ "providers": [], "defaultProvider": "" }""");
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             Exception? caught = null;
             try
@@ -301,9 +304,9 @@ public class SettingsStoreTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("unsupported settings schema version");
             await Assert.That(caught.Message).Contains("3 for a current one");
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -321,8 +324,8 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
-            WriteRawSettings(store, RawV2Json("work").Replace("\"schemaVersion\": 2", "\"schemaVersion\": 3"));
-            string before = File.ReadAllText(store.SettingsFilePath);
+            await WriteRawSettings(store, RawV2Json("work").Replace("\"schemaVersion\": 2", "\"schemaVersion\": 3"));
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             // Declaring the current version while carrying the legacy shape
             // would otherwise deserialize to empty settings - silent loss of
@@ -338,9 +341,9 @@ public class SettingsStoreTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("unsupported settings schema version");
             await Assert.That(caught.Message).Contains("legacy backends shape");
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -358,16 +361,15 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
-            WriteRawSettings(
+            await WriteRawSettings(
                 store,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": "x" }""");
-            string before = File.ReadAllText(store.SettingsFilePath);
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             Exception? caught = null;
             try
             {
                 await store.LoadAsync();
-
             }
             catch (UnsupportedSettingsSchemaException ex)
             {
@@ -375,8 +377,8 @@ public class SettingsStoreTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(caught.Message).Contains("unsupported settings schema version");
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -394,13 +396,12 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir, new FakeSecureKeyStore());
-            WriteRawSettings(store, RawVersionJson(0));
+            await WriteRawSettings(store, RawVersionJson(0));
 
             Exception? caught = null;
             try
             {
                 await store.LoadAsync();
-
             }
             catch (UnsupportedSettingsSchemaException ex)
             {
@@ -408,7 +409,7 @@ public class SettingsStoreTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(caught!.Message).Contains("unsupported settings schema version");
+            await Assert.That(caught.Message).Contains("unsupported settings schema version");
         }
         finally
         {
@@ -442,7 +443,7 @@ public class SettingsStoreTests
 
             store.Save(settings);
 
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(store.SettingsFilePath));
+            using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(store.SettingsFilePath));
             JsonElement root = document.RootElement;
 
             // The single schemaVersion bump for this migration is part of the
@@ -478,7 +479,7 @@ public class SettingsStoreTests
 
             store.Save(settings);
 
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(store.SettingsFilePath));
+            using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(store.SettingsFilePath));
             int writtenVersion = document.RootElement.GetProperty("schemaVersion").GetInt32();
             await Assert.That(writtenVersion).IsEqualTo(LauncherSettings.CurrentSchemaVersion);
         }
@@ -498,7 +499,7 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir);
-            WriteRawSettings(store, RawV2Json("work"));
+            await WriteRawSettings(store, RawV2Json("work"));
 
             LauncherSettings loaded = await store.LoadAsync();
 
@@ -511,7 +512,7 @@ public class SettingsStoreTests
             await Assert.That(loaded.Providers[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(loaded.Providers[0].Models).IsEmpty();
 
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(store.SettingsFilePath));
+            using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(store.SettingsFilePath));
             JsonElement root = document.RootElement;
             await Assert.That(root.GetProperty("schemaVersion").GetInt32())
                 .IsEqualTo(LauncherSettings.CurrentSchemaVersion);
@@ -540,10 +541,10 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir);
-            WriteRawSettings(store, RawV2Json("work"));
+            await WriteRawSettings(store, RawV2Json("work"));
 
             LauncherSettings first = await store.LoadAsync();
-            string converged = File.ReadAllText(store.SettingsFilePath);
+            string converged = await File.ReadAllTextAsync(store.SettingsFilePath);
             DateTime convergedTimestamp = File.GetLastWriteTimeUtc(store.SettingsFilePath);
 
             LauncherSettings second = await store.LoadAsync();
@@ -554,7 +555,7 @@ public class SettingsStoreTests
 
             // Converged once: the second read neither rewrites the bytes nor
             // touches the file at all.
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(converged);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(converged);
             await Assert.That(File.GetLastWriteTimeUtc(store.SettingsFilePath))
                 .IsEqualTo(convergedTimestamp);
             await Assert.That(Directory.GetFiles(Path.Combine(tempDir, "backups"), "*.json")).IsEmpty();
@@ -575,8 +576,8 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir);
-            WriteRawSettings(store, RawV2Json("work"));
-            string before = File.ReadAllText(store.SettingsFilePath);
+            await WriteRawSettings(store, RawV2Json("work"));
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             // The rewrite writes through a temp file; turning that path into a
             // directory makes the write fail after the backup was taken, on
@@ -594,7 +595,7 @@ public class SettingsStoreTests
             }
 
             await Assert.That(caught).IsNotNull();
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
 
             // Backup-before-write held: the marker the failed rewrite took is
             // still on disk, ready for the next SelfHeal replay.
@@ -618,8 +619,8 @@ public class SettingsStoreTests
         {
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             SettingsStore store = new SettingsStore(tempDir, keyStore);
-            WriteRawSettings(store, RawV1Json("sk-legacy-plaintext"));
-            string before = File.ReadAllText(store.SettingsFilePath);
+            await WriteRawSettings(store, RawV1Json("sk-legacy-plaintext"));
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             // Fail the rewrite after the backup was taken (see
             // Load_failed_rewrite...): the marker then outlives the failure,
@@ -639,7 +640,7 @@ public class SettingsStoreTests
             await Assert.That(caught).IsNotNull();
 
             // The user's own file stays exactly as it was - plaintext and all.
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
             await Assert.That(before).Contains("sk-legacy-plaintext");
 
             // The sweep still ran: the secret lives in the credential store.
@@ -655,9 +656,9 @@ public class SettingsStoreTests
                 await File.ReadAllTextAsync(markers[0]),
                 BackupJsonContext.Default.BackupRecord);
             await Assert.That(record).IsNotNull();
-            await Assert.That(record!.OriginalBytes).IsNotNull();
+            await Assert.That(record.OriginalBytes).IsNotNull();
 
-            string markerJson = System.Text.Encoding.UTF8.GetString(record.OriginalBytes!);
+            string markerJson = System.Text.Encoding.UTF8.GetString(record.OriginalBytes);
             await Assert.That(markerJson.Contains("sk-legacy-plaintext")).IsFalse();
             await Assert.That(markerJson.Contains("hgkey:default")).IsTrue();
             await Assert.That(markerJson.Contains("\"schemaVersion\": 1")).IsTrue();
@@ -701,17 +702,17 @@ public class SettingsStoreTests
             // keeps its restore obligation, while the migration's own record
             // is gone. (The config marker file itself is consumed earlier -
             // SelfHeal replays any pre-existing marker at the start of Load -
-            // which is the same recovery behavior production relies on.)
+            // which is the same recovery behaviour production relies on.)
             LauncherSettings loaded = await store.LoadAsync();
             await Assert.That(loaded.DefaultProvider).IsEqualTo("work");
 
             await Assert.That(
-                shared.CurrentLaunchBackups.Count(r =>
-                    string.Equals(r.TargetPath, configPath, StringComparison.Ordinal)))
+                    shared.CurrentLaunchBackups.Count(r =>
+                        string.Equals(r.TargetPath, configPath, StringComparison.Ordinal)))
                 .IsEqualTo(1);
             await Assert.That(
-                shared.CurrentLaunchBackups.Count(r =>
-                    string.Equals(r.TargetPath, store.SettingsFilePath, StringComparison.Ordinal)))
+                    shared.CurrentLaunchBackups.Count(r =>
+                        string.Equals(r.TargetPath, store.SettingsFilePath, StringComparison.Ordinal)))
                 .IsEqualTo(0);
 
             // The pending restore still executes for the config file, and no
@@ -742,7 +743,7 @@ public class SettingsStoreTests
         try
         {
             SettingsStore store = new SettingsStore(tempDir);
-            WriteRawSettings(store, CurrentJson("current"));
+            await WriteRawSettings(store, CurrentJson("current"));
 
             // A leftover uncommitted marker from a crashed earlier run: its
             // original bytes are a legacy v2 file naming "replayed".
@@ -763,7 +764,7 @@ public class SettingsStoreTests
             await Assert.That(loaded.Providers).Count().IsEqualTo(1);
             await Assert.That(loaded.Providers[0].Name).IsEqualTo("replayed");
 
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(store.SettingsFilePath));
+            using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(store.SettingsFilePath));
             await Assert.That(document.RootElement.GetProperty("defaultProvider").GetString())
                 .IsEqualTo("replayed");
             await Assert.That(document.RootElement.GetProperty("schemaVersion").GetInt32())

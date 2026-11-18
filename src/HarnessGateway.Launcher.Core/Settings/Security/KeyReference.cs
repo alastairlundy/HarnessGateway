@@ -23,8 +23,14 @@ public static class KeyReference
     /// Extracts the provider name from a reference; null when
     /// <paramref name="value"/> is not a reference.
     /// </summary>
-    public static string? ProviderName(string? value) =>
-        IsReference(value) ? value![Prefix.Length..] : null;
+    public static string? ProviderName(string? value)
+    {
+        if (value is null)
+            return null;
+        
+        return IsReference(value) ? value[Prefix.Length..] : null;
+    }
+        
 
     /// <summary>
     /// Same read as <see cref="ProviderName"/> for store implementations, which

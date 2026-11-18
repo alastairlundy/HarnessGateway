@@ -84,8 +84,8 @@ public class LaunchFlowGuiTests
     /// One flow with fakes on every new seam. Discovery defaults to a hit so
     /// a test that is not about availability is never mistaken for one, and
     /// <paramref name="tempDir"/> lets a test seed a config file into the
-    /// same directory the flow's settings and backups live in, so one
-    /// cleanup covers everything.
+    /// same directory the flow's settings and backups live in. One
+    /// clean-up covers everything.
     /// </summary>
     private static (LaunchFlow flow, string tempDir, string backupsDir) CreateGuiFlow(
         IHarnessAdapter? adapter = null,
@@ -168,7 +168,7 @@ public class LaunchFlowGuiTests
 
             LaunchRefused refused = (LaunchRefused)outcome;
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.HarnessUnavailable);
-            // The install hint is what an exhausted search tells the user.
+            // The installation hint is what an exhausted search tells the user.
             await Assert.That(refused.Message).Contains("Install the GUI app");
         }
         finally
@@ -184,7 +184,7 @@ public class LaunchFlowGuiTests
     {
         FakeConfirmationPrompt prompt = new();
         (LaunchFlow flow, string tempDir, _) = CreateGuiFlow(
-            adapter: new CliTestAdapter(),
+            new CliTestAdapter(),
             prompt: prompt);
         try
         {
@@ -307,7 +307,7 @@ public class LaunchFlowGuiTests
             // The detector was asked with the harness's declared names.
             await Assert.That(detector.LastRequestedNames).IsNotNull();
             await Assert.That(
-                detector.LastRequestedNames!.Contains("gui-agent-process")).IsTrue();
+                detector.LastRequestedNames.Contains("gui-agent-process")).IsTrue();
         }
         finally
         {
@@ -347,10 +347,10 @@ public class LaunchFlowGuiTests
         FakeSecureKeyStore keyStore = new();
         keyStore.Seed("hgkey:default", "sk-keyed");
         TestGuiHarnessAdapter adapter = new(
-            supportedSurfaces: new HashSet<ConfigurationSurface> { ConfigurationSurface.Files });
+            new HashSet<ConfigurationSurface> { ConfigurationSurface.Files });
         (LaunchFlow flow, string tempDir, string backupsDir) = CreateGuiFlow(
             adapter: adapter,
-            settings: KeyedSettings("hgkey:default"),
+            KeyedSettings("hgkey:default"),
             keyStore: keyStore);
         try
         {
@@ -374,7 +374,7 @@ public class LaunchFlowGuiTests
     public async Task ExecuteAsync_model_override_with_no_declared_surface_refuses_as_gui_provider_unsupported()
     {
         TestGuiHarnessAdapter adapter = new(
-            supportedSurfaces: new HashSet<ConfigurationSurface>());
+            new HashSet<ConfigurationSurface>());
         (LaunchFlow flow, string tempDir, string backupsDir) = CreateGuiFlow(adapter: adapter);
         try
         {
@@ -402,7 +402,7 @@ public class LaunchFlowGuiTests
             // The plan deliberately over-delivers: a file write and a flag
             // action, against a harness that declares only Files.
             TestGuiHarnessAdapter adapter = new(
-                supportedSurfaces: new HashSet<ConfigurationSurface> { ConfigurationSurface.Files },
+                new HashSet<ConfigurationSurface> { ConfigurationSurface.Files },
                 actions:
                 [
                     new ConfigFileWriteAction(configPath, ModifiedConfig),
@@ -424,9 +424,9 @@ public class LaunchFlowGuiTests
             // was restored on exit.
             await Assert.That(runner.LastPlan).IsNotNull();
             await Assert.That(
-                runner.LastPlan!.ConfigurationActions.OfType<CliArgumentAction>()).IsEmpty();
+                runner.LastPlan.ConfigurationActions.OfType<CliArgumentAction>()).IsEmpty();
             await Assert.That(
-                runner.LastPlan.ConfigurationActions.OfType<ConfigFileWriteAction>())
+                    runner.LastPlan.ConfigurationActions.OfType<ConfigFileWriteAction>())
                 .Count().IsEqualTo(1);
             await Assert.That(await File.ReadAllTextAsync(configPath)).IsEqualTo(ConfigOriginal);
             await Assert.That(Directory.GetFiles(backupsDir, "*.json")).IsEmpty();
@@ -522,8 +522,10 @@ public class LaunchFlowGuiTests
             TestGuiHarnessAdapter adapter = new(
                 supportedSurfaces: FileSurfaces,
                 actions: [new ConfigFileWriteAction(configPath, ModifiedConfig)]);
-            RecordingLaunchRunner runner = new();
-            runner.RunFault = new InvalidOperationException("gui runner exploded");
+            RecordingLaunchRunner runner = new()
+            {
+                RunFault = new InvalidOperationException("gui runner exploded")
+            };
             (LaunchFlow flow, _, _) = CreateGuiFlow(
                 adapter: adapter,
                 runner: runner,
@@ -555,8 +557,10 @@ public class LaunchFlowGuiTests
             TestGuiHarnessAdapter adapter = new(
                 supportedSurfaces: FileSurfaces,
                 actions: [new ConfigFileWriteAction(configPath, ModifiedConfig)]);
-            RecordingLaunchRunner runner = new();
-            runner.HandoffFault = new InvalidOperationException("gui handoff exploded");
+            RecordingLaunchRunner runner = new()
+            {
+                HandoffFault = new InvalidOperationException("gui handoff exploded")
+            };
             (LaunchFlow flow, _, string backupsDir) = CreateGuiFlow(
                 adapter: adapter,
                 runner: runner,
@@ -567,7 +571,7 @@ public class LaunchFlowGuiTests
 
             // A detached start that never started folds like every other
             // runner fault: one typed failure, no leaked exception. The
-            // persist path opted out of the restore, so the applied write
+            // persist path opted out of the restore, so the write that was applied
             // stays durable and its backup marker is consumed rather than
             // replayed - no half-restored state is left behind either way.
             LaunchFailed failed = (LaunchFailed)outcome;

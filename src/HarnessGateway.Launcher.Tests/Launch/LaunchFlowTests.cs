@@ -313,7 +313,7 @@ public class LaunchFlowTests
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, _, string backupsDir) = CreateFlow(
             adapter: adapter,
-            settings: DefaultSettings());
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -362,7 +362,7 @@ public class LaunchFlowTests
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, ["config"], null));
 
-            // The opt-out is honored on the fault path too: the write is
+            // The opt-out is honoured on the fault path too: the write is
             // durable by design, so the finally discards the marker instead
             // of restoring.
             LaunchFailed failed = (LaunchFailed)outcome;
@@ -430,7 +430,7 @@ public class LaunchFlowTests
 
         // Reference present, secret absent from the store.
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
+            new TestHarnessAdapter("TestAgent"),
             settings: settings,
             keyStore: new FakeSecureKeyStore());
         try
@@ -468,7 +468,7 @@ public class LaunchFlowTests
         };
 
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
+            new TestHarnessAdapter("TestAgent"),
             settings: settings,
             keyStore: new FaultingKeyStore());
         try
@@ -506,7 +506,7 @@ public class LaunchFlowTests
 
             // The launch copy carries the secret...
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.ApiKey).IsEqualTo("sk-session");
+            await Assert.That(adapter.LastRequest.ApiKey).IsEqualTo("sk-session");
 
             // ...and the --persist model save never does: the settings file
             // keeps its reference/null key shape, never launch-time material.
@@ -529,8 +529,8 @@ public class LaunchFlowTests
     public async Task ExecuteAsync_endpoint_without_protocol_folds_to_refusal()
     {
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
-            settings: DefaultSettings());
+            new TestHarnessAdapter("TestAgent"),
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -550,8 +550,8 @@ public class LaunchFlowTests
     public async Task ExecuteAsync_protocol_without_endpoint_folds_to_refusal()
     {
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
-            settings: DefaultSettings());
+            new TestHarnessAdapter("TestAgent"),
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -571,8 +571,8 @@ public class LaunchFlowTests
     public async Task ExecuteAsync_invalid_endpoint_folds_to_refusal()
     {
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
-            settings: DefaultSettings());
+            new TestHarnessAdapter("TestAgent"),
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -592,8 +592,8 @@ public class LaunchFlowTests
     public async Task ExecuteAsync_invalid_protocol_folds_to_refusal()
     {
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
-            settings: DefaultSettings());
+            new TestHarnessAdapter("TestAgent"),
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -614,7 +614,7 @@ public class LaunchFlowTests
     {
         LauncherSettings settings = DefaultSettings("primary");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
+            new TestHarnessAdapter("TestAgent"),
             settings: settings);
         try
         {
@@ -636,7 +636,7 @@ public class LaunchFlowTests
     {
         LauncherSettings settings = DefaultSettings("primary") with { DefaultProvider = "ghost" };
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
+            new TestHarnessAdapter("TestAgent"),
             settings: settings);
         try
         {
@@ -675,7 +675,7 @@ public class LaunchFlowTests
         };
 
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
+            new TestHarnessAdapter("TestAgent"),
             settings: settings);
         try
         {
@@ -717,7 +717,7 @@ public class LaunchFlowTests
         };
 
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
+            new TestHarnessAdapter("TestAgent"),
             settings: settings);
         try
         {
@@ -737,7 +737,7 @@ public class LaunchFlowTests
     public async Task ExecuteAsync_empty_settings_folds_to_no_provider()
     {
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"));
+            new TestHarnessAdapter("TestAgent"));
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -760,8 +760,8 @@ public class LaunchFlowTests
     public async Task ExecuteAsync_unknown_harness_folds_with_the_lookup_message()
     {
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
-            adapter: new TestHarnessAdapter("TestAgent"),
-            settings: DefaultSettings());
+            new TestHarnessAdapter("TestAgent"),
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -788,7 +788,7 @@ public class LaunchFlowTests
             installHint: "Install via: npm install -g test");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: adapter,
-            settings: DefaultSettings());
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -929,12 +929,12 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             // No stored provider exists, so the payload carries the ad-hoc
-            // case itself - never a synthesized stored-looking provider.
-            await Assert.That(adapter.LastRequest!.Launch)
+            // case itself - never a synthesised stored-looking provider.
+            await Assert.That(adapter.LastRequest.Launch)
                 .IsTypeOf<LaunchResolution.AdHocCase>();
-            await Assert.That(adapter.LastRequest!.Launch.BaseUri)
+            await Assert.That(adapter.LastRequest.Launch.BaseUri)
                 .IsEqualTo(new Uri("https://api.example.com/v1"));
-            await Assert.That(adapter.LastRequest!.Launch.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest.Launch.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
         }
         finally
         {
@@ -953,7 +953,7 @@ public class LaunchFlowTests
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: adapter,
-            settings: DefaultSettings(),
+            DefaultSettings(),
             emissionPlanner: planner);
         try
         {
@@ -963,8 +963,8 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.EmissionPlanner).IsSameReferenceAs(planner);
-            await Assert.That(adapter.LastRequest!.Launch)
+            await Assert.That(adapter.LastRequest.EmissionPlanner).IsSameReferenceAs(planner);
+            await Assert.That(adapter.LastRequest.Launch)
                 .IsTypeOf<LaunchResolution.ProviderCase>();
         }
         finally
@@ -979,7 +979,7 @@ public class LaunchFlowTests
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: adapter,
-            settings: DefaultSettings());
+            DefaultSettings());
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
@@ -991,7 +991,7 @@ public class LaunchFlowTests
             // The payload carries the family itself: the stored entry the
             // default pointer selected rides the provider case.
             LaunchResolution.ProviderCase providerCase =
-                (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;
+                (LaunchResolution.ProviderCase)adapter.LastRequest.Launch;
             await Assert.That(providerCase.Provider.Name).IsEqualTo("default");
         }
         finally
@@ -1006,7 +1006,7 @@ public class LaunchFlowTests
         TestHarnessAdapter adapter = new("TestAgent", requiresModel: true);
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: adapter,
-            settings: DefaultSettings());
+            DefaultSettings());
         try
         {
             (LaunchOutcome outcome, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -1031,7 +1031,7 @@ public class LaunchFlowTests
         TestHarnessAdapter adapter = new("TestAgent", requiresModel: true);
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: adapter,
-            settings: DefaultSettings());
+            DefaultSettings());
         try
         {
             (LaunchOutcome outcome, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -1055,7 +1055,7 @@ public class LaunchFlowTests
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: adapter,
-            settings: DefaultSettings());
+            DefaultSettings());
         try
         {
             (LaunchOutcome outcome, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -1109,8 +1109,8 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // The launch saw the launcher-owned provider block...
             await Assert.That(contentDuringLaunch).IsNotNull();
-            await Assert.That(contentDuringLaunch!).Contains("[model_providers.harnessgateway]");
-            await Assert.That(contentDuringLaunch!).Contains("model_provider = \"harnessgateway\"");
+            await Assert.That(contentDuringLaunch).Contains("[model_providers.harnessgateway]");
+            await Assert.That(contentDuringLaunch).Contains("model_provider = \"harnessgateway\"");
             // ...and the saved key injected under the env_key variable's name.
             await Assert.That(envDuringLaunch).IsEqualTo("sk-codex");
 
@@ -1183,7 +1183,7 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Launch.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest.Launch.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
         }
         finally
@@ -1254,7 +1254,7 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
-            IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
+            IReadOnlyDictionary<string, string> env = planDuringLaunch.Process.EnvironmentVariables;
             await Assert.That(env["ANTHROPIC_BASE_URL"]).IsEqualTo("https://api.example.com");
             await Assert.That(env["ANTHROPIC_AUTH_TOKEN"]).IsEqualTo("sk-claude");
             await Assert.That(env["ANTHROPIC_MODEL"]).IsEqualTo("claude-sonnet-5");
@@ -1312,7 +1312,7 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
-            IReadOnlyDictionary<string, string> env = planDuringLaunch!.Process.EnvironmentVariables;
+            IReadOnlyDictionary<string, string> env = planDuringLaunch.Process.EnvironmentVariables;
             await Assert.That(env.ContainsKey("ANTHROPIC_BASE_URL")).IsTrue();
             // No saved key: no token variable at all, and no dummy value.
             await Assert.That(env.ContainsKey("ANTHROPIC_AUTH_TOKEN")).IsFalse();
@@ -1373,7 +1373,7 @@ public class LaunchFlowTests
             await Assert.That(fileBytes.Contains("sk-never-on-disk")).IsFalse();
 
             // And the harness saw the secret, never the reference.
-            await Assert.That(adapter.LastRequest!.ApiKey).IsEqualTo("sk-never-on-disk");
+            await Assert.That(adapter.LastRequest?.ApiKey).IsEqualTo("sk-never-on-disk");
         }
         finally
         {
@@ -1406,9 +1406,9 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // The first-run launch arrives as the ad-hoc case - keyless by
             // design - with the wizard's session key riding beside it.
-            await Assert.That(adapter.LastRequest!.Launch)
+            await Assert.That(adapter.LastRequest?.Launch)
                 .IsTypeOf<LaunchResolution.AdHocCase>();
-            await Assert.That(adapter.LastRequest!.ApiKey).IsEqualTo("sk-wizard-only");
+            await Assert.That(adapter.LastRequest?.ApiKey).IsEqualTo("sk-wizard-only");
 
             // Launch-copy-only: an ad-hoc override against an empty settings
             // dir never persists anything, secret or otherwise.
@@ -1450,11 +1450,12 @@ public class LaunchFlowTests
         try
         {
             LaunchOutcome outcome = await flow.ExecuteAsync(
-                new LaunchRequest("TestAgent", null, null, null, null, [], "sk-explicit"));
+                new LaunchRequest("TestAgent", null, null, null,
+                    null, [], "sk-explicit"));
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
-            await Assert.That(adapter.LastRequest!.ApiKey).IsEqualTo("sk-explicit");
+            await Assert.That(adapter.LastRequest?.ApiKey).IsEqualTo("sk-explicit");
 
             // The override is launch-copy-only: the stored entry keeps its
             // reference and the store keeps sk-stored under it.
@@ -1512,12 +1513,12 @@ public class LaunchFlowTests
             await Assert.That(adapter.LastRequest).IsNotNull();
             // The stored entry rides the provider case of the payload...
             LaunchResolution.ProviderCase providerCase =
-                (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;
+                (LaunchResolution.ProviderCase)adapter.LastRequest.Launch;
             await Assert.That(providerCase.Provider.Name).IsEqualTo("secondary");
             // ...and the selection's stored key is the only credential
             // source, resolved through the store before the adapter ever
             // sees it.
-            await Assert.That(adapter.LastRequest!.ApiKey).IsEqualTo("sk-secondary");
+            await Assert.That(adapter.LastRequest.ApiKey).IsEqualTo("sk-secondary");
         }
         finally
         {
@@ -1573,15 +1574,15 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            await Assert.That(adapter.LastRequest!.Launch.BaseUri)
+            await Assert.That(adapter.LastRequest.Launch.BaseUri)
                 .IsEqualTo(new Uri("https://override.example/v1"));
-            await Assert.That(adapter.LastRequest!.Launch.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(adapter.LastRequest.Launch.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
             // The flag replaced only its own fields; the rest stays as saved.
             LaunchResolution.ProviderCase providerCase =
-                (LaunchResolution.ProviderCase)adapter.LastRequest!.Launch;
+                (LaunchResolution.ProviderCase)adapter.LastRequest.Launch;
             await Assert.That(providerCase.Provider.Name).IsEqualTo("secondary");
             await Assert.That(providerCase.Provider.DefaultModel).IsEqualTo("gpt-4o");
-            await Assert.That(adapter.LastRequest!.ApiKey).IsEqualTo("sk-secondary");
+            await Assert.That(adapter.LastRequest.ApiKey).IsEqualTo("sk-secondary");
         }
         finally
         {
@@ -1686,7 +1687,7 @@ public class LaunchFlowTests
             await Assert.That(failed.Message).Contains("unsupported settings schema version");
             await Assert.That(adapter.LastRequest).IsNull();
             await Assert.That(Directory.GetFiles(backupsDir)).IsEmpty();
-            await Assert.That(File.ReadAllText(settingsPath)).IsEqualTo(rawJson);
+            await Assert.That(await File.ReadAllTextAsync(settingsPath)).IsEqualTo(rawJson);
         }
         finally
         {
@@ -1789,7 +1790,7 @@ public class LaunchFlowTests
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner());
+                new ProtocolEmissionPlanner());
 
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
@@ -1838,8 +1839,8 @@ public class LaunchFlowTests
         await Assert.That(
             properties.Any(p => typeof(Provider).IsAssignableFrom(p.PropertyType))).IsFalse();
 
-        PropertyInfo sessionKey = typeof(LaunchRequest).GetProperty("SessionKey")!;
-        await Assert.That(sessionKey.PropertyType).IsEqualTo(typeof(string));
+        PropertyInfo sessionKey = typeof(LaunchRequest).GetProperty("SessionKey");
+        await Assert.That(sessionKey?.PropertyType).IsEqualTo(typeof(string));
     }
 
     // --- Constructor fakes ---
@@ -1902,7 +1903,7 @@ public class LaunchFlowTests
     {
         public int RunCallCount { get; private set; }
 
-        public int HandoffCallCount { get; private set; }
+        private int HandoffCallCount { get; set; }
 
         public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
@@ -1971,11 +1972,11 @@ public class LaunchFlowTests
                 HarnessKind.Cli,
                 requiresModel,
                 installHint,
-                DetectionCommand: $"{name} --version",
+                $"{name} --version",
                 [],
                 supportedProtocols ?? AllProtocols,
-                SupportedSurfaces: new HashSet<ConfigurationSurface>(),
-                InstanceProcessNames: []);
+                new HashSet<ConfigurationSurface>(),
+                []);
         }
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)

@@ -111,13 +111,11 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     return await LaunchOrchestrator.MapOutcomeAsync(outcome).ConfigureAwait(true);
 }
 
-/// <summary>
-/// Runs one wizard pass with its load-time faults folded into (null, exit
-/// code): unsupported schema, credential-store errors, and migration I/O
-/// faults (ConfigRestoreFailure, message only - no stack trace, exit code
-/// stays inside the documented set). Mirrors how ConfigCommand maps the same
-/// faults on its load path.
-/// </summary>
+// Runs one wizard pass with its load-time faults folded into (null, exit
+// code): unsupported schema, credential-store errors, and migration I/O
+// faults (ConfigRestoreFailure, message only - no stack trace, exit code
+// stays inside the documented set). Mirrors how ConfigCommand maps the same
+// faults on its load path.
 static async Task<(WizardOutcome? Outcome, int ExitCode)> RunWizardGuardedAsync(
     WizardPipeline wizard,
     CancellationToken cancellationToken)

@@ -216,7 +216,7 @@ public sealed class LaunchCommand : Command
 
     public static ProtocolKind ParseProtocol(string value) =>
         ProviderResolution.TryParseProtocol(value)
-        ?? throw new ArgumentException($"Unknown protocol: {value}");
+        ?? throw new ArgumentException($"Unknown protocol: {value}", paramName: value);
 
     public static string ProtocolName(ProtocolKind protocol) => ProviderResolution.ProtocolName(protocol);
 

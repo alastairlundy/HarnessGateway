@@ -50,7 +50,7 @@ public class ProtocolEmissionPlannerTests
 
         // The whole-result and async signatures were declined: two
         // plain values in, one emission out, synchronous.
-        ParameterInfo[] parameters = plan!.GetParameters();
+        ParameterInfo[] parameters = plan.GetParameters();
         await Assert.That(parameters).Count().IsEqualTo(2);
         await Assert.That(parameters[0].ParameterType).IsEqualTo(typeof(ProtocolKind));
         await Assert.That(parameters[1].ParameterType).IsEqualTo(typeof(Uri));
