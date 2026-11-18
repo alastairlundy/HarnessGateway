@@ -189,7 +189,7 @@ public class ProviderCommandsTests
 
             // add never moves the default pointer (config set defaultProvider
             // owns it), and a declined prompt yields a keyless entry with no
-            // store call. The create hint names the pointer write path.
+            // store call. The creation hint names the pointer write path.
             await Assert.That(saved.DefaultProvider).IsEqualTo(string.Empty);
             await Assert.That(saved.Providers[0].ApiKey).IsNull();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
@@ -271,7 +271,7 @@ public class ProviderCommandsTests
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
 
-            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("my-secret-key")).IsFalse();
         }
@@ -328,7 +328,7 @@ public class ProviderCommandsTests
             await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
             await Assert.That(prompt.CallCount).IsEqualTo(1);
 
-            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("prompted-secret")).IsFalse();
         }
@@ -424,7 +424,7 @@ public class ProviderCommandsTests
         {
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore { FailStore = true };
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[{"name":"default","baseUri":"https://api.example.com/v1","protocol":0}],"defaultProvider":"default","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -487,7 +487,7 @@ public class ProviderCommandsTests
             await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
             await Assert.That(saved.DefaultProvider).IsEqualTo("work");
 
-            string fileBytes = File.ReadAllText(store.SettingsFilePath);
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:work")).IsTrue();
             await Assert.That(fileBytes.Contains("my-secret-key")).IsFalse();
         }
@@ -630,7 +630,7 @@ public class ProviderCommandsTests
         {
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore { FailStore = true };
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":2,"defaultModel":"gpt-4"}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -763,7 +763,7 @@ public class ProviderCommandsTests
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore { FailDelete = true };
             keyStore.Seed("hgkey:work", "old-key");
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":0,"apiKey":"hgkey:work"}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -827,7 +827,7 @@ public class ProviderCommandsTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[{"name":"work","baseUri":"https://api.example.com/v1","protocol":0}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -857,7 +857,7 @@ public class ProviderCommandsTests
             FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
             keyStore.Seed("hgkey:alpha", "alpha-secret");
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{"providers":[{"name":"alpha","baseUri":"https://alpha.example.com/v1","protocol":0,"apiKey":"hgkey:alpha"},{"name":"beta","baseUri":"https://beta.example.com/v1","protocol":0}],"defaultProvider":"alpha","schemaVersion":3}""");
             string before = Fingerprint(store);
@@ -1040,17 +1040,17 @@ public class ProviderCommandsTests
         try
         {
             SettingsStore store = CreateSettingsStore(tempDir);
-            File.WriteAllText(
+            await File.WriteAllTextAsync(
                 store.SettingsFilePath,
                 """{ "backends": [], "defaultBackend": "", "schemaVersion": 4 }""");
-            string before = File.ReadAllText(store.SettingsFilePath);
+            string before = await File.ReadAllTextAsync(store.SettingsFilePath);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
                 Task.FromResult(InvokeProvider(store, "provider list")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnsupportedSettingsSchema);
             await Assert.That(errorOutput).Contains("unsupported settings schema version");
-            await Assert.That(File.ReadAllText(store.SettingsFilePath)).IsEqualTo(before);
+            await Assert.That(await File.ReadAllTextAsync(store.SettingsFilePath)).IsEqualTo(before);
         }
         finally
         {
@@ -1105,7 +1105,7 @@ public class ProviderCommandsTests
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeProvider(store, "provider model add work gpt-5 --protocol anthropic")));
+                Task.FromResult(InvokeProvider(store, "provider model add work GPT-5 --protocol anthropic")));
 
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("gpt-5");
@@ -1133,7 +1133,7 @@ public class ProviderCommandsTests
                 DefaultProvider = "work"
             });
 
-            int exitCode = InvokeProvider(store, "provider model add work gpt-5");
+            int exitCode = InvokeProvider(store, "provider model add work GPT-5");
 
             await Assert.That(exitCode).IsEqualTo(0);
 
@@ -1195,7 +1195,7 @@ public class ProviderCommandsTests
             });
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeProvider(store, "provider model add nope gpt-5")));
+                Task.FromResult(InvokeProvider(store, "provider model add nope GPT-5")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UnknownProviderName);
             await Assert.That(errorOutput).Contains("unknown provider name 'nope'");
@@ -1221,7 +1221,7 @@ public class ProviderCommandsTests
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeProvider(store, "provider model add work gpt-5 --protocol grpc")));
+                Task.FromResult(InvokeProvider(store, "provider model add work GPT-5 --protocol grpc")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("Invalid protocol 'grpc'");
@@ -1257,7 +1257,7 @@ public class ProviderCommandsTests
             });
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
-                Task.FromResult(InvokeProvider(store, "provider model remove work gpt-5")));
+                Task.FromResult(InvokeProvider(store, "provider model remove work GPT-5")));
 
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("gpt-5");
@@ -1293,7 +1293,7 @@ public class ProviderCommandsTests
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
-                Task.FromResult(InvokeProvider(store, "provider model remove work gpt-9")));
+                Task.FromResult(InvokeProvider(store, "provider model remove work GPT-9")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("gpt-9");

@@ -306,8 +306,7 @@ public class LaunchFlowGuiTests
             await Assert.That(prompt.PromptedMessages).Count().IsEqualTo(1);
             // The detector was asked with the harness's declared names.
             await Assert.That(detector.LastRequestedNames).IsNotNull();
-            await Assert.That(
-                detector.LastRequestedNames.Contains("gui-agent-process")).IsTrue();
+            await Assert.That(detector.LastRequestedNames.Contains("gui-agent-process")).IsTrue();
         }
         finally
         {
