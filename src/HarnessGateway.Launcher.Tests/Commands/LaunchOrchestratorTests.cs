@@ -16,7 +16,7 @@ namespace HarnessGateway.Launcher.Tests.Commands;
 /// maps to its contract exit code byte-for-byte, the "Launch failed:" prefix
 /// is single-honest-source (Unexpected only), and <c>RunAsync</c> wires parsed
 /// flags into a <see cref="LaunchRequest"/> the flow executes. End-to-end
-/// launch behavior is pinned in LaunchFlowTests - no duplication here.
+/// launch behaviour is pinned in LaunchFlowTests - no duplication here.
 /// </summary>
 public class LaunchOrchestratorTests
 {
