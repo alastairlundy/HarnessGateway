@@ -1,5 +1,4 @@
 using CliInvoke;
-using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Launch;
 
 namespace HarnessGateway.Launcher.Core.Execution;

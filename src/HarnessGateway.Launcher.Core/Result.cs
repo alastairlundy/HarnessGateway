@@ -13,7 +13,7 @@ public sealed record Result<T>(bool Success, T Value, string Error)
     public static Result<T> Ok(T value) => new(true, value, string.Empty);
 
     /// <summary>Creates a failed outcome with a non-empty, secret-free description.</summary>
-    public static Result<T> Fail(string error) => new(false, default!, error);
+    public static Result<T> Fail(string error) => new(Success: false, default!, error);
 }
 
 /// <summary>Non-generic entry points for the <see cref="Result{T}"/> factories.</summary>

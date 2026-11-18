@@ -1,5 +1,3 @@
-using CliInvoke.Core;
-
 namespace HarnessGateway.Launcher.Core.Execution;
 
 /// <summary>

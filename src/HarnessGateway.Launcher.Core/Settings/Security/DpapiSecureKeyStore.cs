@@ -1,6 +1,5 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using HarnessGateway.Launcher.Core.Serialization;
 

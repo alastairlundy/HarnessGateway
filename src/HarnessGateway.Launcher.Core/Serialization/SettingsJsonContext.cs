@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 
 namespace HarnessGateway.Launcher.Core.Serialization;

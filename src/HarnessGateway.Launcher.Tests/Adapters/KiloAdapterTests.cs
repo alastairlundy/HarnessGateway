@@ -76,14 +76,14 @@ public class KiloAdapterTests
     [Test]
     public async Task IsAvailable_returns_true_when_on_path()
     {
-        KiloAdapter adapter = new KiloAdapter((string _, CancellationToken _) => Task.FromResult(true));
+        KiloAdapter adapter = new KiloAdapter((_, _) => Task.FromResult(true));
         await Assert.That(adapter.IsAvailableAsync()).IsTrue();
     }
 
     [Test]
     public async Task IsAvailable_returns_false_when_not_on_path()
     {
-        KiloAdapter adapter = new KiloAdapter((string _, CancellationToken _) => Task.FromResult(false));
+        KiloAdapter adapter = new KiloAdapter((_, _) => Task.FromResult(false));
         await Assert.That(adapter.IsAvailableAsync()).IsFalse();
     }
 

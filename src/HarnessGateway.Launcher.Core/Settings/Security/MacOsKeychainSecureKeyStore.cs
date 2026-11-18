@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace HarnessGateway.Launcher.Core.Settings.Security;
 
 /// <summary>

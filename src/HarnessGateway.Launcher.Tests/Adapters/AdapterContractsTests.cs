@@ -22,9 +22,9 @@ public class HarnessMetadataTests
             InstallHint: "Install via: npm install -g @anthropic-ai/opencode",
             DetectionCommand: "opencode --version",
             [".opencode/config.json", "~/.config/opencode/config.json"],
-            SupportedProtocols: new HashSet<Core.Providers.ProtocolKind>
+            SupportedProtocols: new HashSet<ProtocolKind>
             {
-                Core.Providers.ProtocolKind.OpenAiChat
+                ProtocolKind.OpenAiChat
             },
             SupportedSurfaces: new HashSet<ConfigurationSurface>(),
             InstanceProcessNames: []
@@ -40,7 +40,7 @@ public class HarnessMetadataTests
         await Assert.That(metadata.DetectionCommand).IsEqualTo("opencode --version");
         await Assert.That(metadata.ConfigFileCandidates).Count().IsEqualTo(2);
         await Assert.That(metadata.SupportedProtocols)
-            .IsEquivalentTo([Core.Providers.ProtocolKind.OpenAiChat]);
+            .IsEquivalentTo([ProtocolKind.OpenAiChat]);
     }
 
     [Test]
@@ -55,7 +55,7 @@ public class HarnessMetadataTests
             InstallHint: "Install from kilo.dev",
             DetectionCommand: "kilo --version",
             [],
-            new HashSet<Core.Providers.ProtocolKind>(),
+            new HashSet<ProtocolKind>(),
             SupportedSurfaces: new HashSet<ConfigurationSurface>(),
             InstanceProcessNames: []
         );
@@ -81,19 +81,19 @@ public class HarnessMetadataTests
             InstallHint: "Install via: npm i -g @anthropic-ai/claude-code",
             DetectionCommand: "claude --version",
             [],
-            new HashSet<Core.Providers.ProtocolKind>
+            new HashSet<ProtocolKind>
             {
-                Core.Providers.ProtocolKind.Anthropic
+                ProtocolKind.Anthropic
             },
-            SupportedSurfaces: new HashSet<ConfigurationSurface>(),
+            new HashSet<ConfigurationSurface>(),
             InstanceProcessNames: []
         );
 
-        await Assert.That(metadata.SupportedProtocols).Contains(Core.Providers.ProtocolKind.Anthropic);
+        await Assert.That(metadata.SupportedProtocols).Contains(ProtocolKind.Anthropic);
         await Assert.That(metadata.SupportedProtocols)
-            .DoesNotContain(Core.Providers.ProtocolKind.OpenAiChat);
+            .DoesNotContain(ProtocolKind.OpenAiChat);
         await Assert.That(metadata.SupportedProtocols)
-            .DoesNotContain(Core.Providers.ProtocolKind.OpenAiResponses);
+            .DoesNotContain(ProtocolKind.OpenAiResponses);
     }
 
     [Test]
@@ -331,14 +331,14 @@ public class ResolvedLaunchTests
     [Test]
     public async Task ResolvedLaunch_carries_the_case_key_working_directory_and_planner()
     {
-        Provider provider = new Core.Providers.Provider
+        Provider provider = new Provider
         {
             Name = "test",
             BaseUri = new Uri("https://api.example.com"),
-            DefaultProtocol = Core.Providers.ProtocolKind.OpenAiChat
+            DefaultProtocol = ProtocolKind.OpenAiChat
         };
         LaunchResolution.ProviderCase launch = new(
-            provider, "gpt-4", Core.Providers.ProtocolKind.OpenAiChat);
+            provider, "gpt-4", ProtocolKind.OpenAiChat);
         IProtocolEmissionPlanner planner = new ProtocolEmissionPlanner();
 
         ResolvedLaunch request = new ResolvedLaunch(
@@ -360,7 +360,7 @@ public class ResolvedLaunchTests
     {
         LaunchResolution.AdHocCase launch = new(
             new Uri("https://api.example.com"),
-            Core.Providers.ProtocolKind.OpenAiChat,
+            ProtocolKind.OpenAiChat,
             model: null);
 
         ResolvedLaunch request = new ResolvedLaunch(

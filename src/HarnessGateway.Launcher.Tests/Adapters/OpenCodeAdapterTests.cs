@@ -90,14 +90,14 @@ public class OpenCodeAdapterTests
     [Test]
     public async Task IsAvailable_returns_true_when_on_path()
     {
-        OpenCodeAdapter adapter = new OpenCodeAdapter((string _, CancellationToken _) => Task.FromResult(true));
+        OpenCodeAdapter adapter = new OpenCodeAdapter((_, _) => Task.FromResult(true));
         await Assert.That(adapter.IsAvailableAsync()).IsTrue();
     }
 
     [Test]
     public async Task IsAvailable_returns_false_when_not_on_path()
     {
-        OpenCodeAdapter adapter = new OpenCodeAdapter((string _, CancellationToken _) => Task.FromResult(false));
+        OpenCodeAdapter adapter = new OpenCodeAdapter((_, _) => Task.FromResult(false));
         await Assert.That(adapter.IsAvailableAsync()).IsFalse();
     }
 

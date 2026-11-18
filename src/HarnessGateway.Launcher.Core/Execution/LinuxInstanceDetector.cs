@@ -24,8 +24,7 @@ public sealed class LinuxInstanceDetector : IRunningInstanceDetector
         IReadOnlyList<string> processNames)
     {
         HashSet<string> candidates = new(NameComparer);
-        if (processNames is not null)
-        {
+        if (processNames.Count > 0)
             foreach (string name in processNames)
             {
                 if (!string.IsNullOrWhiteSpace(name))
@@ -33,7 +32,6 @@ public sealed class LinuxInstanceDetector : IRunningInstanceDetector
                     candidates.Add(name.Trim());
                 }
             }
-        }
 
         if (candidates.Count == 0)
         {
