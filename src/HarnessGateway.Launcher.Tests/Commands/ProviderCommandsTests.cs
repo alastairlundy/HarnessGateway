@@ -79,7 +79,7 @@ public class ProviderCommandsTests
         Convert.ToBase64String(File.ReadAllBytes(store.SettingsFilePath));
 
     [Test]
-    public async Task Provider_command_exposes_five_verbs_plus_model_subverbs_with_no_aliases()
+    public async Task Provider_command_exposes_five_verbs_plus_model_sub_verbs_with_no_aliases()
     {
         string tempDir = CreateTempDir();
         try
@@ -220,7 +220,7 @@ public class ProviderCommandsTests
                         url: "https://old.example.com/v1",
                         protocol: ProtocolKind.OpenAiChat,
                         apiKey: "hgkey:work",
-                        defaultModel: "gpt-4")
+                        defaultModel: "GPT-4")
                 ],
                 DefaultProvider = "work"
             });
@@ -238,7 +238,7 @@ public class ProviderCommandsTests
             await Assert.That(saved.Providers.Count).IsEqualTo(1);
             await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://new.example.com/v1"));
             await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("GPT-4");
             await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
             await Assert.That(saved.DefaultProvider).IsEqualTo("work");
             await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
@@ -461,10 +461,11 @@ public class ProviderCommandsTests
                         "work",
                         url: "https://api.work.example/v1",
                         protocol: ProtocolKind.Anthropic,
-                        defaultModel: "gpt-4")
+                        defaultModel: "GPT-4")
                 ],
                 DefaultProvider = "work"
             });
+            
             string before = Fingerprint(store);
 
             (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
@@ -484,7 +485,7 @@ public class ProviderCommandsTests
             // set-key touches only the credential record.
             await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
             await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("GPT-4");
             await Assert.That(saved.DefaultProvider).IsEqualTo("work");
 
             string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
@@ -632,7 +633,7 @@ public class ProviderCommandsTests
             SettingsStore store = CreateSettingsStore(tempDir, keyStore);
             await File.WriteAllTextAsync(
                 store.SettingsFilePath,
-                """{"providers":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":2,"defaultModel":"gpt-4"}],"defaultProvider":"work","schemaVersion":3}""");
+                """{"providers":[{"name":"work","baseUri":"https://api.work.example/v1","protocol":2,"defaultModel":"GPT-4"}],"defaultProvider":"work","schemaVersion":3}""");
             string before = Fingerprint(store);
 
             (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
@@ -672,7 +673,7 @@ public class ProviderCommandsTests
                         url: "https://api.work.example/v1",
                         protocol: ProtocolKind.Anthropic,
                         apiKey: "hgkey:work",
-                        defaultModel: "gpt-4")
+                        defaultModel: "GPT-4")
                 ],
                 DefaultProvider = "work"
             });
@@ -691,7 +692,7 @@ public class ProviderCommandsTests
             // clear-key never alters endpoint, protocol, or default model.
             await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
             await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
-            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("gpt-4");
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("GPT-4");
             await Assert.That(saved.DefaultProvider).IsEqualTo("work");
         }
         finally
@@ -1108,10 +1109,10 @@ public class ProviderCommandsTests
                 Task.FromResult(InvokeProvider(store, "provider model add work GPT-5 --protocol anthropic")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output).Contains("gpt-5");
+            await Assert.That(output).Contains("GPT-5");
 
             LauncherSettings saved = await store.LoadAsync();
-            ModelEntry entry = saved.Providers[0].Models.Single(m => m.Name == "gpt-5");
+            ModelEntry entry = saved.Providers[0].Models.Single(m => m.Name == "GPT-5");
             await Assert.That(entry.Protocol).IsEqualTo(ProtocolKind.Anthropic);
         }
         finally
@@ -1138,7 +1139,7 @@ public class ProviderCommandsTests
             await Assert.That(exitCode).IsEqualTo(0);
 
             LauncherSettings saved = await store.LoadAsync();
-            ModelEntry entry = saved.Providers[0].Models.Single(m => m.Name == "gpt-5");
+            ModelEntry entry = saved.Providers[0].Models.Single(m => m.Name == "GPT-5");
             await Assert.That(entry.Protocol).IsNull();
         }
         finally
@@ -1161,7 +1162,7 @@ public class ProviderCommandsTests
                 [
                     CreateProvider("work") with
                     {
-                        Models = [new ModelEntry { Name = "gpt-5" }]
+                        Models = [new ModelEntry { Name = "GPT-5" }]
                     }
                 ],
                 DefaultProvider = "work"
@@ -1248,8 +1249,8 @@ public class ProviderCommandsTests
                     {
                         Models =
                         [
-                            new ModelEntry { Name = "gpt-5", Protocol = ProtocolKind.Anthropic },
-                            new ModelEntry { Name = "gpt-4o" }
+                            new ModelEntry { Name = "GPT-5", Protocol = ProtocolKind.Anthropic },
+                            new ModelEntry { Name = "GPT-4o" }
                         ]
                     }
                 ],
@@ -1260,11 +1261,11 @@ public class ProviderCommandsTests
                 Task.FromResult(InvokeProvider(store, "provider model remove work GPT-5")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output).Contains("gpt-5");
+            await Assert.That(output).Contains("GPT-5");
 
             LauncherSettings saved = await store.LoadAsync();
             await Assert.That(saved.Providers[0].Models.Count).IsEqualTo(1);
-            await Assert.That(saved.Providers[0].Models[0].Name).IsEqualTo("gpt-4o");
+            await Assert.That(saved.Providers[0].Models[0].Name).IsEqualTo("GPT-4o");
         }
         finally
         {
@@ -1285,7 +1286,7 @@ public class ProviderCommandsTests
                 [
                     CreateProvider("work") with
                     {
-                        Models = [new ModelEntry { Name = "gpt-5" }]
+                        Models = [new ModelEntry { Name = "GPT-5" }]
                     }
                 ],
                 DefaultProvider = "work"
@@ -1296,7 +1297,7 @@ public class ProviderCommandsTests
                 Task.FromResult(InvokeProvider(store, "provider model remove work GPT-9")));
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
-            await Assert.That(errorOutput).Contains("gpt-9");
+            await Assert.That(errorOutput).Contains("GPT-9");
             await Assert.That(errorOutput).Contains("not listed");
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
         }
@@ -1321,8 +1322,8 @@ public class ProviderCommandsTests
                     {
                         Models =
                         [
-                            new ModelEntry { Name = "gpt-5", Protocol = ProtocolKind.Anthropic },
-                            new ModelEntry { Name = "gpt-4o" }
+                            new ModelEntry { Name = "GPT-5", Protocol = ProtocolKind.Anthropic },
+                            new ModelEntry { Name = "GPT-4o" }
                         ]
                     }
                 ],
@@ -1335,9 +1336,9 @@ public class ProviderCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
-            await Assert.That(output).Contains("gpt-5");
+            await Assert.That(output).Contains("GPT-5");
             await Assert.That(output).Contains("anthropic");
-            await Assert.That(output).Contains("gpt-4o");
+            await Assert.That(output).Contains("GPT-4o");
         }
         finally
         {
