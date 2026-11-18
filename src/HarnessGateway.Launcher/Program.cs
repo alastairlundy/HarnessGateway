@@ -94,16 +94,17 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
     // The collected ApiKey must ride as SessionKey - without it the launch
     // proceeds with no credential at all on a first run, and the harness
     // fails auth downstream with no clue that the key the user typed was
-    // dropped. When a key was collected, persist is forced to ["config"]: a
-    // launch-time credential change the user confirmed in the wizard must
-    // survive the launch, so the restore-on-exit default opts out.
+    // dropped. Persist stays empty: a wizard-driven launch obeys the same
+    // restore-on-exit guarantee as a CLI launch, so the harness config the
+    // launch edits (e.g. codex config.toml) is restored when the process
+    // exits. The wizard accepts no --persist flag of its own.
     LaunchRequest request = new(
         wizardResult.AgentCommandName,
         ProviderName: wizardResult.ProviderName,
         wizardResult.Endpoint,
         LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,
-        Persist: wizardResult.ApiKey is not null ? ["config"] : [],
+        Persist: [],
         SessionKey: wizardResult.ApiKey);
 
     LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)

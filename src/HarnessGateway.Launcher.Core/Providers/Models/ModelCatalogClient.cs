@@ -14,24 +14,38 @@ public sealed class ModelCatalogClient
 
     public async Task<ModelCatalog> FetchModelsAsync(Provider backend, CancellationToken cancellationToken = default)
     {
-        try
+        // Failures deliberately propagate: the wizard's ModelStep catches them,
+        // reports "Could not fetch model catalogue", and degrades to free-text
+        // entry. Swallowing them here hid the failure from the user entirely.
+        return backend.DefaultProtocol switch
         {
-            return backend.DefaultProtocol switch
-            {
-                ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => await FetchOpenAiModelsAsync(backend, cancellationToken).ConfigureAwait(false),
-                ProtocolKind.Anthropic => await FetchAnthropicModelsAsync(backend, cancellationToken).ConfigureAwait(false),
-                _ => new([], DateTimeOffset.UtcNow),
-            };
-        }
-        catch
-        {
-            return new([], DateTimeOffset.UtcNow);
-        }
+            ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => await FetchOpenAiModelsAsync(backend, cancellationToken).ConfigureAwait(false),
+            ProtocolKind.Anthropic => await FetchAnthropicModelsAsync(backend, cancellationToken).ConfigureAwait(false),
+            _ => new([], DateTimeOffset.UtcNow),
+        };
+    }
+
+    /// <summary>
+    /// Builds the absolute <c>GET /v1/models</c> request URI from the provider's
+    /// own endpoint so the request never depends on <see cref="HttpClient.BaseAddress"/>.
+    /// When <see cref="Provider.BaseUri"/> already ends in a <c>/v1</c> segment only
+    /// <c>/models</c> is appended, so no doubled <c>/v1</c> is produced.
+    /// </summary>
+    private static Uri BuildModelsUri(Provider backend)
+    {
+        Uri authority = new Uri(backend.BaseUri.GetLeftPart(UriPartial.Authority));
+
+        string basePath = backend.BaseUri.AbsolutePath.TrimEnd('/');
+        string modelsPath = basePath.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
+            ? basePath + "/models"
+            : "/v1/models";
+
+        return new Uri(authority, modelsPath);
     }
 
     private async Task<ModelCatalog> FetchOpenAiModelsAsync(Provider backend, CancellationToken cancellationToken)
     {
-        HttpRequestMessage request = new(HttpMethod.Get, "/v1/models");
+        HttpRequestMessage request = new(HttpMethod.Get, BuildModelsUri(backend));
 
         if (!string.IsNullOrEmpty(backend.ApiKey))
         {
@@ -54,8 +68,7 @@ public sealed class ModelCatalogClient
 
     private async Task<ModelCatalog> FetchAnthropicModelsAsync(Provider backend, CancellationToken cancellationToken)
     {
-        HttpRequestMessage request = new(HttpMethod.Get, "/v1/models");
-        request.Headers.Add("anthropic-version", "2023-06-01");
+        HttpRequestMessage request = new(HttpMethod.Get, BuildModelsUri(backend));
 
         if (!string.IsNullOrEmpty(backend.ApiKey))
         {

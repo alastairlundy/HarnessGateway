@@ -11,8 +11,10 @@
 
 HarnessGateway is a command-line launcher for agent harnesses. Point it at an
 OpenAI- or Anthropic-compatible endpoint, name the harness to run, and it
-starts that harness against your endpoint. Credentials go in your OS keychain,
-never in the settings file.
+starts that harness against your endpoint. Credentials live outside the
+settings file — in your OS credential store on macOS and Linux, and in a
+DPAPI-encrypted file on Windows. See [PRIVACY.md](PRIVACY.md) for the project's
+privacy policy.
 
 ## Install
 
@@ -279,14 +281,17 @@ harnessgateway launch opencode-desktop --persist config --confirm-running
 Using `--confirm-running` with a CLI harness is a usage error (exit code 2):
 CLI harnesses have no running instance to confirm.
 
-**Keys never touch disk.** A saved API key is handed to the app as an
-environment variable on the child process, only when the harness declares
-support for it. The launcher never writes key material to a
-configuration file. A key-carrying provider pointed at a GUI harness that
-declares no environment support refuses with exit code 4, as does a
-provider or model override against a harness that declares no configuration
-support that could carry it. Keys still come only from saved provider
-entries; there is no per-launch key for GUI harnesses either.
+**Keys are never written in plaintext.** On Windows a saved API key is stored
+as DPAPI-encrypted ciphertext in `HarnessGateway-keys.json` in the config
+directory, bound to your Windows user account; on macOS it lives in the login
+keychain and on Linux in the Secret Service keyring. The launcher never writes
+key material to the settings file or to a harness configuration file. A saved
+API key is handed to the app as an environment variable on the child process,
+only when the harness declares support for it. A key-carrying provider pointed
+at a GUI harness that declares no environment support refuses with exit code
+4, as does a provider or model override against a harness that declares no
+configuration support that could carry it. Keys still come only from saved
+provider entries; there is no per-launch key for GUI harnesses either.
 
 ## Update check
 
@@ -452,10 +457,21 @@ exits with code 8.
 | macOS | `~/Library/Application Support/HarnessGateway` |
 | Linux | `$XDG_CONFIG_HOME/HarnessGateway`, else `~/.config/HarnessGateway` |
 
-`HarnessGateway-launcher.json` holds the entry list, the default pointer, and
-per-entry default models. An API key shows up in the file only as an opaque
-reference like `hgkey:<name>`. The secret itself lives in DPAPI, the macOS
-keychain, or the Linux secret service under that identifier.
+`HarnessGateway-launcher.json` holds the entry list, the default pointer,
+`schemaVersion`, per-entry default models, and each provider's model catalog.
+An API key shows up in the file only as an opaque reference like
+`hgkey:<name>`. The secret itself lives under that identifier in an OS
+credential store: on macOS the login keychain, on Linux the Secret Service
+keyring, and on Windows `HarnessGateway-keys.json` in this same directory,
+where it is stored as DPAPI-encrypted ciphertext bound to your Windows user
+account. The directory also holds `update-check.timestamp`, a `backups/`
+subdirectory for config-file backup markers, and briefly, during a legacy
+migration, `HarnessGateway-launcher.json.migrating`.
+
+To delete saved keys, run `harnessgateway provider clear-key <name>` or
+`harnessgateway provider remove <name>`, or delete `HarnessGateway-keys.json`
+(Windows) / the `HarnessGateway` keyring items (macOS and Linux) directly. See
+[PRIVACY.md](PRIVACY.md) for the full removal steps.
 
 When the loader opens a version-1 file, it migrates it automatically:
 plaintext keys move into the credential store and get rewritten as
@@ -493,6 +509,12 @@ every other unavailable-harness stop, and ConfirmUnsupportedForHarness
 exits 2 like every other usage error. Scripts that need to tell those
 stops apart should read the stderr message, which names the reason. The
 exit code alone cannot.
+
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md) for the full privacy policy: what the program
+stores locally, what it sends to GitHub and to the endpoint you configure, and
+how to exercise your rights or delete your data.
 
 ## License
 

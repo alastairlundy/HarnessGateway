@@ -167,4 +167,29 @@ public class ModelStepTests
         await Assert.That(selection.Model).IsNull();
         await Assert.That(console.ErrorMessages).IsNotEmpty();
     }
+
+    [Test]
+    public async Task RunAsync_fetches_once_with_the_provider_default_protocol()
+    {
+        TestConsole console = new TestConsole();
+        Provider backend = CreateProvider(protocol: ProtocolKind.Anthropic);
+        int callCount = 0;
+        ProtocolKind observedProtocol = ProtocolKind.OpenAiChat;
+        Func<Provider, CancellationToken, Task<ModelCatalog>> fetcher = (provider, _) =>
+        {
+            callCount++;
+            observedProtocol = provider.DefaultProtocol;
+            return Task.FromResult(new ModelCatalog(
+                [new ModelCatalogEntry("claude-sonnet-5")], DateTimeOffset.UtcNow));
+        };
+
+        ModelStep step = new ModelStep(console, fetcher, backend);
+        console.EnqueueChoice("claude-sonnet-5");
+
+        ModelSelection selection = await step.RunAsync(requiresModel: false, savedDefaultModel: null);
+
+        await Assert.That(callCount).IsEqualTo(1);
+        await Assert.That(observedProtocol).IsEqualTo(ProtocolKind.Anthropic);
+        await Assert.That(selection.Model).IsEqualTo("claude-sonnet-5");
+    }
 }

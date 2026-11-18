@@ -26,49 +26,44 @@ public sealed class ModelStep
 
     public async Task<ModelSelection> RunAsync(bool requiresModel, string? savedDefaultModel, CancellationToken cancellationToken = default)
     {
-        // Fetch the catalogue once per wire family, not per protocol kind, merging
-        // the results into one listing tagged with every protocol each model was
-        // found under. Chat and responses produce identical client requests
-        // (both hit /v1/models with bearer auth), so sharing one fetch and
-        // tagging both kinds is the same union three separate fetches produced -
-        // at two requests instead of three.
+        // One catalogue request, made with the provider's own wire protocol so
+        // the authentication header matches the endpoint it is sent to. Chat
+        // and responses share the same /v1/models request, so both kinds are
+        // tagged from that single result; Anthropic gets its own request shape.
         Dictionary<string, HashSet<ProtocolKind>> found = new(StringComparer.OrdinalIgnoreCase);
 
         if (_fetchModels is not null && _provider is not null)
         {
-            (ProtocolKind FetchProtocol, IReadOnlyList<ProtocolKind> Tagged)[] fetches =
-            [
-                (ProtocolKind.OpenAiChat, [ProtocolKind.OpenAiChat, ProtocolKind.OpenAiResponses]),
-                (ProtocolKind.Anthropic, [ProtocolKind.Anthropic]),
-            ];
-
-            foreach ((ProtocolKind fetchProtocol, IReadOnlyList<ProtocolKind> tagged) in fetches)
+            IReadOnlyList<ProtocolKind> tagged = _provider.DefaultProtocol switch
             {
-                try
+                ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => [ProtocolKind.OpenAiChat, ProtocolKind.OpenAiResponses],
+                ProtocolKind.Anthropic => [ProtocolKind.Anthropic],
+                _ => [_provider.DefaultProtocol],
+            };
+
+            try
+            {
+                ModelCatalog catalog = await _fetchModels(_provider, cancellationToken).ConfigureAwait(true);
+
+                foreach (ModelCatalogEntry model in catalog.Models)
                 {
-                    ModelCatalog catalog = await _fetchModels(
-                        _provider with { DefaultProtocol = fetchProtocol }, cancellationToken).ConfigureAwait(true);
-
-                    foreach (ModelCatalogEntry model in catalog.Models)
+                    if (!found.TryGetValue(model.Id, out HashSet<ProtocolKind>? set))
                     {
-                        if (!found.TryGetValue(model.Id, out HashSet<ProtocolKind>? set))
-                        {
-                            set = new HashSet<ProtocolKind>();
-                            found[model.Id] = set;
-                        }
+                        set = new HashSet<ProtocolKind>();
+                        found[model.Id] = set;
+                    }
 
-                        foreach (ProtocolKind kind in tagged)
-                        {
-                            set.Add(kind);
-                        }
+                    foreach (ProtocolKind kind in tagged)
+                    {
+                        set.Add(kind);
                     }
                 }
-                catch
-                {
-                    await Task.Run(() => _console.WriteError(
-                            "Could not fetch model catalogue. Endpoint may be unreachable."),
-                        cancellationToken).ConfigureAwait(false);
-                }
+            }
+            catch
+            {
+                await Task.Run(() => _console.WriteError(
+                        "Could not fetch model catalogue. Endpoint may be unreachable."),
+                    cancellationToken).ConfigureAwait(false);
             }
         }
 
