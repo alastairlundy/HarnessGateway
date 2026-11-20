@@ -437,3 +437,4 @@ src\.idea
 artifacts-dotnet-releaser
 /src/.idea
 /.firecrawl
+/manifests
