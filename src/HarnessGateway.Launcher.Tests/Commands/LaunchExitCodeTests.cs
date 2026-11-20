@@ -1,4 +1,5 @@
 using HarnessGateway.Launcher.Commands;
+using HarnessGateway.Launcher.Models;
 
 // These tests pin the documented exit-code contract: the subject is an enum
 // cast to int by design, so TUnit's "do not assert on a constant" rule is a

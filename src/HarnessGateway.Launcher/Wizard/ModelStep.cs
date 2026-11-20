@@ -1,4 +1,13 @@
+/*
+    HarnessGateway - Copyright (c) Alastair Lundy 2026
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using HarnessGateway.Launcher.Core.Providers.Models;
+using HarnessGateway.Launcher.Wizard.Abstractions;
+using HarnessGateway.Launcher.Wizard.Models;
 
 namespace HarnessGateway.Launcher.Wizard;
 
@@ -79,8 +88,7 @@ public sealed class ModelStep
 
     private async Task<ModelSelection> RunWithCatalogAsync(
         Dictionary<string, HashSet<ProtocolKind>> found,
-        bool requiresModel,
-        string? savedDefaultModel,
+        bool requiresModel, string? savedDefaultModel,
         CancellationToken cancellationToken)
     {
         List<ConsoleChoice> choices = [];
@@ -98,7 +106,7 @@ public sealed class ModelStep
             // Protocols found under, in stable kind order.
             string protocolsText = string.Join(
                 ", ",
-                entry.Value.OrderBy(p => p).Select(ProviderResolution.ProtocolName));
+                entry.Value.Order().Select(ProviderResolution.ProtocolName));
             annotationParts.Add(protocolsText);
 
             if (string.Equals(entry.Key, savedDefaultModel, StringComparison.OrdinalIgnoreCase))
@@ -109,9 +117,7 @@ public sealed class ModelStep
             choices.Add(new ConsoleChoice(entry.Key, string.Join("; ", annotationParts)));
         }
 
-        string title = requiresModel
-            ? "Select a model (required):"
-            : "Select a model (or skip):";
+        string title = requiresModel ? "Select a model (required):" : "Select a model (or skip):";
 
         string selected = await _console.PromptChoiceAsync(title, choices, cancellationToken).ConfigureAwait(true);
 

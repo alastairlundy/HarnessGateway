@@ -1,3 +1,10 @@
+/*
+    HarnessGateway - Copyright (c) Alastair Lundy 2026
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using CliInvoke;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters;
@@ -5,7 +12,10 @@ using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
+using HarnessGateway.Launcher.Input;
+using HarnessGateway.Launcher.Models;
 using HarnessGateway.Launcher.Wizard;
+using HarnessGateway.Launcher.Wizard.Models;
 
 List<IHarnessAdapter> adapters =
 [
@@ -57,60 +67,6 @@ LaunchFlow flow = new(
     confirmationPrompt,
     emissionPlanner);
 LaunchOrchestrator orchestrator = new(flow);
-async Task<int> RunWizardAsync(CancellationToken cancellationToken)
-{
-    SpectreConsoleAbstraction console = new();
-    ModelCatalogClient catalogClient = new(new HttpClient());
-    WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
-
-    // Load-time faults surface as messages with documented exit codes rather
-    // than escaping the wizard: unsupported schema, credential-store errors,
-    // and migration I/O faults (ConfigRestoreFailure, no stack trace).
-    (WizardOutcome? guardedOutcome, int guardExit) =
-        await RunWizardGuardedAsync(wizard, cancellationToken).ConfigureAwait(true);
-    if (guardedOutcome is null)
-    {
-        return guardExit;
-    }
-
-    WizardOutcome wizardOutcome = guardedOutcome;
-
-    if (wizardOutcome is WizardAborted aborted)
-    {
-        return aborted.Reason switch
-        {
-            WizardAbortReason.Cancelled => 0,
-            WizardAbortReason.DanglingDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
-            WizardAbortReason.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
-            WizardAbortReason.NoHarnessInstalled => (int)LaunchExitCode.HarnessUnavailable,
-            WizardAbortReason.NoHarnessSupportsProtocol => (int)LaunchExitCode.UnknownAgent,
-            WizardAbortReason.CredentialStoreError => (int)LaunchExitCode.ConfigRestoreFailure,
-            _ => (int)LaunchExitCode.ConfigRestoreFailure,
-        };
-    }
-
-    WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
-
-    // The collected ApiKey must ride as SessionKey - without it the launch
-    // proceeds with no credential at all on a first run, and the harness
-    // fails auth downstream with no clue that the key the user typed was
-    // dropped. Persist stays empty: a wizard-driven launch obeys the same
-    // restore-on-exit guarantee as a CLI launch, so the harness config the
-    // launch edits (e.g. codex config.toml) is restored when the process
-    // exits. The wizard accepts no --persist flag of its own.
-    LaunchRequest request = new(
-        wizardResult.AgentCommandName,
-        ProviderName: wizardResult.ProviderName,
-        wizardResult.Endpoint,
-        LaunchCommand.ProtocolName(wizardResult.Protocol),
-        wizardResult.Model,
-        Persist: [],
-        SessionKey: wizardResult.ApiKey);
-
-    LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)
-        .ConfigureAwait(true);
-    return await LaunchOrchestrator.MapOutcomeAsync(outcome).ConfigureAwait(true);
-}
 
 // Runs one wizard pass with its load-time faults folded into (null, exit
 // code): unsupported schema, credential-store errors, and migration I/O
@@ -179,3 +135,58 @@ RootCommand rootCommand = RootCommandFactory.Create(
     keyStore);
 
 return await rootCommand.Parse(args).InvokeAsync().ConfigureAwait(true);
+
+async Task<int> RunWizardAsync(CancellationToken cancellationToken)
+{
+    SpectreConsoleAbstraction console = new();
+    ModelCatalogClient catalogClient = new(new HttpClient());
+    WizardPipeline wizard = new(console, adapters, settingsStore, keyStore, catalogClient);
+
+    // Load-time faults surface as messages with documented exit codes rather
+    // than escaping the wizard: unsupported schema, credential-store errors,
+    // and migration I/O faults (ConfigRestoreFailure, no stack trace).
+    (WizardOutcome? guardedOutcome, int guardExit) =
+        await RunWizardGuardedAsync(wizard, cancellationToken).ConfigureAwait(true);
+    if (guardedOutcome is null)
+    {
+        return guardExit;
+    }
+
+    WizardOutcome wizardOutcome = guardedOutcome;
+
+    if (wizardOutcome is WizardAborted aborted)
+    {
+        return aborted.Reason switch
+        {
+            WizardAbortReason.Cancelled => 0,
+            WizardAbortReason.DanglingDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
+            WizardAbortReason.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,
+            WizardAbortReason.NoHarnessInstalled => (int)LaunchExitCode.HarnessUnavailable,
+            WizardAbortReason.NoHarnessSupportsProtocol => (int)LaunchExitCode.UnknownAgent,
+            WizardAbortReason.CredentialStoreError => (int)LaunchExitCode.ConfigRestoreFailure,
+            _ => (int)LaunchExitCode.ConfigRestoreFailure,
+        };
+    }
+
+    WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
+
+    // The collected ApiKey must ride as SessionKey - without it the launch
+    // proceeds with no credential at all on a first run, and the harness
+    // fails auth downstream with no clue that the key the user typed was
+    // dropped. Persist stays empty: a wizard-driven launch obeys the same
+    // restore-on-exit guarantee as a CLI launch, so the harness config the
+    // launch edits (e.g. codex config.toml) is restored when the process
+    // exits. The wizard accepts no --persist flag of its own.
+    LaunchRequest request = new(
+        wizardResult.AgentCommandName,
+        ProviderName: wizardResult.ProviderName,
+        wizardResult.Endpoint,
+        LaunchCommand.ProtocolName(wizardResult.Protocol),
+        wizardResult.Model,
+        Persist: [],
+        SessionKey: wizardResult.ApiKey);
+
+    LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)
+        .ConfigureAwait(true);
+    return await LaunchOrchestrator.MapOutcomeAsync(outcome).ConfigureAwait(true);
+}

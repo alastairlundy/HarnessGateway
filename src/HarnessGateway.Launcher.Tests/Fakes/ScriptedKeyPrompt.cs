@@ -1,4 +1,5 @@
 using HarnessGateway.Launcher.Commands;
+using HarnessGateway.Launcher.Input.Abstractions;
 
 namespace HarnessGateway.Launcher.Tests.Fakes;
 

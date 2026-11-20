@@ -1,6 +1,7 @@
 using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Wizard;
+using HarnessGateway.Launcher.Wizard.Models;
 
 namespace HarnessGateway.Launcher.Tests.Wizard;
 

@@ -1082,6 +1082,7 @@ public class LaunchFlowTests
         // the capture slot before the call and fill it from the result (the
         // callback runs later, during ExecuteAsync).
         string configPath = string.Empty;
+        
         CallbackLaunchRunner runner = new(plan =>
         {
             contentDuringLaunch = File.ReadAllText(configPath);

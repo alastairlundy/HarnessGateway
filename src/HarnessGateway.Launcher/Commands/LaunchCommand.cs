@@ -1,9 +1,16 @@
+/*
+    HarnessGateway - Copyright (c) Alastair Lundy 2026
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
+using HarnessGateway.Launcher.Models;
+
 namespace HarnessGateway.Launcher.Commands;
 
 public sealed class LaunchCommand : Command
 {
-    private readonly Func<CancellationToken, Task<int>>? _wizardAction;
-
     public static readonly Argument<string?> HarnessArgument = new("harness")
     {
         // Optional: bare `launch` falls back to the interactive wizard, the
@@ -66,7 +73,7 @@ public sealed class LaunchCommand : Command
         IEnumerable<IHarnessAdapter>? adapters = null)
         : base("launch", "Launch an agent harness with the specified provider configuration")
     {
-        _wizardAction = wizardAction;
+        var wizardAction1 = wizardAction;
 
         // Built from the registry so the help text cannot advertise an
         // identifier the lookup rejects, or omit one it accepts.
@@ -152,9 +159,9 @@ public sealed class LaunchCommand : Command
             // null identifier.
             if (harness is null)
             {
-                if (_wizardAction is not null)
+                if (wizardAction1 is not null)
                 {
-                    return await _wizardAction(cancellationToken).ConfigureAwait(true);
+                    return await wizardAction1(cancellationToken).ConfigureAwait(true);
                 }
 
                 await Console.Error.WriteLineAsync(

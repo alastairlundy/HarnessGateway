@@ -1,4 +1,4 @@
-namespace HarnessGateway.Launcher.Wizard;
+namespace HarnessGateway.Launcher.Wizard.Models;
 
 /// <summary>
 /// Closed outcome of a wizard run: either a completed <see cref="WizardResult"/>

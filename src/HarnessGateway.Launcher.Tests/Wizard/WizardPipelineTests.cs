@@ -3,6 +3,7 @@ using HarnessGateway.Launcher.Core.Providers;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 using HarnessGateway.Launcher.Wizard;
+using HarnessGateway.Launcher.Wizard.Models;
 
 namespace HarnessGateway.Launcher.Tests.Wizard;
 

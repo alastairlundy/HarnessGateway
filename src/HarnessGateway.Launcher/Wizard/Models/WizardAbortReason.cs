@@ -1,4 +1,11 @@
-namespace HarnessGateway.Launcher.Wizard;
+/*
+    HarnessGateway - Copyright (c) Alastair Lundy 2026
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
+namespace HarnessGateway.Launcher.Wizard.Models;
 
 /// <summary>
 /// Why a wizard run aborted before producing a <see cref="WizardResult"/>. Each

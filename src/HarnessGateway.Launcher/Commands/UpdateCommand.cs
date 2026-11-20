@@ -1,4 +1,12 @@
+/*
+    HarnessGateway - Copyright (c) Alastair Lundy 2026
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using HarnessGateway.Launcher.Core.Update;
+using HarnessGateway.Launcher.Models;
 
 namespace HarnessGateway.Launcher.Commands;
 
@@ -8,7 +16,7 @@ namespace HarnessGateway.Launcher.Commands;
 /// and maps the outcome onto the documented exit codes; it never
 /// downloads, installs, or applies anything. Bare <c>update</c>
 /// refuses with a suggestion naming <c>update check</c> instead of
-/// defaulting to a behavior.
+/// defaulting to a behaviour.
 /// </summary>
 public sealed class UpdateCommand : Command
 {

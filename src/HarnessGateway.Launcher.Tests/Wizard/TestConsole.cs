@@ -1,10 +1,13 @@
+using HarnessGateway.Launcher.Wizard.Abstractions;
+using HarnessGateway.Launcher.Wizard.Models;
+
 namespace HarnessGateway.Launcher.Tests.Wizard;
 
 public sealed record PromptLogEntry(
     string Title,
-    IReadOnlyList<HarnessGateway.Launcher.Wizard.ConsoleChoice> Choices);
+    IReadOnlyList<ConsoleChoice> Choices);
 
-public sealed class TestConsole : HarnessGateway.Launcher.Wizard.IConsoleAbstraction
+public sealed class TestConsole : IConsoleAbstraction
 {
     private readonly Queue<string> _choiceResponses = new();
     private readonly Queue<string> _textResponses = new();
@@ -21,7 +24,7 @@ public sealed class TestConsole : HarnessGateway.Launcher.Wizard.IConsoleAbstrac
     public void EnqueueChoice(string response) => _choiceResponses.Enqueue(response);
     public void EnqueueText(string response) => _textResponses.Enqueue(response);
 
-    public Task<string> PromptChoiceAsync(string title, IReadOnlyList<HarnessGateway.Launcher.Wizard.ConsoleChoice> choices, CancellationToken cancellationToken = default)
+    public Task<string> PromptChoiceAsync(string title, IReadOnlyList<ConsoleChoice> choices, CancellationToken cancellationToken = default)
     {
         _prompts.Add(new PromptLogEntry(title, choices));
         ChoiceCount++;
