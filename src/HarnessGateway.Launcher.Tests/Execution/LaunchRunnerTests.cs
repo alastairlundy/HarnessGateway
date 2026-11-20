@@ -70,6 +70,24 @@ public class LaunchRunnerTests
         await Assert.That(exitCode).IsEqualTo(42);
     }
 
+    [Test]
+    public async Task InteractiveConfiguration_shares_a_windowed_console()
+    {
+        // The exact spawn shape of the interactive path. Output redirection
+        // is forced off (the child inherits this process's handles, whatever
+        // the plan carried) and window creation is forced on: on Windows a
+        // WindowCreation=false spawn - the property default - gives the
+        // child console handles with no console WINDOW, so a TUI believes it
+        // has a terminal and paints where nobody can see it (child
+        // GetConsoleWindow() = 0). stdin stays inherited for keystrokes.
+        ProcessConfiguration config = LaunchRunner.InteractiveConfiguration(
+            new LaunchPlan(ShellCommand("exit 0", outputRedirection: true), []));
+
+        await Assert.That(config.OutputRedirection).IsFalse();
+        await Assert.That(config.WindowCreation).IsTrue();
+        await Assert.That(config.RedirectStandardInput).IsFalse();
+    }
+
     // CI runs on Linux, where "cmd" does not exist; /bin/sh is rooted so CliInvoke's
     // PATH/PATHEXT probing cannot mis-resolve it on Unix either. ArgumentList (not the
     // Arguments string) keeps the command verbatim - no second tokenisation pass.

@@ -36,13 +36,32 @@ public sealed class LaunchRunner : ILaunchRunner
         // flow only dispatches here after its terminal gate, because in a
         // piped context these handles are pipes: the child's output would go
         // nowhere readable (the silent failure the buffered path exists to
-        // prevent).
+        // prevent). The configuration itself is InteractiveConfiguration -
+        // including window creation, without which the child paints into a
+        // hidden console nobody can see.
         ProcessResult result = await CliRun.RunAsync(
-            BuildProcessConfiguration(plan, outputRedirection: false),
+            InteractiveConfiguration(plan),
             ProcessExitConfiguration.CreateGraceful(ProcessTimeoutPolicy.None),
             cancellationToken).ConfigureAwait(false);
         return result.ExitCode;
     }
+
+    /// <summary>
+    /// The interactive path's exact child configuration: no output
+    /// redirection (the child inherits this process's handles) and window
+    /// creation ON. Window creation matters on Windows and only here:
+    /// with it off - the property default - CliInvoke spawns the child
+    /// with no console <em>window</em>, so the handles are still console
+    /// handles (GetConsoleMode succeeds) while <c>GetConsoleWindow()</c>
+    /// is 0: a TUI believes it has a terminal and paints into a console
+    /// nobody can see, leaving the launcher's own window at a bare caret.
+    /// Verified child window handles: 0 with the default, a real window
+    /// with <c>true</c>; a directly-spawned child shares the parent's
+    /// window. On Unix the flag is inert - the child's std handles are
+    /// inherited either way.
+    /// </summary>
+    internal static ProcessConfiguration InteractiveConfiguration(LaunchPlan plan) =>
+        BuildProcessConfiguration(plan, outputRedirection: false, windowCreation: true);
 
     public int Handoff(LaunchPlan plan)
     {
@@ -69,7 +88,10 @@ public sealed class LaunchRunner : ILaunchRunner
         // hang silently with no trace of what the child printed. Capturing
         // and echoing guarantees the child's terminal output surfaces in
         // every context while exit codes and the environment carry over
-        // unchanged.
+        // unchanged. (The other half of the unbuffered story - a child
+        // spawned without a console window on Windows - is why the
+        // interactive path sets WindowCreation; see
+        // InteractiveConfiguration.)
         BufferedProcessResult result = await CliRun.RunBufferedAsync(config, exitConfiguration, cancellationToken)
             .ConfigureAwait(false);
 
@@ -86,7 +108,10 @@ public sealed class LaunchRunner : ILaunchRunner
         return result.ExitCode;
     }
 
-    private static ProcessConfiguration BuildProcessConfiguration(LaunchPlan plan, bool outputRedirection)
+    private static ProcessConfiguration BuildProcessConfiguration(
+        LaunchPlan plan,
+        bool outputRedirection,
+        bool windowCreation = false)
     {
         return new(plan.Process.TargetFilePath)
         {
@@ -94,7 +119,7 @@ public sealed class LaunchRunner : ILaunchRunner
             ArgumentList = plan.Process.ArgumentList,
             WorkingDirectoryPath = plan.Process.WorkingDirectoryPath,
             OutputRedirection = outputRedirection,
-            WindowCreation = plan.Process.WindowCreation,
+            WindowCreation = windowCreation,
             UseShellExecution = plan.Process.UseShellExecution,
             EnvironmentVariables = plan.Process.EnvironmentVariables,
             RedirectStandardInput = plan.Process.RedirectStandardInput,
