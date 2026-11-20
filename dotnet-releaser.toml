@@ -121,16 +121,19 @@ publish = false
 #
 # Archives: zip on Windows, tar.gz everywhere else, version-less and named
 # `harnessgateway-<rid>.<ext>` so the archive prefix equals the binary name
-# (AssemblyName `harnessgateway`). The renamer strips the default
-# `harnessgateway.<version>.` segment from every archive and Linux package
-# file name.
+# (AssemblyName `harnessgateway`). dotnet-releaser derives the default archive
+# name from PackageId, which is capitalized (`HarnessGateway`), so the renamer
+# must match case-insensitively; the replacement keeps the lowercase shape.
+# The renamer strips the default `harnessgateway.<version>.` segment from
+# every archive and Linux package file name (deb/rpm are already emitted
+# without a version segment and never match).
 # ---------------------------------------------------------------------------
 
 [[pack]]
 publish = true
 rid = ["win-x64", "win-arm64"]
 kinds = ["zip"]
-renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
+renamer = [{ pattern = '(?i)^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
 
 [[pack]]
 # .deb (Debian/Ubuntu) and .rpm (Fedora/RHEL) ship UNSIGNED - signing is
@@ -138,10 +141,10 @@ renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'h
 publish = true
 rid = ["linux-x64", "linux-arm64"]
 kinds = ["tar", "deb", "rpm"]
-renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
+renamer = [{ pattern = '(?i)^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
 
 [[pack]]
 publish = true
 rid = ["osx-x64", "osx-arm64"]
 kinds = ["tar"]
-renamer = [{ pattern = '^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
+renamer = [{ pattern = '(?i)^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
