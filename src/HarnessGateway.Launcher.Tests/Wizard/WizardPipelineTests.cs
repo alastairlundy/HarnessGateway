@@ -21,6 +21,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [available, unavailable], store, keyStore);
 
             console.EnqueueChoice("AvailableAgent");
+            console.EnqueueChoice("openai-chat");
             console.EnqueueText("https://api.example.com/v1");
 
             WizardResult? result = await pipeline.RunAsync();
@@ -50,6 +51,7 @@ public class WizardPipelineTests
 
             console.EnqueueChoice("UnavailableAgent");
             console.EnqueueChoice("AvailableAgent");
+            console.EnqueueChoice("openai-chat");
             console.EnqueueText("https://api.example.com/v1");
 
             WizardResult? result = await pipeline.RunAsync();
@@ -136,8 +138,10 @@ public class WizardPipelineTests
     }
 
     [Test]
-    public async Task RunAsync_endpoint_step_prefills_from_saved_default()
+    public async Task RunAsync_saved_default_pick_keeps_endpoint_and_protocol()
     {
+        // Accepting the default entry at the provider picker hands its saved
+        // endpoint and protocol straight through, with no endpoint step.
         LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
             endpoint: "https://saved.example.com/v1",
             protocol: ProtocolKind.OpenAiChat);
@@ -164,8 +168,10 @@ public class WizardPipelineTests
     }
 
     [Test]
-    public async Task RunAsync_endpoint_step_asks_protocol_when_changed()
+    public async Task RunAsync_add_new_provider_asks_protocol_before_endpoint()
     {
+        // The creation flow asks the protocol first, so the endpoint prompt
+        // can carry the matching /v1 hint for the chosen protocol.
         LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
             endpoint: "https://old.example.com/v1",
             protocol: ProtocolKind.OpenAiChat);
@@ -178,14 +184,21 @@ public class WizardPipelineTests
 
             console.EnqueueChoice("TestAgent");
             console.EnqueueChoice("[add new provider]");
-            console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("anthropic");
+            console.EnqueueText("https://new.example.com/v1");
 
             WizardResult? result = await pipeline.RunAsync();
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result.Endpoint).IsEqualTo("https://new.example.com/v1");
             await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+
+            List<PromptLogEntry> prompts = [.. console.Prompts];
+            int protocolIndex = prompts.FindIndex(p => p.Title == "Protocol:");
+            int endpointIndex = prompts.FindIndex(
+                p => p.Title.StartsWith("Endpoint URL", StringComparison.Ordinal));
+            await Assert.That(protocolIndex).IsGreaterThan(-1);
+            await Assert.That(endpointIndex).IsGreaterThan(protocolIndex);
         }
         finally
         {
@@ -204,6 +217,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("openai-chat");
             console.EnqueueText("");
             console.EnqueueText("https://api.example.com/v1");
 
@@ -211,7 +225,8 @@ public class WizardPipelineTests
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
-            await Assert.That(console.Prompts.Count(p => p.Title == "Endpoint URL:")).IsEqualTo(2);
+            await Assert.That(console.Prompts.Count(
+                p => p.Title.StartsWith("Endpoint URL", StringComparison.Ordinal))).IsEqualTo(2);
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Endpoint URL is required");
         }
@@ -235,6 +250,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("openai-chat");
             console.EnqueueText("api.example.com/v1");
             console.EnqueueText("https://api.example.com/v1");
 
@@ -242,7 +258,8 @@ public class WizardPipelineTests
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
-            await Assert.That(console.Prompts.Count(p => p.Title == "Endpoint URL:")).IsEqualTo(2);
+            await Assert.That(console.Prompts.Count(
+                p => p.Title.StartsWith("Endpoint URL", StringComparison.Ordinal))).IsEqualTo(2);
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Invalid endpoint 'api.example.com/v1'");
             await Assert.That(console.ErrorMessages[0]).Contains("absolute http:// or https:// URL");
@@ -267,6 +284,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("openai-chat");
             console.EnqueueText("http://");
             console.EnqueueText("https://api.example.com/v1");
 
@@ -274,7 +292,8 @@ public class WizardPipelineTests
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
-            await Assert.That(console.Prompts.Count(p => p.Title == "Endpoint URL:")).IsEqualTo(2);
+            await Assert.That(console.Prompts.Count(
+                p => p.Title.StartsWith("Endpoint URL", StringComparison.Ordinal))).IsEqualTo(2);
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Invalid endpoint 'http://'");
         }
@@ -316,6 +335,7 @@ public class WizardPipelineTests
             console.EnqueueChoice("TestAgent");
             console.EnqueueChoice("default");
             console.EnqueueChoice("[add new provider]");
+            console.EnqueueChoice("openai-chat");
             console.EnqueueText("https://new.example.com/v1");
 
             WizardResult? result = await pipeline.RunAsync();
@@ -424,6 +444,7 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
 
             console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("openai-chat");
             console.EnqueueText("https://api.example.com/v1");
 
             WizardResult? _ = await pipeline.RunAsync();
@@ -690,8 +711,8 @@ public class WizardPipelineTests
 
             console.EnqueueChoice("OpenAiOnly");
             console.EnqueueChoice("[add new provider]");
-            console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("anthropic");
+            console.EnqueueText("https://new.example.com/v1");
             console.EnqueueChoice("AnthropicCapable");
             // An "[add new provider]" session is keyless until the user types a
             // key: it never inherits the default entry's stored credential, so
@@ -711,8 +732,9 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts.Count).IsEqualTo(7);
             await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
             await Assert.That(console.Prompts[1].Title).IsEqualTo("Select a provider:");
-            await Assert.That(console.Prompts[2].Title).IsEqualTo("Endpoint URL:");
-            await Assert.That(console.Prompts[3].Title).IsEqualTo("Protocol:");
+            await Assert.That(console.Prompts[2].Title).IsEqualTo("Protocol:");
+            await Assert.That(
+                console.Prompts[3].Title.StartsWith("Endpoint URL", StringComparison.Ordinal)).IsTrue();
             await Assert.That(console.Prompts[4].Title).IsEqualTo("Select a harness:");
             await Assert.That(console.Prompts[5].Title).IsEqualTo("API key (will not be saved):");
             await Assert.That(console.Prompts[6].Title).IsEqualTo("Model catalogue unavailable:");
@@ -742,8 +764,8 @@ public class WizardPipelineTests
             WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
 
             console.EnqueueChoice("OpenAiOnly");
-            console.EnqueueText("https://first-run.example.com/v1");
             console.EnqueueChoice("anthropic");
+            console.EnqueueText("https://first-run.example.com/v1");
             console.EnqueueChoice("AnthropicCapable");
             console.EnqueueText("first-run-key");
 
@@ -758,8 +780,9 @@ public class WizardPipelineTests
             // the post-endpoint check still fires and loops back.
             await Assert.That(console.Prompts.Count).IsEqualTo(6);
             await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
-            await Assert.That(console.Prompts[1].Title).IsEqualTo("Endpoint URL:");
-            await Assert.That(console.Prompts[2].Title).IsEqualTo("Protocol:");
+            await Assert.That(console.Prompts[1].Title).IsEqualTo("Protocol:");
+            await Assert.That(
+                console.Prompts[2].Title.StartsWith("Endpoint URL", StringComparison.Ordinal)).IsTrue();
             await Assert.That(console.Prompts[3].Title).IsEqualTo("Select a harness:");
             await Assert.That(console.Prompts[4].Title).IsEqualTo("API key (will not be saved):");
             await Assert.That(console.Prompts[5].Title).IsEqualTo("Model catalogue unavailable:");
@@ -931,6 +954,109 @@ public class WizardPipelineTests
             await Assert.That(result.Model).IsNull();
             await Assert.That(
                 console.Prompts.Count(p => p.Title == "Model catalogue unavailable:")).IsEqualTo(1);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_openai_endpoint_prompt_and_error_carry_the_include_v1_hint()
+    {
+        // The fresh-entry flow asks the protocol first so the endpoint prompt
+        // and its refusal can name the OpenAI convention: /v1 belongs in the
+        // base URL the harness appends paths to.
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("openai-chat");
+            console.EnqueueText(string.Empty);
+            console.EnqueueText("https://api.example.com/v1");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            const string hint = "OpenAI-style endpoints include /v1, e.g. https://api.example.com/v1";
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
+            await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
+            await Assert.That(console.Prompts.Any(
+                p => p.Title == $"Endpoint URL ({hint}):")).IsTrue();
+            await Assert.That(console.ErrorMessages).IsNotEmpty();
+            await Assert.That(console.ErrorMessages[0]).Contains($"Endpoint URL is required ({hint})");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_anthropic_endpoint_prompt_and_error_carry_the_omit_v1_hint()
+    {
+        // Anthropic is the mirror image: Claude Code appends /v1/messages to
+        // the base itself, so the prompt must steer the user away from a
+        // /v1-suffixed base URL.
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("anthropic");
+            console.EnqueueText("api.example.com/v1");
+            console.EnqueueText("https://api.example.com");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            const string hint = "Anthropic-style base URLs omit /v1 (the harness appends it), e.g. https://api.example.com";
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com");
+            await Assert.That(console.Prompts.Any(
+                p => p.Title == $"Endpoint URL ({hint}):")).IsTrue();
+            await Assert.That(console.ErrorMessages).IsNotEmpty();
+            await Assert.That(console.ErrorMessages[0]).Contains("Invalid endpoint 'api.example.com/v1'");
+            await Assert.That(console.ErrorMessages[0]).Contains($"({hint})");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_saved_provider_endpoint_keeps_a_query_ending_in_slash()
+    {
+        // The saved-provider return trims only the path's trailing slash: a
+        // whole-string TrimEnd('/') used to chop the "/" off a query
+        // (https://host/v1?next=/ became https://host/v1?next=).
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
+            endpoint: "https://host/v1?next=/",
+            protocol: ProtocolKind.OpenAiChat);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("default");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Endpoint).IsEqualTo("https://host/v1?next=/");
         }
         finally
         {

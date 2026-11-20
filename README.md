@@ -209,7 +209,8 @@ Run `harnessgateway` with no arguments, or `harnessgateway launch` with no
 harness identifier and no options, and you get the interactive wizard
 instead. The wizard
 prompts for the harness, provider, key, and model, in that order. For the model step it
-fetches the endpoint's model list to fill in your choices, and falls back to
+fetches the endpoint's model list (it appends `/models` to your configured path, see
+[Endpoint conventions](#endpoint-conventions)) to fill in your choices, and falls back to
 free text if that request fails. Nothing it collects gets saved. Options
 without a harness are a parse error, not a silently ignored flag. An aborted
 wizard run exits with the same code the direct `launch` path returns for the
@@ -395,10 +396,11 @@ harnessgateway provider clear-key <name>
 ```
 
 `provider add` creates an entry, or replaces an existing one of the same name.
-Both `--endpoint` and `--protocol` are required. A malformed URL or an
-unknown protocol name exits with code 2. The command doesn't move the
-default pointer, so run `config set defaultProvider <name>` after your first
-`add`; the success message says the same thing.
+Both `--endpoint` and `--protocol` are required; the URL shape each protocol
+expects is covered in [Endpoint conventions](#endpoint-conventions). A
+malformed URL or an unknown protocol name exits with code 2. The command
+doesn't move the default pointer, so run `config set defaultProvider <name>`
+after your first `add`; the success message says the same thing.
 
 Without `--key`, `provider add` shows a `Set an API key for '<name>'? [y/N]`
 prompt on an interactive terminal, or a `Replace` prompt when the entry
@@ -457,6 +459,30 @@ that guard.
 
 For `remove`, `set-key`, and `clear-key`, a name that matches no saved entry
 exits with code 8.
+
+### Endpoint conventions
+
+The endpoint is the base URL the harness talks to, and the conventions differ
+by protocol:
+
+- **OpenAI-style** (`openai-chat`, `openai-responses`; `codex`, `copilot`,
+  `opencode`): include `/v1` — `https://api.example.com/v1`. These harnesses
+  append request paths such as `/chat/completions` to the base themselves.
+- **Anthropic** (`anthropic`; `claude-code`): omit `/v1` —
+  `https://api.example.com`. Claude Code appends `/v1/messages` to
+  `ANTHROPIC_BASE_URL` itself, so a base that already ends in `/v1` requests
+  `.../v1/v1/messages`.
+
+The launcher passes the URL through unchanged: it never rewrites or probes
+it. A mismatched base therefore fails at request time with doubled segments
+(`/v1/v1/messages`) or missing ones, not inside the launcher. The wizard's
+endpoint prompt prints the hint matching the protocol you pick, so this is
+guided at input time rather than corrected afterwards.
+
+The wizard's model step appends `/models` to the configured path for its
+model-list request, keeping your path and query intact
+(`https://api.example.com/v1?key=...` fetches `/v1/models?key=...`); a base
+with no path fetches `/v1/models`.
 
 ## Where things are stored
 

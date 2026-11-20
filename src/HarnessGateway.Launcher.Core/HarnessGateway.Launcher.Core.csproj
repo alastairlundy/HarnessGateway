@@ -9,6 +9,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- IVT targets assembly names; the launcher exe's assembly is `harnessgateway`. -->
+        <InternalsVisibleTo Include="harnessgateway" />
         <InternalsVisibleTo Include="HarnessGateway.Launcher.Tests" />
     </ItemGroup>
 

@@ -95,7 +95,7 @@ public sealed class WizardPipeline
 
                 if (providerResult.endpoint is null)
                 {
-                    providerResult = await RunProviderStepAsync(settings, defaultProvider, cancellationToken).ConfigureAwait(true);
+                    providerResult = await RunProviderStepAsync(settings, cancellationToken).ConfigureAwait(true);
                     if (providerResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
                 }
 
@@ -372,14 +372,13 @@ public sealed class WizardPipeline
 
     private async Task<(string? endpoint, ProtocolKind protocol, Provider? provider)> RunProviderStepAsync(
         LauncherSettings settings,
-        Provider? defaultProvider,
         CancellationToken cancellationToken)
     {
-        // No saved providers: walk the creation flow directly (endpoint + protocol),
-        // exactly as a first run always has.
+        // No saved providers: walk the creation flow directly - the protocol
+        // pick first, then the endpoint it hints at.
         if (settings.Providers.Count == 0)
         {
-            (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(defaultProvider, cancellationToken).ConfigureAwait(true);
+            (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(cancellationToken).ConfigureAwait(true);
             if (ep is null) return (null, ProtocolKind.OpenAiChat, null);
             return (ep, proto, null);
         }
@@ -402,7 +401,7 @@ public sealed class WizardPipeline
                 // Prefilling the default entry's URL here would let a bare Enter
                 // silently re-adopt it, while the launch still runs as an ad-hoc
                 // keyless session - the user picked "add new", not the default.
-                (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(null, cancellationToken).ConfigureAwait(true);
+                (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(cancellationToken).ConfigureAwait(true);
                 if (ep is null) return (null, ProtocolKind.OpenAiChat, null);
                 return (ep, proto, null);
             }
@@ -419,7 +418,7 @@ public sealed class WizardPipeline
             // throw at `new Uri(...)` upstream or reach the launch.
             if (IsHttpEndpoint(chosen.BaseUri.ToString()))
             {
-                return (chosen.BaseUri.ToString().TrimEnd('/'), chosen.DefaultProtocol, chosen);
+                return (EndpointText.TrimTrailingPathSlash(chosen.BaseUri), chosen.DefaultProtocol, chosen);
             }
 
             await Task.Run(() => _console.WriteError(
@@ -430,27 +429,27 @@ public sealed class WizardPipeline
     }
 
     private async Task<(string? endpoint, ProtocolKind protocol)> RunEndpointStepAsync(
-        Provider? defaultProvider,
         CancellationToken cancellationToken)
     {
-        string? defaultValue = defaultProvider?.BaseUri.ToString().TrimEnd('/');
+        // Protocol first: a fresh entry has no saved protocol to inherit, and
+        // the endpoint prompt's hint depends on the pick - OpenAI-style bases
+        // include /v1, Anthropic-style bases omit it (the harness appends
+        // /v1/messages itself).
+        ProtocolKind protocol = await PromptProtocolAsync(cancellationToken).ConfigureAwait(true);
 
         // Cancellation and every refusal (empty, schemeless, scheme-invalid)
         // are handled inside the prompt loop: null means the user backed out.
-        string? input = await PromptValidEndpointAsync(defaultValue, cancellationToken).ConfigureAwait(true);
+        string? input = await PromptValidEndpointAsync(protocol, cancellationToken).ConfigureAwait(true);
         if (input is null)
         {
             return (null, ProtocolKind.OpenAiChat);
         }
 
-        ProtocolKind protocol = defaultProvider?.DefaultProtocol ?? ProtocolKind.OpenAiChat;
+        return (input, protocol);
+    }
 
-        if (defaultProvider is not null &&
-            string.Equals(input, defaultValue, StringComparison.OrdinalIgnoreCase))
-        {
-            return (input, protocol);
-        }
-
+    private async Task<ProtocolKind> PromptProtocolAsync(CancellationToken cancellationToken)
+    {
         List<ConsoleChoice> protocolChoices =
         [
             new("openai-chat"),
@@ -458,28 +457,41 @@ public sealed class WizardPipeline
             new("anthropic"),
         ];
 
-        string protocolStr = await _console.PromptChoiceAsync("Protocol:", 
+        string protocolStr = await _console.PromptChoiceAsync("Protocol:",
             protocolChoices, cancellationToken).ConfigureAwait(true);
-        ProtocolKind parsedProtocol = protocolStr switch
-        {
-            "openai-chat" => ProtocolKind.OpenAiChat,
-            "openai-responses" => ProtocolKind.OpenAiResponses,
-            "anthropic" => ProtocolKind.Anthropic,
-            _ => ProtocolKind.OpenAiChat,
-        };
 
-        return (input, parsedProtocol);
+        // The three names above are the only choices offered; an unknown
+        // spelling keeps the openai-chat fallback the picker always had.
+        return ProviderResolution.TryParseProtocol(protocolStr) ?? ProtocolKind.OpenAiChat;
     }
 
     /// <summary>
+    /// The endpoint prompt's per-protocol hint: where the <c>/v1</c> segment
+    /// belongs in the base URL, so the input is guided before the URL is ever
+    /// handed to a harness. Plain text only - the presenter markup-parses the
+    /// prompt string, so this must never carry style tags.
+    /// </summary>
+    private static string EndpointHint(ProtocolKind protocol) => protocol switch
+    {
+        ProtocolKind.Anthropic =>
+            "Anthropic-style base URLs omit /v1 (the harness appends it), e.g. https://api.example.com",
+        _ =>
+            "OpenAI-style endpoints include /v1, e.g. https://api.example.com/v1",
+    };
+
+    /// <summary>
     /// Re-prompts for the endpoint URL until a non-empty absolute http(s) URL
-    /// is entered, writing the refusal (empty, schemeless, or non-http(s))
-    /// before each re-prompt. Returns <c>null</c> only on cancellation.
+    /// is entered, hinting at the <paramref name="protocol"/>'s /v1
+    /// convention in the prompt and in every refusal (empty, schemeless, or
+    /// non-http(s)) written before each re-prompt. Returns <c>null</c> only on
+    /// cancellation.
     /// </summary>
     private async Task<string?> PromptValidEndpointAsync(
-        string? defaultValue,
+        ProtocolKind protocol,
         CancellationToken cancellationToken)
     {
+        string hint = EndpointHint(protocol);
+
         // A null endpoint aborts the whole wizard, and the caller maps that to
         // exit 0 with no output - an empty submission therefore looked like a
         // silent crash. Nothing downstream can default the endpoint, so
@@ -493,8 +505,7 @@ public sealed class WizardPipeline
             }
 
             string input = await _console.PromptTextAsync(
-                "Endpoint URL:",
-                defaultValue: defaultValue,
+                $"Endpoint URL ({hint}):",
                 cancellationToken: cancellationToken).ConfigureAwait(true);
 
             if (!string.IsNullOrWhiteSpace(input))
@@ -516,14 +527,15 @@ public sealed class WizardPipeline
                 }
 
                 await Task.Run(() => _console.WriteError(
-                        $"Invalid endpoint '{input}': must be an absolute http:// or https:// URL, " +
-                        "e.g. https://api.example.com/v1. Press Ctrl+C to cancel."),
+                        $"Invalid endpoint '{input}': must be an absolute http:// or https:// URL " +
+                        $"({hint}). Press Ctrl+C to cancel."),
                     cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
-            await Task.Run(() => _console.WriteError("Endpoint URL is required, e.g. https://api.example.com/v1. " +
-                                                     "Press Ctrl+C to cancel."), cancellationToken).ConfigureAwait(false);
+            await Task.Run(() => _console.WriteError(
+                    $"Endpoint URL is required ({hint}). Press Ctrl+C to cancel."),
+                cancellationToken).ConfigureAwait(false);
         }
     }
 

@@ -15,7 +15,7 @@ Proposed, considered, and deliberately rejected behaviors for the `harnessgatewa
 
 ## Launch
 
-- **Protocol probing.** The provider protocol is never guessed from a probe; raw-URL overrides require `--endpoint` and `--protocol` together so failure classes stay deterministic and scriptable.
+- **Endpoint probing — unimplemented, not refused (November 2026).** Probing is no longer a standing refusal; nothing probes an endpoint today, so the launcher's only guidance is at input time (the wizard's per-protocol endpoint hint). Implementing a probe is a separate explicit design decision: where it runs, whether it warns or auto-configures, and its effect on the exit-code contract must all be decided first. The declared-protocol requirement and the `--endpoint`/`--protocol` pairing rule remain in force until then.
 - **Launcher-owned environment mutation** for harness configuration (snapshotting/restoring the launcher process's own environment). Harness env-var configuration rides the spawned process plan only; nothing in the launcher process is ever mutated, so there is nothing to restore.
 
 ## Adapters
