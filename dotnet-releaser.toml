@@ -21,9 +21,20 @@ artifacts_folder = "artifacts-dotnet-releaser"
 enable_publish_packages_in_draft = false
 
 [msbuild]
-# The solution includes the TUnit test project so `dotnet-releaser build/run`
-# compiles and tests everything it packages.
-project = "src/HarnessGateway.slnx"
+# The projects are listed individually rather than as HarnessGateway.slnx:
+# dotnet-releaser probes every project it finds in a solution (injecting its
+# DotNetReleaserGetPackageInfo MSBuild target, which depends on GetAssemblyVersion
+# and parses OutputType) and that probe cannot digest a WiX SDK project - the
+# wixproj defines neither target shape (MSB4057 on GetAssemblyVersion; OutputType
+# "Package" is not a value it understands). The installers do not belong to this
+# build anyway: the MSIs are produced by publish-release.yml's windows-only job.
+# The three .csproj entries keep the Launcher, its Core library (skipped by app
+# packaging - it is a Library) and the TUnit test project in the build and tests.
+project = [
+  "src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj",
+  "src/HarnessGateway.Launcher.Core/HarnessGateway.Launcher.Core.csproj",
+  "src/HarnessGateway.Launcher.Tests/HarnessGateway.Launcher.Tests.csproj",
+]
 configuration = "Release"
 configuration_debug = "Debug"
 build_debug = false
