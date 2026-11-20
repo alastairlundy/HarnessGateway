@@ -145,6 +145,43 @@
   <Fragment>
     <ComponentGroup Id="LauncherPayload" Directory="INSTALLFOLDER">
       <Files Include="$(var.LauncherPublishDir)\**" />
+
+      <!--
+        PATH components. Windows Installer does not infer the environment hive from the
+        install scope: the Environment table's Name prefix (*) chooses machine versus user
+        environment, and per the MSI Environment table guidance a package that supports both
+        scopes must author one component per scope. Machine environments are written with
+        System="yes" (the * prefix) under the machine PATH; user environments without it under
+        the invoking user's PATH. Both append [INSTALLFOLDER] with Part="last" so the existing
+        PATH is extended, never replaced, and both are non-permanent: uninstalling or removing
+        the package takes its PATH entry back out. The conditions mirror the exact branch
+        conditions of the HGSetPerMachineFolder/HGSetPerUserFolder custom actions above, and
+        each component carries a registry keypath under the matching hive (HKLM for machine,
+        HKCU for user). PATH changes reach new shells after the installer's
+        WM_SETTINGCHANGE broadcast; already-open terminals must be restarted to see them.
+      -->
+      <Component Id="MachinePathEnvironment"
+                 Guid="{8402EF67-3312-4173-B0BB-E8E73169F4A9}"
+                 Condition='ALLUSERS=&quot;1&quot; OR (ALLUSERS=&quot;2&quot; AND MSIINSTALLPERUSER&lt;&gt;&quot;1&quot;)'>
+        <Environment Id="MachinePath" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\HarnessGateway\Components"
+                       Name="MachinePathEnvironment"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+      <Component Id="UserPathEnvironment"
+                 Guid="{5451446F-7442-45DB-9015-8502C1350FD8}"
+                 Condition='ALLUSERS&lt;&gt;&quot;1&quot; AND (ALLUSERS&lt;&gt;&quot;2&quot; OR MSIINSTALLPERUSER=&quot;1&quot;)'>
+        <Environment Id="UserPath" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\HarnessGateway\Components"
+                       Name="UserPathEnvironment"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
     </ComponentGroup>
   </Fragment>
 

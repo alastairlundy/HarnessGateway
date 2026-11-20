@@ -55,9 +55,12 @@ msiexec /i harnessgateway-win-x64.msi ALLUSERS=2 MSIINSTALLPERUSER=1
 The switch combines with the silent flags too. Put `/quiet /norestart`
 before it. The interactive installer offers the same per-user or
 per-machine choice as a scope step. Either mode registers an Add/Remove
-Programs entry, so uninstalling is the standard Windows uninstall path. The
-MSI ships unsigned like everything else here, so SmartScreen warns about it
-exactly as described below.
+Programs entry, so uninstalling is the standard Windows uninstall path, and
+either mode adds the install directory to PATH - the machine PATH for
+per-machine installs, your user PATH for per-user installs - so
+`harnessgateway` is callable from a newly opened terminal. Uninstalling
+removes that entry. The MSI ships unsigned like everything else here, so
+SmartScreen warns about it exactly as described below.
 
 ### Archives
 
