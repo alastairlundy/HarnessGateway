@@ -222,6 +222,118 @@ public class WizardPipelineTests
     }
 
     [Test]
+    public async Task RunAsync_schemeless_endpoint_reprompts_with_error()
+    {
+        // A schemeless entry would otherwise parse as a relative Uri and only
+        // surface much later as a vague catalogue-fetch failure; it is refused
+        // at the prompt instead, with a re-prompt.
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueText("api.example.com/v1");
+            console.EnqueueText("https://api.example.com/v1");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
+            await Assert.That(console.Prompts.Count(p => p.Title == "Endpoint URL:")).IsEqualTo(2);
+            await Assert.That(console.ErrorMessages).IsNotEmpty();
+            await Assert.That(console.ErrorMessages[0]).Contains("Invalid endpoint 'api.example.com/v1'");
+            await Assert.That(console.ErrorMessages[0]).Contains("absolute http:// or https:// URL");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_scheme_invalid_endpoint_reprompts_with_error()
+    {
+        // "http://" throws UriFormatException on `new Uri(string)`, which the
+        // wizard guard in Program.cs does not catch - it must be refused at
+        // the prompt instead of escaping RunWizardAsync.
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueText("http://");
+            console.EnqueueText("https://api.example.com/v1");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Endpoint).IsEqualTo("https://api.example.com/v1");
+            await Assert.That(console.Prompts.Count(p => p.Title == "Endpoint URL:")).IsEqualTo(2);
+            await Assert.That(console.ErrorMessages).IsNotEmpty();
+            await Assert.That(console.ErrorMessages[0]).Contains("Invalid endpoint 'http://'");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_saved_provider_with_relative_endpoint_is_refused_and_reprompted()
+    {
+        // A saved entry skips the endpoint step's validation, and its BaseUri
+        // round-trips through the settings JSON as RelativeOrAbsolute - so a
+        // hand-edited settings file can hold a schemeless value. The provider
+        // step is the last gate before `new Uri(...)`: it must refuse the
+        // entry (error + re-prompt) so it can never reach the catalogue fetch
+        // as a relative Uri, with "[add new provider]" as the escape hatch.
+        LauncherSettings settings = new LauncherSettings
+        {
+            Providers =
+            [
+                new Provider
+                {
+                    Name = "default",
+                    BaseUri = new Uri("api.example.com/v1", UriKind.RelativeOrAbsolute),
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
+                }
+            ],
+            DefaultProvider = "default",
+        };
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter();
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("TestAgent");
+            console.EnqueueChoice("default");
+            console.EnqueueChoice("[add new provider]");
+            console.EnqueueText("https://new.example.com/v1");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Endpoint).IsEqualTo("https://new.example.com/v1");
+            await Assert.That(console.Prompts.Count(p => p.Title == "Select a provider:")).IsEqualTo(2);
+            await Assert.That(console.ErrorMessages).IsNotEmpty();
+            await Assert.That(console.ErrorMessages[0]).Contains("Invalid endpoint 'api.example.com/v1'");
+            await Assert.That(console.ErrorMessages[0]).Contains("saved provider 'default'");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task RunAsync_key_step_asks_when_no_saved_key_and_no_env_var()
     {
         LauncherSettings settings = WizardTestHelper.CreateDefaultSettings();

@@ -26,21 +26,43 @@ public sealed class ModelCatalogClient
     }
 
     /// <summary>
-    /// Builds the absolute <c>GET /v1/models</c> request URI from the provider's
-    /// own endpoint so the request never depends on <see cref="HttpClient.BaseAddress"/>.
-    /// When <see cref="Provider.BaseUri"/> already ends in a <c>/v1</c> segment only
-    /// <c>/models</c> is appended, so no doubled <c>/v1</c> is produced.
+    /// Builds the absolute model-list request URI from the provider's own
+    /// endpoint so the request never depends on <see cref="HttpClient.BaseAddress"/>.
+    /// The endpoint's path is preserved and <c>/models</c> is appended to it,
+    /// whatever that path is: a <c>/v1</c> base still yields <c>/v1/models</c>
+    /// (no doubled <c>/v1</c>), a prefixed base such as <c>/openai</c> yields
+    /// <c>/openai/models</c> instead of silently dropping the prefix, and a base
+    /// already ending in <c>/models</c> is not doubled. A bare origin (no path)
+    /// keeps the conventional <c>/v1/models</c> target it has always fetched.
+    /// The base's query and fragment ride along unchanged (gated proxies using
+    /// <c>?key=...</c> keep working, as they do on the launch path), and a path
+    /// starting with <c>//</c> is collapsed to a single leading <c>/</c> so it can
+    /// never resolve scheme-relative against the authority and swap the host.
     /// </summary>
     private static Uri BuildModelsUri(Provider backend)
     {
-        Uri authority = new Uri(backend.BaseUri.GetLeftPart(UriPartial.Authority));
-
         string basePath = backend.BaseUri.AbsolutePath.TrimEnd('/');
-        string modelsPath = basePath.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
-            ? basePath + "/models"
-            : "/v1/models";
 
-        return new Uri(authority, modelsPath);
+        // A bare origin trims down to an empty path; keep its historical
+        // /v1 target so https://host still fetches https://host/v1/models.
+        if (basePath.Length == 0)
+        {
+            basePath = "/v1";
+        }
+
+        // Collapse a leading "//" so the path can never be read as
+        // scheme-relative (which would replace the host with the first segment).
+        basePath = "/" + basePath.TrimStart('/');
+
+        string modelsPath = basePath.EndsWith("/models", StringComparison.OrdinalIgnoreCase)
+            ? basePath
+            : basePath + "/models";
+
+        // UriBuilder keeps the base's scheme, host, port, query, and fragment
+        // while swapping in the derived path - GetLeftPart(UriPartial.Authority)
+        // would have dropped the query.
+        UriBuilder builder = new UriBuilder(backend.BaseUri) { Path = modelsPath };
+        return builder.Uri;
     }
 
     private async Task<ModelCatalog> FetchOpenAiModelsAsync(Provider backend, CancellationToken cancellationToken)

@@ -391,25 +391,42 @@ public sealed class WizardPipeline
         }
         choices.Add(new ConsoleChoice("[add new provider]", "create a session entry"));
 
-        string pick = await _console.PromptChoiceAsync(
-            "Select a provider:", choices, cancellationToken).ConfigureAwait(true);
-
-        if (string.Equals(pick, "[add new provider]", StringComparison.OrdinalIgnoreCase))
+        while (true)
         {
-            // No prefill: a new session entry starts with a blank endpoint.
-            // Prefilling the default entry's URL here would let a bare Enter
-            // silently re-adopt it, while the launch still runs as an ad-hoc
-            // keyless session - the user picked "add new", not the default.
-            (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(null, cancellationToken).ConfigureAwait(true);
-            if (ep is null) return (null, ProtocolKind.OpenAiChat, null);
-            return (ep, proto, null);
+            string pick = await _console.PromptChoiceAsync(
+                "Select a provider:", choices, cancellationToken).ConfigureAwait(true);
+
+            if (string.Equals(pick, "[add new provider]", StringComparison.OrdinalIgnoreCase))
+            {
+                // No prefill: a new session entry starts with a blank endpoint.
+                // Prefilling the default entry's URL here would let a bare Enter
+                // silently re-adopt it, while the launch still runs as an ad-hoc
+                // keyless session - the user picked "add new", not the default.
+                (string? ep, ProtocolKind proto) = await RunEndpointStepAsync(null, cancellationToken).ConfigureAwait(true);
+                if (ep is null) return (null, ProtocolKind.OpenAiChat, null);
+                return (ep, proto, null);
+            }
+
+            Provider? chosen = settings.Providers.FirstOrDefault(p =>
+                string.Equals(p.Name, pick, StringComparison.OrdinalIgnoreCase));
+            if (chosen is null) return (null, ProtocolKind.OpenAiChat, null);
+
+            // A saved entry skips the endpoint step's validation, and its
+            // BaseUri round-trips through the settings JSON as
+            // RelativeOrAbsolute - so a hand-edited settings file can hold a
+            // schemeless value. Refuse it here the same way the endpoint step
+            // refuses typed input (error + re-prompt) instead of letting it
+            // throw at `new Uri(...)` upstream or reach the launch.
+            if (IsHttpEndpoint(chosen.BaseUri.ToString()))
+            {
+                return (chosen.BaseUri.ToString().TrimEnd('/'), chosen.DefaultProtocol, chosen);
+            }
+
+            await Task.Run(() => _console.WriteError(
+                    $"Invalid endpoint '{chosen.BaseUri}' on saved provider '{chosen.Name}': " +
+                    "must be an absolute http:// or https:// URL. Pick another provider or add a new one."),
+                cancellationToken).ConfigureAwait(false);
         }
-
-        Provider? chosen = settings.Providers.FirstOrDefault(p =>
-            string.Equals(p.Name, pick, StringComparison.OrdinalIgnoreCase));
-        if (chosen is null) return (null, ProtocolKind.OpenAiChat, null);
-
-        return (chosen.BaseUri.ToString().TrimEnd('/'), chosen.DefaultProtocol, chosen);
     }
 
     private async Task<(string? endpoint, ProtocolKind protocol)> RunEndpointStepAsync(
@@ -418,32 +435,13 @@ public sealed class WizardPipeline
     {
         string? defaultValue = defaultProvider?.BaseUri.ToString().TrimEnd('/');
 
-        // A null endpoint aborts the whole wizard, and the caller maps that to
-        // exit 0 with no output - an empty submission therefore looked like a
-        // silent crash. Nothing downstream can default the endpoint, so
-        // re-prompt instead; only cancellation still returns null (the user
-        // deliberately backing out).
-        string input;
-        while (true)
+        // Cancellation and every refusal (empty, schemeless, scheme-invalid)
+        // are handled inside the prompt loop: null means the user backed out.
+        string? input = await PromptValidEndpointAsync(defaultValue, cancellationToken).ConfigureAwait(true);
+        if (input is null)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return (null, ProtocolKind.OpenAiChat);
-            }
-
-            input = await _console.PromptTextAsync(
-                "Endpoint URL:",
-                defaultValue: defaultValue,
-                cancellationToken: cancellationToken).ConfigureAwait(true);
-
-            if (!string.IsNullOrWhiteSpace(input)) 
-                break;
-
-            await Task.Run(() => _console.WriteError("Endpoint URL is required, e.g. https://api.example.com/v1. " +
-                                                     "Press Ctrl+C to cancel."), cancellationToken).ConfigureAwait(false);
+            return (null, ProtocolKind.OpenAiChat);
         }
-
-        input = input.Trim();
 
         ProtocolKind protocol = defaultProvider?.DefaultProtocol ?? ProtocolKind.OpenAiChat;
 
@@ -472,6 +470,79 @@ public sealed class WizardPipeline
 
         return (input, parsedProtocol);
     }
+
+    /// <summary>
+    /// Re-prompts for the endpoint URL until a non-empty absolute http(s) URL
+    /// is entered, writing the refusal (empty, schemeless, or non-http(s))
+    /// before each re-prompt. Returns <c>null</c> only on cancellation.
+    /// </summary>
+    private async Task<string?> PromptValidEndpointAsync(
+        string? defaultValue,
+        CancellationToken cancellationToken)
+    {
+        // A null endpoint aborts the whole wizard, and the caller maps that to
+        // exit 0 with no output - an empty submission therefore looked like a
+        // silent crash. Nothing downstream can default the endpoint, so
+        // re-prompt instead; only cancellation still returns null (the user
+        // deliberately backing out).
+        while (true)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            string input = await _console.PromptTextAsync(
+                "Endpoint URL:",
+                defaultValue: defaultValue,
+                cancellationToken: cancellationToken).ConfigureAwait(true);
+
+            if (!string.IsNullOrWhiteSpace(input))
+            {
+                input = input.Trim();
+
+                // Note: schemeless ("api.example.com/v1") and scheme-invalid
+                // ("http://", "ftp://...") entries are refused here, where the
+                // user can still retype them, instead of downstream: reaching
+                // `new Uri(providerResult.endpoint)` with either means a
+                // UriFormatException that escapes RunWizardAsync (its guard
+                // catches only I/O and schema faults), while a non-http value
+                // that does parse would only surface much later as the vague
+                // "Could not fetch model catalogue" (or an
+                // InvalidOperationException in the model URI builder).
+                if (IsHttpEndpoint(input))
+                {
+                    return input;
+                }
+
+                await Task.Run(() => _console.WriteError(
+                        $"Invalid endpoint '{input}': must be an absolute http:// or https:// URL, " +
+                        "e.g. https://api.example.com/v1. Press Ctrl+C to cancel."),
+                    cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            await Task.Run(() => _console.WriteError("Endpoint URL is required, e.g. https://api.example.com/v1. " +
+                                                     "Press Ctrl+C to cancel."), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// True when <paramref name="value"/> parses as an absolute <c>http://</c>
+    /// or <c>https://</c> URL - the same
+    /// <c>Uri.TryCreate(..., UriKind.Absolute, ...)</c> gate every other
+    /// endpoint parse in the repo uses, narrowed to the two schemes the
+    /// launcher can actually speak. With <c>UriKind.Absolute</c> a schemeless
+    /// entry does not parse at all (the one-arg <c>new Uri(string)</c> would
+    /// throw a UriFormatException that escapes the wizard), and any other
+    /// scheme fails the check, so neither can reach
+    /// <c>new Uri(providerResult.endpoint)</c> upstream.
+    /// </summary>
+    private static bool IsHttpEndpoint(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out Uri? parsed)
+        && parsed is not null
+        && (string.Equals(parsed.Scheme, Uri.UriSchemeHttp, StringComparison.Ordinal)
+            || string.Equals(parsed.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal));
 
     private async Task<string?> RunKeyStepAsync(
         Provider effectiveProvider,

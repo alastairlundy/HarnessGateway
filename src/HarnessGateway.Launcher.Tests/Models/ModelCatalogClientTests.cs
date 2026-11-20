@@ -274,6 +274,134 @@ public class ModelCatalogClientTests
     }
 
     [Test]
+    public async Task Base_path_not_ending_in_v1_is_kept_and_models_is_appended()
+    {
+        // A prefixed endpoint (/openai, /api, /v1beta, ...) must keep its
+        // prefix: dropping it made the wizard fetch a different host path
+        // than the harness would use, and the model step failed for a
+        // perfectly valid endpoint.
+        var openAiResponse = new
+        {
+            data = new[]
+            {
+                new { id = "gpt-4o", @object = "model" }
+            }
+        };
+
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler);
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
+
+        Provider backend = new Provider
+        {
+            Name = "gateway",
+            BaseUri = new Uri("https://proxy.example.com/openai/"),
+            DefaultProtocol = ProtocolKind.OpenAiChat,
+            ApiKey = "sk-test"
+        };
+
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
+
+        await Assert.That(catalog.Models).Count().IsEqualTo(1);
+        await Assert.That(handler.LastRequest?.RequestUri?.AbsoluteUri)
+            .IsEqualTo("https://proxy.example.com/openai/models");
+    }
+
+    [Test]
+    public async Task Query_on_the_base_uri_is_preserved_in_the_models_request()
+    {
+        // Gated proxies carry their credential in the query string; the
+        // launch path keeps it, so the catalogue fetch must too.
+        var openAiResponse = new
+        {
+            data = new[]
+            {
+                new { id = "gpt-4o", @object = "model" }
+            }
+        };
+
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler);
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
+
+        Provider backend = new Provider
+        {
+            Name = "gateway",
+            BaseUri = new Uri("https://gateway.example.com/v1?key=abc"),
+            DefaultProtocol = ProtocolKind.OpenAiChat
+        };
+
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
+
+        await Assert.That(catalog.Models).Count().IsEqualTo(1);
+        await Assert.That(handler.LastRequest?.RequestUri?.AbsoluteUri)
+            .IsEqualTo("https://gateway.example.com/v1/models?key=abc");
+    }
+
+    [Test]
+    public async Task Base_path_already_ending_in_models_is_not_doubled()
+    {
+        var openAiResponse = new
+        {
+            data = new[]
+            {
+                new { id = "gpt-4o", @object = "model" }
+            }
+        };
+
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler);
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
+
+        Provider backend = new Provider
+        {
+            Name = "gateway",
+            BaseUri = new Uri("https://gateway.example.com/v1/models"),
+            DefaultProtocol = ProtocolKind.OpenAiChat
+        };
+
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
+
+        await Assert.That(catalog.Models).Count().IsEqualTo(1);
+        await Assert.That(handler.LastRequest?.RequestUri?.AbsoluteUri)
+            .IsEqualTo("https://gateway.example.com/v1/models");
+    }
+
+    [Test]
+    public async Task Base_path_starting_with_double_slash_keeps_the_authority_host()
+    {
+        // A path starting with "//" resolves scheme-relative against an
+        // authority Uri (host would become "v1"); the request must keep the
+        // configured host and a single leading slash.
+        var openAiResponse = new
+        {
+            data = new[]
+            {
+                new { id = "gpt-4o", @object = "model" }
+            }
+        };
+
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler);
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
+
+        Provider backend = new Provider
+        {
+            Name = "gateway",
+            BaseUri = new Uri("https://proxy.example.com//v1"),
+            DefaultProtocol = ProtocolKind.OpenAiChat
+        };
+
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
+
+        await Assert.That(catalog.Models).Count().IsEqualTo(1);
+        Uri? requestUri = handler.LastRequest?.RequestUri;
+        await Assert.That(requestUri).IsNotNull();
+        await Assert.That(requestUri!.Host).IsEqualTo("proxy.example.com");
+        await Assert.That(requestUri.AbsoluteUri).IsEqualTo("https://proxy.example.com/v1/models");
+    }
+
+    [Test]
     public async Task Anthropic_request_omits_anthropic_version_header()
     {
         var anthropicResponse = new

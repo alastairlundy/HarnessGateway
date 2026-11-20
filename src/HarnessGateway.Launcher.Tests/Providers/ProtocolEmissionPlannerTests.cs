@@ -42,6 +42,47 @@ public class ProtocolEmissionPlannerTests
     }
 
     [Test]
+    public async Task Plan_keeps_a_query_string_intact()
+    {
+        // A gated proxy endpoint carries its credential in the query; the
+        // planner must hand the whole endpoint to the harness untouched.
+        IProtocolEmissionPlanner planner = new ProtocolEmissionPlanner();
+
+        ProtocolEmission emission = planner.Plan(ProtocolKind.OpenAiChat, new Uri("https://host/v1?key=abc"));
+
+        await Assert.That(emission.BaseUrlValue).IsEqualTo("https://host/v1?key=abc");
+    }
+
+    [Test]
+    public async Task Plan_does_not_mangle_a_query_ending_in_a_slash()
+    {
+        // Trailing-slash trimming is a path concern only: trimming the whole
+        // string used to chop a query's final "/" off (https://host/v1?next=/
+        // became https://host/v1?next=), corrupting it.
+        IProtocolEmissionPlanner planner = new ProtocolEmissionPlanner();
+
+        ProtocolEmission withoutPathSlash = planner.Plan(
+            ProtocolKind.OpenAiChat, new Uri("https://host/v1?next=/"));
+        ProtocolEmission withPathSlash = planner.Plan(
+            ProtocolKind.OpenAiChat, new Uri("https://host/v1/?next=/"));
+
+        await Assert.That(withoutPathSlash.BaseUrlValue).IsEqualTo("https://host/v1?next=/");
+        await Assert.That(withPathSlash.BaseUrlValue).IsEqualTo("https://host/v1?next=/");
+    }
+
+    [Test]
+    public async Task Plan_trims_the_root_slash_of_a_bare_origin()
+    {
+        // The bare-origin contract: https://host/ reaches the harness as
+        // https://host, exactly as before.
+        IProtocolEmissionPlanner planner = new ProtocolEmissionPlanner();
+
+        ProtocolEmission emission = planner.Plan(ProtocolKind.Anthropic, new Uri("https://host/"));
+
+        await Assert.That(emission.BaseUrlValue).IsEqualTo("https://host");
+    }
+
+    [Test]
     public async Task Plan_signature_is_two_plain_inputs_one_output_and_no_async()
     {
         MethodInfo? plan = typeof(IProtocolEmissionPlanner).GetMethod("Plan");
