@@ -89,12 +89,19 @@ public class VersionFlagTests
     [Test]
     public async Task Informational_version_carries_the_pinned_version()
     {
-        // The csproj pin is 0.1.0 and it is the whole string: SourceLink's
+        // The csproj pins Version, AssemblyVersion and FileVersion to the same
+        // value, and that pin is the whole informational version: SourceLink's
         // "+<sha>" suffix is switched off by
         // IncludeSourceRevisionInInformationalVersion=false, so exact equality
         // (not StartsWith) is the contract - any build metadata creeping back
-        // onto the flag's output fails here.
-        await Assert.That(RootCommandFactory.InformationalVersion).IsEqualTo("0.1.0");
+        // onto the flag's output fails here. The oracle is the assembly's
+        // AssemblyVersion - stamped from the same pin, but a different
+        // attribute - so the check never needs editing on a version bump and
+        // the two pins cannot silently drift apart. ToString(3) drops the
+        // revision the compiler pads the four-part AssemblyVersion with.
+        string assemblyVersion = typeof(RootCommandFactory).Assembly
+            .GetName().Version!.ToString(3);
+        await Assert.That(RootCommandFactory.InformationalVersion).IsEqualTo(assemblyVersion);
     }
 
     [Test]
