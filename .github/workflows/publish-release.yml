@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish; must match the csproj <Version> (e.g. 0.1.0 or v0.1.0)'
+        description: 'Tag to publish; must match the csproj <Version> (e.g. 0.1.0)'
         required: true
         type: string
 
@@ -88,9 +88,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      # The changelog generation's read-only PR queries
-      # (GET /repos/.../commits/{sha}/pulls) need this; without it they 403
-      # with "Resource not accessible by integration".
+      # Retained for changelog generation, which is currently disabled in
+      # dotnet-releaser.toml. Read-only; safe to keep while it stays off.
       pull-requests: read
     steps:
       - name: Checkout the tagged commit
@@ -112,11 +111,11 @@ jobs:
             echo "::error::No <Version> found in HarnessGateway.Launcher.csproj at ${TAG}; nothing was published."
             exit 1
           fi
-          # Git tags may or may not carry a leading 'v' (e.g. 0.1.0 or v0.1.0);
-          # accept either form as long as the version portion matches.
+          # Tags are unprefixed (0.1.0). A leading 'v' is tolerated, but the
+          # version portion must match the csproj <Version>.
           tag_version="${TAG#v}"
           if [ "$tag_version" != "$csproj_version" ]; then
-            echo "::error::Tag '${TAG}' does not match the csproj <Version> ${csproj_version} (expected '${csproj_version}' or 'v${csproj_version}'); nothing was published."
+            echo "::error::Tag '${TAG}' does not match the csproj <Version> ${csproj_version} (expected '${csproj_version}'); nothing was published."
             exit 1
           fi
           echo "Tag ${TAG} matches the csproj version ${csproj_version}."
@@ -133,9 +132,8 @@ jobs:
       # The `build` sub-command here (vs `run` in draft-release.yml): a pure
       # local build - all six RIDs, tests, packages - no release writes.
       # dotnet-releaser itself cannot create, edit, or publish anything
-      # ([github] publish = false); the token only authenticates the
-      # changelog generation's read-only PR queries, which would otherwise
-      # hit the unauthenticated 60 req/hr rate limit.
+      # ([github] publish = false). Changelog generation is disabled in
+      # dotnet-releaser.toml, so the token makes no PR queries.
       - name: Build binaries and packages from the tagged commit
         shell: bash
         env:
@@ -169,14 +167,14 @@ jobs:
           # pipefail pipeline makes gh die of SIGPIPE once head exits.
           # name as well as tag_name: a draft's tag_name can read back as the
           # untagged-* placeholder, while name is always set to the tag.
-          # Accept drafts created with or without a leading 'v' on the tag.
+          # Also match a legacy v-prefixed draft, if one exists.
           tag_version="${TAG#v}"
           vtag="v${tag_version}"
           matching_ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
             --jq '.[] | select(.draft == true and (.tag_name == "'"$TAG"'" or .name == "'"$TAG"'" or .tag_name == "'"$vtag"'" or .name == "'"$vtag"'")) | .id')
           draft_id="${matching_ids%%$'\n'*}"
           if [ -z "$draft_id" ]; then
-            echo "::error::No draft release found for tag ${TAG} - the draft workflow must create it first; nothing was published."
+            echo "::error::No draft release found for tag ${TAG} - create the draft by hand before dispatching (see docs/release/winget-manifest.md); nothing was published."
             exit 1
           fi
 

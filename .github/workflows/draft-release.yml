@@ -1,9 +1,15 @@
 name: Draft release
 
 # Push to main builds every artifact, smoke-tests the four established RIDs,
-# and then creates/updates a DRAFT GitHub Release carrying the
-# dotnet-releaser-generated changelog. This workflow can never publish:
-# publication is reachable only through publish-release.yml (workflow_dispatch).
+# and then creates/updates a DRAFT GitHub Release. This workflow can never
+# publish: publication is reachable only through publish-release.yml
+# (workflow_dispatch).
+#
+# DISABLED: this workflow is off while release notes are written by hand and
+# generated changelogs are disabled in dotnet-releaser.toml. The
+# changelog-extraction and draft-notes steps below are inert; rework or remove
+# them before re-enabling. The maintainer creates the draft by hand - see
+# docs/release/winget-manifest.md.
 
 on:
   push:
@@ -18,15 +24,12 @@ jobs:
     name: Build all six RIDs
     runs-on: ubuntu-latest
     permissions:
-      # Changelog generation reads this repository only; dotnet-releaser runs
-      # in build mode here (the `run` sub-command on a branch push never takes
-      # its tag-publish path) and [github] publish = false keeps it read-only.
+      # dotnet-releaser runs in build mode here (the `run` sub-command on a
+      # branch push never takes its tag-publish path) and [github]
+      # publish = false keeps it read-only.
       contents: read
-      # Required: the changelog queries GET /repos/.../commits/{sha}/pulls to
-      # map commits to PRs, which needs the Pull requests permission (read).
-      # Without it GitHub answers 403 "Resource not accessible by integration",
-      # dotnet-releaser skips the changelog, and the draft-notes extraction
-      # step fails on the empty-notes guard.
+      # Retained for changelog generation, which is currently disabled in
+      # dotnet-releaser.toml. Read-only; safe to keep while it stays off.
       pull-requests: read
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -59,7 +62,8 @@ jobs:
         run: dotnet tool install --global dotnet-releaser
 
       # The `run` sub-command on a branch push selects build-only mode: all six
-      # RIDs plus .deb/.rpm are produced, tests run, the changelog is generated
+      # RIDs plus .deb/.rpm are produced and tests run. Changelog generation is
+      # disabled in dotnet-releaser.toml.
       - name: Build and package with dotnet-releaser
         shell: bash
         env:
@@ -270,7 +274,7 @@ jobs:
           TARGET_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          tag="v${VERSION}"
+          tag="${VERSION}"
           # --paginate: the tag's draft may sit behind the first 100 releases.
           # Capture first, THEN strip to the first line - 'head -n1' in a
           # pipefail pipeline makes gh die of SIGPIPE once head exits.

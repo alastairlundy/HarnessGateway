@@ -13,7 +13,7 @@ The canonical package identity, reused verbatim by every step below:
   `manifests/a/AlastairLundy/HarnessGateway/<version>/`
 - **Files in that folder**: the version manifest `<identifier>.yaml`, the installer manifest `<identifier>.installer.yaml`, and the locale manifest `<identifier>.locale.en-US.yaml`, where `<identifier>` is the PackageIdentifier above.
 
-Commands in this runbook write the identifier as `PACKAGE_IDENTIFIER`. Substitute the value above. `<version>` is the published tag with the leading `v` stripped. The dispatch workflow asserts the tag is exactly `v` plus the project version, so tag `v0.1.0` means manifest version `0.1.0`. The repository slug `alastairlundy/HarnessGateway` stays lowercase and does not affect the identifier's casing.
+Commands in this runbook write the identifier as `PACKAGE_IDENTIFIER`. Substitute the value above. `<version>` is the published tag itself: tags are unprefixed and equal the project version, so tag `0.1.0` means manifest version `0.1.0`. The dispatch workflow asserts the tag matches the csproj `<Version>`. The repository slug `alastairlundy/HarnessGateway` stays lowercase and does not affect the identifier's casing.
 
 ## One-time setup
 
@@ -24,6 +24,17 @@ Commands in this runbook write the identifier as `PACKAGE_IDENTIFIER`. Substitut
 See [Token posture](#token-posture) for why the token must be classic and the rules that keep it out of CI.
 
 ## Per-release steps
+
+Release notes are written by hand — generated changelogs are disabled. Before dispatching `Publish release`, create and push the tag and open the draft yourself:
+
+```bash
+git tag 0.1.0 <HEAD-sha>
+git push origin 0.1.0
+gh release create 0.1.0 --repo alastairlundy/HarnessGateway --draft \
+  --title 0.1.0 --target <HEAD-sha> --notes "<your release notes>"
+```
+
+The dispatch workflow requires that draft to exist: it attaches the built binaries to it and publishes it, leaving the hand-written body untouched. Keep the tag unprefixed (`0.1.0`), matching the csproj `<Version>`.
 
 ### 1. Confirm the published assets
 
@@ -48,14 +59,14 @@ Set the published release's base URL, download both MSIs, and compute their
 SHA-256 hashes for the cross-check below:
 
 ```powershell
-# Example for tag v0.1.0; swap in the tag you just published.
-$base = "https://github.com/alastairlundy/HarnessGateway/releases/download/v0.1.0"
+# Example for tag 0.1.0; swap in the tag you just published.
+$base = "https://github.com/alastairlundy/HarnessGateway/releases/download/0.1.0"
 Invoke-WebRequest "$base/harnessgateway-win-x64.msi" -OutFile harnessgateway-win-x64.msi
 Invoke-WebRequest "$base/harnessgateway-win-arm64.msi" -OutFile harnessgateway-win-arm64.msi
 Get-FileHash .\harnessgateway-win-x64.msi, .\harnessgateway-win-arm64.msi -Algorithm SHA256
 ```
 
-Generate the manifest files from those two published URLs. Substitute the PackageIdentifier from Package identity for `PACKAGE_IDENTIFIER`, and use the tag without its `v` for the version:
+Generate the manifest files from those two published URLs. Substitute the PackageIdentifier from Package identity for `PACKAGE_IDENTIFIER`; the version is the tag itself, so use `0.1.0`:
 
 ```powershell
 komac update PACKAGE_IDENTIFIER --version 0.1.0 --urls "$base/harnessgateway-win-x64.msi" "$base/harnessgateway-win-arm64.msi" --output .\winget-out

@@ -15,9 +15,9 @@ profile = "custom"
 # Where built packages land (also the folder the workflows upload/verify).
 artifacts_folder = "artifacts-dotnet-releaser"
 
-# Draft releases may carry generated notes during builds, but the binaries are
-# never uploaded to a draft by this tool: publish-release.yml attaches the
-# built binaries to the draft only when the maintainer dispatches it.
+# Draft releases carry hand-written notes - generated changelogs are disabled.
+# The binaries are never uploaded to a draft by this tool: publish-release.yml
+# attaches the built binaries to the draft only when the maintainer dispatches it.
 enable_publish_packages_in_draft = false
 
 [msbuild]
@@ -61,9 +61,9 @@ user = "alastairlundy"
 repo = "HarnessGateway"
 base = "https://github.com"
 api = "https://api.github.com"
-# Release tags are v-prefixed (v0.1.0); the publish workflow asserts that the
-# pushed tag matches the csproj <Version>.
-version_prefix = "v"
+# No version prefix: tags are unprefixed (0.1.0) and equal the csproj <Version>.
+# The publish workflow asserts the tag matches that pinned version.
+version_prefix = ""
 branches = ["main"]
 # dotnet-releaser itself is never allowed to publish to GitHub. The release
 # workflows own the draft/publish lifecycle, and no release step in this repo
@@ -71,15 +71,13 @@ branches = ["main"]
 publish = false
 
 [changelog]
-# Release notes for the draft are generated from PRs and commits by
-# `dotnet-releaser run` on push to main; never read from a tracked file.
-publish = true
-path = ""
-include_commits = true
-# Build-time draft handling stays enabled (notes-only, per
-# enable_publish_packages_in_draft = false); the draft workflow's gh step
-# guarantees the draft exists even when the tool does not create one.
-disable_draft_for_build = false
+# Generated changelogs are deliberately off. Release notes are written by hand
+# when the maintainer creates the draft release - see
+# docs/release/winget-manifest.md - so nothing is generated from PRs or commits
+# and no changelog is uploaded. `publish = false` disables the feature entirely;
+# no build-time draft is created either.
+publish = false
+disable_draft_for_build = true
 
 [nuget]
 # NuGet is a standing refusal: no .nupkg is produced and nothing is pushed to

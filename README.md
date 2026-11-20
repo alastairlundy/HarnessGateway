@@ -24,10 +24,16 @@ privacy policy.
 winget install AlastairLundy.HarnessGateway
 ```
 
-The manifest lives in WinGet's official source (`microsoft/winget-pkgs`) and
-pins a per-user scope, so installs and upgrades need no elevation. The
-installer binaries themselves are hosted on this repository's releases; the
-source carries only the manifest that points at them.
+> **Pending first submission.** This package is not in WinGet's official source
+> (`microsoft/winget-pkgs`) yet, so the command above will not find anything
+> until the manifest for the first release is submitted and accepted. Use the
+> MSI installer or an archive below until then.
+
+Once the manifest is accepted, it lives in WinGet's official source
+(`microsoft/winget-pkgs`) and pins a per-user scope, so installs and upgrades
+need no elevation. The installer binaries themselves are hosted on this
+repository's releases; the source carries only the manifest that points at
+them.
 
 ### MSI installer (Windows)
 
