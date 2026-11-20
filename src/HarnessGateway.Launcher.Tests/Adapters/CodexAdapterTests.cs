@@ -542,4 +542,29 @@ public class CodexAdapterTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task PlanNonInteractive_uses_the_exec_subcommand_and_keeps_the_config_write()
+    {
+        (string tempDir, string codexHome, _) = CreateCodexHome();
+        try
+        {
+            CodexAdapter adapter = CreateAdapter(codexHome);
+            ResolvedLaunch request = CreateRequest();
+
+            LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+            // `codex exec [PROMPT]` is the harness's one-shot subcommand; the
+            // provider block still rides the config write it always did.
+            await Assert.That(plan.Process.ArgumentList)
+                .IsEquivalentTo(["exec", "fix the failing test"]);
+            List<ConfigFileWriteAction> writes =
+                [.. plan.ConfigurationActions.OfType<ConfigFileWriteAction>()];
+            await Assert.That(writes).Count().IsEqualTo(1);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

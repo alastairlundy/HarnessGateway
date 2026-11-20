@@ -27,6 +27,23 @@ public sealed class LaunchRunner : ILaunchRunner
             cancellationToken);
     }
 
+    public async Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+    {
+        // Console-shared, not buffered: the child inherits this process's
+        // standard handles, so a TUI draws on the user's terminal and reads
+        // their keystrokes, and nothing is captured to echo later. No
+        // timeout either - the session lasts as long as the user does. The
+        // flow only dispatches here after its terminal gate, because in a
+        // piped context these handles are pipes: the child's output would go
+        // nowhere readable (the silent failure the buffered path exists to
+        // prevent).
+        ProcessResult result = await CliRun.RunAsync(
+            BuildProcessConfiguration(plan, outputRedirection: false),
+            ProcessExitConfiguration.CreateGraceful(ProcessTimeoutPolicy.None),
+            cancellationToken).ConfigureAwait(false);
+        return result.ExitCode;
+    }
+
     public int Handoff(LaunchPlan plan)
     {
         // Detached start, so output redirection is off: there is no reader

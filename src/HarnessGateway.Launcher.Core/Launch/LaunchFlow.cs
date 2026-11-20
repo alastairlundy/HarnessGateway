@@ -41,6 +41,7 @@ public sealed class LaunchFlow
     private readonly IRunningInstanceDetector _instanceDetector;
     private readonly IConfirmationPrompt _confirmationPrompt;
     private readonly IProtocolEmissionPlanner _emissionPlanner;
+    private readonly ITerminalProbe _terminalProbe;
 
     public LaunchFlow(
         SettingsStore settingsStore,
@@ -51,7 +52,8 @@ public sealed class LaunchFlow
         IGuiInstallDiscovery installDiscovery,
         IRunningInstanceDetector instanceDetector,
         IConfirmationPrompt confirmationPrompt,
-        IProtocolEmissionPlanner emissionPlanner)
+        IProtocolEmissionPlanner emissionPlanner,
+        ITerminalProbe terminalProbe)
     {
         _settingsStore = settingsStore;
         _backupService = backupService;
@@ -62,6 +64,7 @@ public sealed class LaunchFlow
         _instanceDetector = instanceDetector;
         _confirmationPrompt = confirmationPrompt;
         _emissionPlanner = emissionPlanner;
+        _terminalProbe = terminalProbe;
     }
 
     /// <summary>
@@ -137,6 +140,25 @@ public sealed class LaunchFlow
                     $"Refusing to launch {request.Harness}: --confirm-running confirms an "
                     + "already-running GUI application instance, and this harness runs as a "
                     + "CLI. Re-run without --confirm-running.");
+            }
+
+            // How this launch runs, decided before anything else is resolved
+            // for it. Two modes: -p/--print is a one-shot non-interactive
+            // run and needs a harness that has one plus a prompt to run
+            // with; without it a CLI harness runs as an interactive
+            // terminal session, which is only possible while this process is
+            // attached to a terminal. A piped/CI context would hand the
+            // child handles nobody can read - a TUI would render into them
+            // invisibly, and a harness that detects the difference (Claude
+            // Code reads a non-TTY stdout as print mode) would refuse with a
+            // confusing error of its own.
+            INonInteractiveLaunchAdapter? nonInteractiveAdapter =
+                adapter as INonInteractiveLaunchAdapter;
+
+            LaunchRefused? modeRefusal = ModeRefusal(adapter, nonInteractiveAdapter, request);
+            if (modeRefusal is not null)
+            {
+                return modeRefusal;
             }
 
             // A successful resolution can still carry no launch at all: empty
@@ -242,7 +264,13 @@ public sealed class LaunchFlow
             LaunchPlan plan;
             try
             {
-                plan = await adapter.PlanLaunchAsync(payload, ct).ConfigureAwait(false);
+                // Print planning goes through the capability the gate above
+                // already proved present: the adapter puts the prompt where
+                // the harness's own one-shot mode expects it.
+                plan = request.Print
+                    ? await nonInteractiveAdapter!.PlanNonInteractiveAsync(
+                        payload, request.PrintPrompt!, ct).ConfigureAwait(false)
+                    : await adapter.PlanLaunchAsync(payload, ct).ConfigureAwait(false);
             }
             catch (LaunchRefusalException ex)
             {
@@ -289,14 +317,21 @@ public sealed class LaunchFlow
                 }
                 else
                 {
-                    // The blocking wait is where the two kinds diverge: a GUI
-                    // launch waits on a human closing the application, so its
-                    // run carries no timeout - the process library's default
-                    // 2-minute bound would kill the app mid-session. A CLI
-                    // launch keeps the default bounded run it has always had.
+                    // The blocking wait is where the three modes diverge: a
+                    // GUI launch waits on a human closing the application, so
+                    // its run carries no timeout - the process library's
+                    // default 2-minute bound would kill the app mid-session.
+                    // A -p/--print launch runs without that bound too (a
+                    // one-shot agent run legitimately outlives two minutes)
+                    // and stays buffered, so its output is captured and
+                    // echoed when it exits. An interactive CLI launch hands
+                    // the terminal over instead: no redirection, no clock -
+                    // the gate above already proved there is a terminal to
+                    // hand over.
                     Task<int> blockingRun = adapter.Metadata.Kind == HarnessKind.Gui
+                                            || request.Print
                         ? _runner.RunWithoutTimeoutAsync(plan, ct)
-                        : _runner.RunAsync(plan, ct);
+                        : _runner.RunInteractiveAsync(plan, ct);
 
                     completed = new CompletedPayload.ExitStatus(
                         await blockingRun.ConfigureAwait(false));
@@ -360,6 +395,63 @@ public sealed class LaunchFlow
         ProviderResolutionFailure.UnlistedModel => LaunchRefusalKind.UnlistedModel,
         _ => throw new InvalidOperationException($"unexpected resolution failure '{failure}'"),
     };
+
+    /// <summary>
+    /// The mode gate for one launch: <c>-p/--print</c> needs a harness with
+    /// a non-interactive mode and a non-whitespace prompt to run with, and
+    /// without it an interactive CLI launch needs this process to be
+    /// attached to a terminal on both stdin and stdout. A GUI launch is
+    /// exempt from the terminal half - it hands off or blocks headlessly -
+    /// but never from the print half: a GUI application has no one-shot
+    /// mode either.
+    /// </summary>
+    /// <returns>The refusal to stop with, or <c>null</c> to proceed.</returns>
+    private LaunchRefused? ModeRefusal(
+        IHarnessAdapter adapter,
+        INonInteractiveLaunchAdapter? nonInteractiveAdapter,
+        LaunchRequest request)
+    {
+        if (request.Print)
+        {
+            if (nonInteractiveAdapter is null)
+            {
+                string capability = adapter.Metadata.Kind == HarnessKind.Gui
+                    ? $"{adapter.Metadata.Name} is a GUI application and has no "
+                      + "non-interactive mode"
+                    : $"{adapter.Metadata.Name} has no non-interactive mode the "
+                      + "launcher knows how to drive";
+                return new LaunchRefused(
+                    LaunchRefusalKind.PrintUnsupportedForHarness,
+                    $"Refusing to launch {request.Harness}: -p/--print asks for a "
+                    + $"one-shot non-interactive run, but {capability}. Re-run without "
+                    + "-p/--print to launch it normally.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.PrintPrompt))
+            {
+                return new LaunchRefused(
+                    LaunchRefusalKind.PrintPromptMissing,
+                    $"Refusing to launch {request.Harness}: -p/--print needs a prompt. "
+                    + "Pass one as an argument (-p \"<prompt>\") or pipe one on stdin "
+                    + $"(echo \"...\" | harnessgateway launch {request.Harness} -p).");
+            }
+
+            return null;
+        }
+
+        if (adapter.Metadata.Kind == HarnessKind.Cli && !_terminalProbe.IsInteractiveTerminal)
+        {
+            return new LaunchRefused(
+                LaunchRefusalKind.TerminalRequired,
+                $"Refusing to launch {request.Harness}: this harness runs as an "
+                + "interactive terminal session, but this launch has no terminal - "
+                + "stdin or stdout is redirected or piped. Run HarnessGateway from a "
+                + "real terminal, or pass -p/--print \"<prompt>\" for a one-shot "
+                + "non-interactive run.");
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The live-instance confirmation chain for a Kind=Gui launch: a

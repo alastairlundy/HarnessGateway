@@ -213,4 +213,19 @@ public class KiloAdapterTests
         await Assert.That(plan.Process.EnvironmentVariables)
             .DoesNotContainKey(unrelatedKeyVariable);
     }
+
+    [Test]
+    public async Task PlanNonInteractive_runs_the_run_subcommand_with_model_and_prompt()
+    {
+        KiloAdapter adapter = new KiloAdapter();
+        ResolvedLaunch request = CreateRequest();
+
+        LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+        // `kilo run` takes the message as its positional and its own
+        // -m/--model flag, so the model moves into the run subcommand's
+        // options rather than the global slot the interactive launch uses.
+        await Assert.That(plan.Process.ArgumentList).IsEquivalentTo(
+            ["run", "--model", "gpt-5", "fix the failing test"]);
+    }
 }

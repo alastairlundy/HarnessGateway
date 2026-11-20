@@ -40,7 +40,8 @@ public class LaunchFlowTests
         LauncherSettings? settings = null,
         ILaunchRunner? runner = null,
         ISecureKeyStore? keyStore = null,
-        IProtocolEmissionPlanner? emissionPlanner = null)
+        IProtocolEmissionPlanner? emissionPlanner = null,
+        ITerminalProbe? terminalProbe = null)
     {
         string tempDir = CreateTempDir();
         string settingsDir = Path.Combine(tempDir, "settings");
@@ -64,7 +65,8 @@ public class LaunchFlowTests
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
             new FakeConfirmationPrompt(),
-            emissionPlanner ?? new ProtocolEmissionPlanner());
+            emissionPlanner ?? new ProtocolEmissionPlanner(),
+            terminalProbe ?? new FakeTerminalProbe());
         return (flow, tempDir, settingsDir, backupsDir);
     }
 
@@ -93,7 +95,8 @@ public class LaunchFlowTests
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
             new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner());
+            new ProtocolEmissionPlanner(),
+            new FakeTerminalProbe());
         return (flow, tempDir, configFile, settingsDir);
     }
 
@@ -146,7 +149,8 @@ public class LaunchFlowTests
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
             new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner());
+            new ProtocolEmissionPlanner(),
+            new FakeTerminalProbe());
         return (flow, tempDir, configPath, backupsDir);
     }
 
@@ -154,7 +158,8 @@ public class LaunchFlowTests
         bool available = true,
         string? apiKey = null,
         FakeSecureKeyStore? keyStore = null,
-        ILaunchRunner? runner = null)
+        ILaunchRunner? runner = null,
+        ITerminalProbe? terminalProbe = null)
     {
         string tempDir = CreateTempDir();
         string settingsDir = Path.Combine(tempDir, "settings");
@@ -193,7 +198,8 @@ public class LaunchFlowTests
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
             new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner());
+            new ProtocolEmissionPlanner(),
+            terminalProbe ?? new FakeTerminalProbe());
         return (flow, tempDir, backupsDir);
     }
 
@@ -291,7 +297,8 @@ public class LaunchFlowTests
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner());
+            new ProtocolEmissionPlanner(),
+            new FakeTerminalProbe());
 
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
@@ -1791,7 +1798,8 @@ public class LaunchFlowTests
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
-                new ProtocolEmissionPlanner());
+                new ProtocolEmissionPlanner(),
+                new FakeTerminalProbe());
 
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
@@ -1819,6 +1827,148 @@ public class LaunchFlowTests
         }
     }
 
+    // --- Launch mode: the terminal gate, -p/--print, and dispatch ---
+
+    [Test]
+    public async Task ExecuteAsync_interactive_launch_without_a_terminal_refuses_before_planning()
+    {
+        // The terminal gate: a CLI harness with no terminal to hand over
+        // must refuse - never spawn a child that would render into pipes.
+        // The refusal kind is the proof (a launch with no provider would
+        // stop as NoProvider instead), and the untouched runner proves
+        // nothing was started.
+        ModeRecordingLaunchRunner runner = new();
+        (LaunchFlow flow, string tempDir, _) = CreateClaudeFlow(
+            runner: runner,
+            terminalProbe: new FakeTerminalProbe(available: false));
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("claude-code", null, null, null, null, [], null));
+
+            LaunchRefused refused = (LaunchRefused)outcome;
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.TerminalRequired);
+            await Assert.That(runner.InteractiveRunCallCount).IsEqualTo(0);
+            await Assert.That(runner.NoTimeoutRunCallCount).IsEqualTo(0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_print_launch_bypasses_the_terminal_gate_and_runs_buffered()
+    {
+        // -p/--print is the piped-context answer to the gate: with no
+        // terminal it still runs, dispatched to the buffered no-timeout
+        // member (output echoed at exit), and the prompt reaches the
+        // harness's own one-shot spelling on argv.
+        ModeRecordingLaunchRunner runner = new();
+        (LaunchFlow flow, string tempDir, _) = CreateClaudeFlow(
+            runner: runner,
+            terminalProbe: new FakeTerminalProbe(available: false));
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest(
+                    "claude-code", null, null, null, null, [], null,
+                    Print: true, PrintPrompt: "fix the failing test"));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
+            await Assert.That(runner.NoTimeoutRunCallCount).IsEqualTo(1);
+            await Assert.That(runner.InteractiveRunCallCount).IsEqualTo(0);
+
+            await Assert.That(runner.LastPlan).IsNotNull();
+            await Assert.That(runner.LastPlan!.Process.ArgumentList)
+                .IsEquivalentTo(["-p", "fix the failing test"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_print_launch_without_a_prompt_refuses()
+    {
+        (LaunchFlow flow, string tempDir, _) = CreateClaudeFlow();
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest(
+                    "claude-code", null, null, null, null, [], null,
+                    Print: true, PrintPrompt: null));
+
+            LaunchRefused refused = (LaunchRefused)outcome;
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.PrintPromptMissing);
+            await Assert.That(refused.Message).Contains("-p/--print");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_print_against_a_harness_without_a_non_interactive_mode_refuses()
+    {
+        // TestHarnessAdapter plans only the interactive shape, so -p must
+        // stop as a refusal rather than silently launching it interactively.
+        TestHarnessAdapter adapter = new("TestAgent");
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(adapter: adapter);
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest(
+                    "TestAgent", null, null, null, null, [], null,
+                    Print: true, PrintPrompt: "hello"));
+
+            LaunchRefused refused = (LaunchRefused)outcome;
+            await Assert.That(refused.Kind)
+                .IsEqualTo(LaunchRefusalKind.PrintUnsupportedForHarness);
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_interactive_cli_launch_dispatches_to_the_interactive_member()
+    {
+        // The dispatch itself: a terminal session goes to RunInteractiveAsync
+        // (console-shared, no clock) and never to the buffered members. The
+        // GUI branch and the print branch are pinned by their own tests.
+        ModeRecordingLaunchRunner runner = new();
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: new TestHarnessAdapter("TestAgent"),
+            settings: DefaultSettings("test-backend"),
+            runner: runner);
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, null, [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
+            await Assert.That(runner.InteractiveRunCallCount).IsEqualTo(1);
+            await Assert.That(runner.NoTimeoutRunCallCount).IsEqualTo(0);
+            await Assert.That(runner.RunCallCount).IsEqualTo(0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     // --- LaunchRequest shape ---
 
     [Test]
@@ -1835,7 +1985,7 @@ public class LaunchFlowTests
             ",",
             properties.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal));
         await Assert.That(declaredNames).IsEqualTo(
-            "ConfirmRunning,Endpoint,Harness,Model,Persist,Protocol,ProviderName,SessionKey");
+            "ConfirmRunning,Endpoint,Harness,Model,Persist,Print,PrintPrompt,Protocol,ProviderName,SessionKey");
 
         await Assert.That(
             properties.Any(p => typeof(Provider).IsAssignableFrom(p.PropertyType))).IsFalse();
@@ -1858,6 +2008,11 @@ public class LaunchFlowTests
             return RunAsync(plan, cancellationToken);
         }
 
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             return 0;
@@ -1876,6 +2031,11 @@ public class LaunchFlowTests
             return RunAsync(plan, cancellationToken);
         }
 
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             throw exception;
@@ -1890,6 +2050,11 @@ public class LaunchFlowTests
         }
 
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return RunAsync(plan, cancellationToken);
         }
@@ -1917,10 +2082,57 @@ public class LaunchFlowTests
             return RunAsync(plan, cancellationToken);
         }
 
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
         public int Handoff(LaunchPlan plan)
         {
             HandoffCallCount++;
             return HandoffCallCount;
+        }
+    }
+
+    /// <summary>
+    /// One counter per blocking member plus the plan each was handed: the
+    /// mode-dispatch tests need to know which member the flow routed to,
+    /// which no single-counter fake can tell.
+    /// </summary>
+    private sealed class ModeRecordingLaunchRunner : ILaunchRunner
+    {
+        public int RunCallCount { get; private set; }
+
+        public int NoTimeoutRunCallCount { get; private set; }
+
+        public int InteractiveRunCallCount { get; private set; }
+
+        public LaunchPlan? LastPlan { get; private set; }
+
+        public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            RunCallCount++;
+            LastPlan = plan;
+            return Task.FromResult(0);
+        }
+
+        public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            NoTimeoutRunCallCount++;
+            LastPlan = plan;
+            return Task.FromResult(0);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            InteractiveRunCallCount++;
+            LastPlan = plan;
+            return Task.FromResult(0);
+        }
+
+        public int Handoff(LaunchPlan plan)
+        {
+            return 0;
         }
     }
 

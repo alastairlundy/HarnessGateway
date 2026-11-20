@@ -58,6 +58,20 @@ public sealed class LaunchCommand : Command
         Description = "Confirm a running instance of the harness instead of being prompted (GUI harnesses)",
     };
 
+    public static readonly Option<string?> PrintOption = new("-p", "--print")
+    {
+        // ZeroOrOne on purpose: the prompt may be the option's value
+        // (-p "<prompt>") or come from stdin when the value is omitted
+        // (-p alone with a pipe). Presence - not the value - is what makes
+        // this a print launch, so the action reads the option's result
+        // rather than only its value. Which harnesses can even run
+        // one-shot, and whether a prompt arrived, are the flow's refusals
+        // to make, not parse errors - the same split --confirm-running uses.
+        Description = "Run the harness non-interactively with a prompt: "
+            + "-p \"<prompt>\", or -p alone to read the prompt from stdin",
+        Arity = ArgumentArity.ZeroOrOne,
+    };
+
     public LaunchCommand() : this(orchestrator: null)
     {
     }
@@ -86,6 +100,7 @@ public sealed class LaunchCommand : Command
         Add(ModelOption);
         Add(PersistOption);
         Add(ConfirmRunningOption);
+        Add(PrintOption);
 
         Validators.Add(result =>
         {
@@ -125,13 +140,17 @@ public sealed class LaunchCommand : Command
 
             // Options without a harness stay a parse error, so the bare-`launch`
             // wizard fallback can never silently drop a flag the user typed.
+            // Presence, not value, detects -p/--print: the prompt is optional
+            // at parse time (it may come from stdin), so a valueless -p must
+            // still count as an option the wizard path cannot honor.
             if (result.GetValue(HarnessArgument) is null &&
                 (result.GetValue(ProviderOption) is not null
                  || result.GetValue(EndpointOption) is not null
                  || result.GetValue(ProtocolOption) is not null
                  || result.GetValue(ModelOption) is not null
                  || result.GetValue(PersistOption) is { Length: > 0 }
-                 || result.GetValue(ConfirmRunningOption)))
+                 || result.GetValue(ConfirmRunningOption)
+                 || result.GetResult(PrintOption) is not null))
             {
                 result.AddError(
                     "A harness identifier is required when launch options are specified: " +
@@ -180,6 +199,19 @@ public sealed class LaunchCommand : Command
                 ? ParsePersistValues(persistValues)
                 : new List<string>();
 
+            // -p/--print: presence decides, the value may be absent. A
+            // valueless -p reads the prompt from stdin here, at the edge,
+            // so the flow only ever sees a prompt value (or null, which it
+            // refuses) and never has to decide whether the console's stdin
+            // is worth reading.
+            bool print = result.GetResult(PrintOption) is not null;
+            string? printPrompt = result.GetValue(PrintOption);
+            if (print && printPrompt is null && Console.IsInputRedirected)
+            {
+                printPrompt = await Console.In.ReadToEndAsync(cancellationToken)
+                    .ConfigureAwait(true);
+            }
+
             if (orchestrator is null)
             {
                 // Check the constructor parameter, then invoke it: flow analysis
@@ -198,6 +230,8 @@ public sealed class LaunchCommand : Command
                 model,
                 persist,
                 confirmRunning,
+                print,
+                printPrompt,
                 cancellationToken).ConfigureAwait(true);
         });
     }

@@ -248,6 +248,25 @@ public class ClaudeCodeAdapterTests
     }
 
     [Test]
+    public async Task PlanNonInteractive_puts_the_prompt_on_argv_with_claudes_print_flag()
+    {
+        ClaudeCodeAdapter adapter = CreateAdapter();
+        ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");
+
+        LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+        // -p "<prompt>" is claude's own one-shot spelling; the prompt stays
+        // one argv element whatever it contains.
+        await Assert.That(plan.Process.ArgumentList).IsEquivalentTo(["-p", "fix the failing test"]);
+        // One-shot changes argv only: base URL, token and model plan exactly
+        // as the interactive launch plans them.
+        await Assert.That(plan.Process.EnvironmentVariables["ANTHROPIC_BASE_URL"])
+            .IsEqualTo("https://api.example.com/v1");
+        await Assert.That(plan.Process.EnvironmentVariables["ANTHROPIC_MODEL"])
+            .IsEqualTo("claude-sonnet-5");
+    }
+
+    [Test]
     public async Task PlanLaunch_from_the_ad_hoc_case_plans_the_ad_hoc_values()
     {
         // The family's other arm: a raw-URL launch reaches the same planner

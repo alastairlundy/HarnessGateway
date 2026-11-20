@@ -116,7 +116,8 @@ public class LaunchFlowGuiTests
             discovery ?? new FakeGuiInstallDiscovery(found: true),
             detector ?? new FakeRunningInstanceDetector(),
             prompt ?? new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner());
+            new ProtocolEmissionPlanner(),
+            new FakeTerminalProbe());
         return (flow, tempDir, backupsDir);
     }
 
@@ -724,6 +725,11 @@ public class LaunchFlowGuiTests
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return BlockingRunCoreAsync(plan, noTimeoutMember: true);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return BlockingRunCoreAsync(plan, noTimeoutMember: false);
         }
 
         public int Handoff(LaunchPlan plan)

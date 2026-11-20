@@ -48,6 +48,12 @@ IGuiInstallDiscovery installDiscovery = new GuiInstallDiscovery(new FilePathReso
 IRunningInstanceDetector instanceDetector = CreateInstanceDetector();
 IConfirmationPrompt confirmationPrompt = new TerminalConfirmationPrompt();
 
+// The terminal gate's production probe: an interactive CLI launch only
+// runs while this process is attached to a real terminal, and this reads
+// that fact off the console handles. Injected like the collaborators
+// above so the flow never reads the console directly.
+ITerminalProbe terminalProbe = new TerminalProbe();
+
 // The one shared protocol-to-env-var mapping: registered here at
 // the composition root and handed to the launch flow, which forwards it
 // to every adapter on the launch payload - the mapping is reached
@@ -65,7 +71,8 @@ LaunchFlow flow = new(
     installDiscovery,
     instanceDetector,
     confirmationPrompt,
-    emissionPlanner);
+    emissionPlanner,
+    terminalProbe);
 LaunchOrchestrator orchestrator = new(flow);
 
 // Runs one wizard pass with its load-time faults folded into (null, exit

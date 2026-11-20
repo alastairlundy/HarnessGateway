@@ -43,7 +43,8 @@ public class VersionFlagTests
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
-                new ProtocolEmissionPlanner()));
+                new ProtocolEmissionPlanner(),
+                new FakeTerminalProbe()));
 
         bool wizardCalled = false;
         RootCommand root = RootCommandFactory.Create(
@@ -161,6 +162,11 @@ public class VersionFlagTests
         }
 
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return RunAsync(plan, cancellationToken);
         }

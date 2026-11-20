@@ -56,7 +56,8 @@ public class LaunchCommandInvocationTests
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
-                new ProtocolEmissionPlanner()));
+                new ProtocolEmissionPlanner(),
+                new FakeTerminalProbe()));
 
         LaunchCommand launchCommand = new LaunchCommand(orchestrator, wizardAction);
         return (new RootCommand { launchCommand }, adapter, tempDir);
@@ -221,6 +222,55 @@ public class LaunchCommandInvocationTests
         }
     }
 
+    [Test]
+    public async Task Invoke_launch_with_print_reaches_the_flow_as_print()
+    {
+        // Same proof shape as --confirm-running: FakeHarnessAdapter has no
+        // one-shot mode, so a parsed -p surfaces as the flow's capability
+        // refusal - reaching that refusal is itself the proof the flag rode
+        // into the LaunchRequest. Without it this launch would have exited 0
+        // and run the adapter interactively.
+        FakeHarnessAdapter adapter = new("TestAgent");
+        (RootCommand root, _, string tempDir) = CreateRoot(adapter);
+        try
+        {
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                root.Parse("launch TestAgent -p \"hello there\" " +
+                           "--endpoint https://api.example.com/v1 --protocol openai-chat")
+                    .InvokeAsync());
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("-p/--print");
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Invoke_launch_with_print_long_spelling_reaches_the_flow_as_print()
+    {
+        FakeHarnessAdapter adapter = new("TestAgent");
+        (RootCommand root, _, string tempDir) = CreateRoot(adapter);
+        try
+        {
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                root.Parse("launch TestAgent --print \"hello there\" " +
+                           "--endpoint https://api.example.com/v1 --protocol openai-chat")
+                    .InvokeAsync());
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("-p/--print");
+            await Assert.That(adapter.LastRequest).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     private sealed class FakeHarnessAdapter : IHarnessAdapter
     {
         public HarnessMetadata Metadata { get; }
@@ -273,6 +323,11 @@ public class LaunchCommandInvocationTests
         }
 
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return RunAsync(plan, cancellationToken);
         }

@@ -1398,7 +1398,8 @@ public class ProviderCommandsTests
                 new FakeGuiInstallDiscovery(),
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
-                new ProtocolEmissionPlanner()));
+                new ProtocolEmissionPlanner(),
+                new FakeTerminalProbe()));
 
         RootCommand root = RootCommandFactory.Create(
             orchestrator,
@@ -1415,6 +1416,9 @@ public class ProviderCommandsTests
             Task.FromResult(0);
 
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default) =>
             Task.FromResult(0);
 
         public int Handoff(LaunchPlan plan) => 0;

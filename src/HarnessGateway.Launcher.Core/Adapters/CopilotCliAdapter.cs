@@ -3,7 +3,7 @@ using HarnessGateway.Launcher.Core.Launch;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
 
-public sealed class CopilotCliAdapter : IHarnessAdapter
+public sealed class CopilotCliAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         // Display name is the vendor's full product name; the token is the
@@ -41,23 +41,24 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("copilot", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, printPrompt: null));
+
+    /// <summary>
+    /// The one-shot mode: <c>copilot -p "&lt;text&gt;"</c> - the harness's
+    /// documented non-interactive flag (its help names -p/--prompt for
+    /// non-interactive scripting). Configuration plans exactly as the
+    /// interactive launch does.
+    /// </summary>
+    public Task<LaunchPlan> PlanNonInteractiveAsync(
+        ResolvedLaunch request,
+        string prompt,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, prompt));
+
+    private static LaunchPlan BuildPlan(ResolvedLaunch request, string? printPrompt)
     {
-        // Direct case branching: each case hands over its own
-        // effective protocol, base URL, and model - no stored-looking
-        // provider is synthesized in between, and no protocol is computed
-        // here.
-        (ProtocolEmission emission, string? model) = request.Launch switch
-        {
-            LaunchResolution.ProviderCase providerCase => (
-                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
-                providerCase.Model),
-            LaunchResolution.AdHocCase adHoc => (
-                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
-                adHoc.Model),
-            _ => throw new InvalidOperationException(
-                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
-        };
+        (ProtocolEmission emission, string? model) = ResolveEmission(request);
 
         // One shared mapping: the emission carries this protocol's
         // base URL and protocol. This harness reads its own provider-block
@@ -87,6 +88,14 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
             args.Add(model);
         }
 
+        if (printPrompt is not null)
+        {
+            // -p/--prompt is this harness's non-interactive flag; the text
+            // rides ArgumentList so it stays one argv element.
+            args.Add("-p");
+            args.Add(printPrompt);
+        }
+
         ProcessConfiguration config = new("copilot")
         {
             ArgumentList = args,
@@ -95,8 +104,26 @@ public sealed class CopilotCliAdapter : IHarnessAdapter
             EnvironmentVariables = envVars,
         };
 
-        return Task.FromResult(new LaunchPlan(config, []));
+        return new LaunchPlan(config, []);
     }
+
+    /// <summary>
+    /// Direct case branching: each case hands over its own effective
+    /// protocol, base URL, and model - no stored-looking provider is
+    /// synthesized in between, and no protocol is computed here.
+    /// </summary>
+    private static (ProtocolEmission Emission, string? Model) ResolveEmission(ResolvedLaunch request) =>
+        request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
 
     private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)
     {

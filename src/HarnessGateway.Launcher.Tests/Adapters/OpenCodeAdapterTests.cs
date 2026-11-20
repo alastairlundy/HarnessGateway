@@ -280,4 +280,21 @@ public class OpenCodeAdapterTests
         await Assert.That(plan.Process.EnvironmentVariables)
             .DoesNotContainKey(unrelatedKeyVariable);
     }
+
+    [Test]
+    public async Task PlanNonInteractive_runs_the_run_subcommand_with_the_prompt_on_argv()
+    {
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        ResolvedLaunch request = CreateRequest();
+
+        LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+        // `opencode run [message...]` is the harness's one-shot subcommand.
+        await Assert.That(plan.Process.ArgumentList)
+            .IsEquivalentTo(["run", "fix the failing test"]);
+        // One-shot changes argv only: the inline-config env var that carries
+        // provider and model plans exactly as the interactive launch does.
+        await Assert.That(plan.Process.EnvironmentVariables)
+            .ContainsKey("OPENCODE_CONFIG_CONTENT");
+    }
 }

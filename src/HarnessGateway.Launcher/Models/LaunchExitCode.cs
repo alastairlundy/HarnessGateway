@@ -21,4 +21,5 @@ public enum LaunchExitCode
     ConfigConflict = 10,
     UpdateAvailable = 11,
     CheckFailed = 12,
+    TerminalRequired = 13,
 }

@@ -16,6 +16,19 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// decline is a refusal, not a field value). The wizard never sets it: no
 /// wizard step can know the running-instance state when it builds the request.
 /// </param>
+/// <param name="Print">
+/// The bare <c>-p</c>/<c>--print</c> flag one-for-one: <c>true</c> asks for a
+/// one-shot non-interactive run of the harness instead of an interactive
+/// session. Non-nullable with a <c>false</c> default; the wizard never sets
+/// it. The flow gates it - a harness with no non-interactive mode refuses,
+/// as does a GUI harness.
+/// </param>
+/// <param name="PrintPrompt">
+/// The prompt for a <c>Print</c> launch: the <c>-p</c>/<c>--print</c>
+/// argument, or the text read from stdin when the flag carried no value.
+/// <c>null</c> when <c>Print</c> is false; whitespace-only content is
+/// refused by the flow rather than passed to the harness.
+/// </param>
 public sealed record LaunchRequest(
     string Harness,
     string? ProviderName,
@@ -24,4 +37,6 @@ public sealed record LaunchRequest(
     string? Model,
     IReadOnlyCollection<string> Persist,
     string? SessionKey,
-    bool ConfirmRunning = false);
+    bool ConfirmRunning = false,
+    bool Print = false,
+    string? PrintPrompt = null);

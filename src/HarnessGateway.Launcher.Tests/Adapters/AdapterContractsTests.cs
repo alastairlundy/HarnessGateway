@@ -156,6 +156,34 @@ public class ShippedAdapterContractTests
     }
 
     [Test]
+    public async Task Shipped_adapters_declare_expected_non_interactive_support()
+    {
+        IHarnessAdapter[] shipped = ShippedAdapters();
+
+        // The -p/--print capability map: the five harnesses whose one-shot
+        // spelling is researched and implemented (claude -p, opencode run,
+        // kilo run, codex exec, copilot -p), and the two that have none -
+        // the GUI app has no CLI one-shot mode, and pi's is not implemented
+        // (unverified), so it must refuse rather than guess at argv.
+        Dictionary<string, bool> expected = new()
+        {
+            ["OpenCode"] = true,
+            ["OpenCode Desktop"] = false,
+            ["Kilo"] = true,
+            ["GitHub Copilot CLI"] = true,
+            ["Pi"] = false,
+            ["codex"] = true,
+            ["claude-code"] = true
+        };
+
+        foreach (IHarnessAdapter adapter in shipped)
+        {
+            await Assert.That(adapter is INonInteractiveLaunchAdapter)
+                .IsEqualTo(expected[adapter.Metadata.Name]);
+        }
+    }
+
+    [Test]
     public async Task Shipped_adapters_declare_unique_command_names()
     {
         IHarnessAdapter[] shipped = ShippedAdapters();

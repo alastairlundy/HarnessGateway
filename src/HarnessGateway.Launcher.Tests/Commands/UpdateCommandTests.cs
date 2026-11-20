@@ -263,7 +263,8 @@ public class UpdateCommandTests
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
             new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner()));
+            new ProtocolEmissionPlanner(),
+            new FakeTerminalProbe()));
 
         RootCommand root = RootCommandFactory.Create(
             orchestrator,
@@ -282,6 +283,11 @@ public class UpdateCommandTests
         }
 
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return RunAsync(plan, cancellationToken);
         }

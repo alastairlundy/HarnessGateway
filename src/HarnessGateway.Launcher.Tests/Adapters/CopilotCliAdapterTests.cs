@@ -263,4 +263,18 @@ public class CopilotCliAdapterTests
         await Assert.That(plan.Process.EnvironmentVariables)
             .DoesNotContainKey("ANTHROPIC_API_KEY");
     }
+
+    [Test]
+    public async Task PlanNonInteractive_adds_the_prompt_to_the_print_flag()
+    {
+        CopilotCliAdapter adapter = new CopilotCliAdapter();
+        ResolvedLaunch request = CreateRequest();
+
+        LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+        // -p/--prompt is this harness's documented non-interactive flag; the
+        // model keeps its global slot beside it.
+        await Assert.That(plan.Process.ArgumentList).IsEquivalentTo(
+            ["--model", "gpt-4", "-p", "fix the failing test"]);
+    }
 }

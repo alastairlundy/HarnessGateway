@@ -45,6 +45,12 @@ public class LaunchOrchestratorTests
     [Arguments(LaunchRefusalKind.RunningInstanceUnconfirmed, (int)LaunchExitCode.HarnessUnavailable)]
     [Arguments(LaunchRefusalKind.GuiProviderUnsupported, (int)LaunchExitCode.HarnessUnavailable)]
     [Arguments(LaunchRefusalKind.ConfirmUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
+    // The two -p/--print misuses ride the usage number like every other
+    // bad-flag stop; an interactive launch with no terminal is the one new
+    // number (13) - correctly requested, wrong context.
+    [Arguments(LaunchRefusalKind.PrintUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
+    [Arguments(LaunchRefusalKind.PrintPromptMissing, (int)LaunchExitCode.UsageError)]
+    [Arguments(LaunchRefusalKind.TerminalRequired, (int)LaunchExitCode.TerminalRequired)]
     public async Task MapOutcomeAsync_refusal_kind_maps_to_its_exit_code(
         LaunchRefusalKind kind, int expectedExitCode)
     {
@@ -287,7 +293,8 @@ public class LaunchOrchestratorTests
             new FakeGuiInstallDiscovery(),
             new FakeRunningInstanceDetector(),
             new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner());
+            new ProtocolEmissionPlanner(),
+            new FakeTerminalProbe());
         return (new LaunchOrchestrator(flow), tempDir);
     }
 
@@ -301,6 +308,11 @@ public class LaunchOrchestratorTests
         }
 
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return RunAsync(plan, cancellationToken);
         }
@@ -319,6 +331,11 @@ public class LaunchOrchestratorTests
         }
 
         public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+        {
+            return RunAsync(plan, cancellationToken);
+        }
+
+        public Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
         {
             return RunAsync(plan, cancellationToken);
         }

@@ -40,12 +40,17 @@ public sealed class LaunchOrchestrator
     /// <paramref name="confirmRunning"/> fact rides verbatim from the flag: the
     /// request builder never inspects the harness kind, because the misuse
     /// refusal (flag against a Kind=Cli harness) belongs to the flow.
+    /// <paramref name="print"/> and <paramref name="printPrompt"/> ride the
+    /// same way - whether the harness has a one-shot mode or a prompt
+    /// arrived are the flow's refusals, never this mapping layer's.
     /// </summary>
     public async Task<int> RunAsync(
         string agentName, string? providerName,
         string? endpoint, string? protocol,
         string? model, IReadOnlyList<string> persistValues,
         bool confirmRunning = false,
+        bool print = false,
+        string? printPrompt = null,
         CancellationToken cancellationToken = default)
     {
         LaunchRequest request = new(
@@ -56,7 +61,9 @@ public sealed class LaunchOrchestrator
             model,
             persistValues,
             SessionKey: null,
-            ConfirmRunning: confirmRunning);
+            ConfirmRunning: confirmRunning,
+            Print: print,
+            PrintPrompt: printPrompt);
 
         LaunchOutcome outcome = await _flow.ExecuteAsync(request, cancellationToken)
             .ConfigureAwait(true);
@@ -114,12 +121,13 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// Exhaustive over the sixteen refusal kinds: every kind names its
+    /// Exhaustive over the nineteen refusal kinds: every kind names its
     /// exit code explicitly so a newly added kind cannot silently land on a
     /// catch-all default. Codes are today's values, preserved byte-for-byte;
-    /// the three GUI kinds are producer additions to existing families, and
-    /// the unlisted-model kind reuses the UnknownAgent number -
-    /// none of them new numbers.
+    /// the three GUI kinds are producer additions to existing families, the
+    /// unlisted-model kind reuses the UnknownAgent number, and the two print
+    /// misuse kinds reuse UsageError - TerminalRequired is the only new
+    /// number (13).
     /// </summary>
     private static int ExitCodeFor(LaunchRefusalKind kind) => kind switch
     {
@@ -136,8 +144,17 @@ public sealed class LaunchOrchestrator
         // launch cannot run as asked.
         LaunchRefusalKind.RunningInstanceUnconfirmed
             or LaunchRefusalKind.GuiProviderUnsupported => (int)LaunchExitCode.HarnessUnavailable,
-        // Flag misuse is a usage error, same as every other bad-flag stop.
-        LaunchRefusalKind.ConfirmUnsupportedForHarness => (int)LaunchExitCode.UsageError,
+        // Flag misuse is a usage error, same as every other bad-flag stop:
+        // --confirm-running against a CLI harness, and the two -p/--print
+        // misuses (no one-shot mode, no prompt).
+        LaunchRefusalKind.ConfirmUnsupportedForHarness
+            or LaunchRefusalKind.PrintUnsupportedForHarness
+            or LaunchRefusalKind.PrintPromptMissing => (int)LaunchExitCode.UsageError,
+        // An interactive launch with no terminal to run in is its own
+        // appended code: the launch is correctly requested but cannot run
+        // in this context, which a usage error would misreport as a bad
+        // flag and an unavailable harness would misreport as a bad install.
+        LaunchRefusalKind.TerminalRequired => (int)LaunchExitCode.TerminalRequired,
         LaunchRefusalKind.UnknownProviderName
             or LaunchRefusalKind.DanglingDefaultProvider
             or LaunchRefusalKind.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,

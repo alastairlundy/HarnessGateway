@@ -4,7 +4,7 @@ using HarnessGateway.Launcher.Core.Launch;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
 
-public sealed class KiloAdapter : IHarnessAdapter
+public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "Kilo",
@@ -39,7 +39,21 @@ public sealed class KiloAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("kilo", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, printPrompt: null));
+
+    /// <summary>
+    /// The one-shot mode: <c>kilo run --model &lt;m&gt; "&lt;message&gt;"</c> -
+    /// the harness's own subcommand for a single message, with the same
+    /// -m/--model flag the interactive launch passes.
+    /// </summary>
+    public Task<LaunchPlan> PlanNonInteractiveAsync(
+        ResolvedLaunch request,
+        string prompt,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, prompt));
+
+    private static LaunchPlan BuildPlan(ResolvedLaunch request, string? printPrompt)
     {
         // Direct case branching: each case hands over its own
         // effective protocol, base URL, and model - no stored-looking
@@ -63,7 +77,25 @@ public sealed class KiloAdapter : IHarnessAdapter
         EmissionMerge.MergeInto(envVars, emission, request.ApiKey);
 
         List<string> args = [];
-        if (model is { Length: > 0 })
+
+        if (printPrompt is not null)
+        {
+            // The one-shot subcommand first: `kilo run` takes the message as
+            // its positional and its own -m/--model flag, so the model goes
+            // after `run` here rather than in the global slot the
+            // interactive launch uses.
+            args.Add("run");
+            if (model is { Length: > 0 })
+            {
+                args.Add("--model");
+                args.Add(model);
+            }
+
+            // Message last, as one ArgumentList entry: the process library
+            // keeps it a single argv element whatever it contains.
+            args.Add(printPrompt);
+        }
+        else if (model is { Length: > 0 })
         {
             args.Add("--model");
             args.Add(model);
@@ -77,7 +109,7 @@ public sealed class KiloAdapter : IHarnessAdapter
             EnvironmentVariables = envVars,
         };
 
-        return Task.FromResult(new LaunchPlan(config, []));
+        return new LaunchPlan(config, []);
     }
 
     private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)

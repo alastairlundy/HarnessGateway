@@ -5,7 +5,7 @@ using HarnessGateway.Launcher.Core.Toml;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
 
-public sealed class CodexAdapter : IHarnessAdapter
+public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 {
     internal const string ProviderId = "harnessgateway";
     internal const string ProviderBlockName = $"model_providers.{ProviderId}";
@@ -48,23 +48,27 @@ public sealed class CodexAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("codex", cancellationToken);
 
-    public async Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
+    public async Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
+        await BuildPlanAsync(request, printPrompt: null, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// The one-shot mode: <c>codex exec "&lt;prompt&gt;"</c> - the
+    /// harness's own "Run Codex non-interactively" subcommand. The config
+    /// write and environment plan exactly as the interactive launch does;
+    /// only argv differs.
+    /// </summary>
+    public async Task<LaunchPlan> PlanNonInteractiveAsync(
+        ResolvedLaunch request,
+        string prompt,
+        CancellationToken cancellationToken = default) =>
+        await BuildPlanAsync(request, prompt, cancellationToken).ConfigureAwait(false);
+
+    private async Task<LaunchPlan> BuildPlanAsync(
+        ResolvedLaunch request,
+        string? printPrompt,
+        CancellationToken cancellationToken)
     {
-        // Direct case branching: each case hands over its own
-        // effective protocol, base URL, and model - no stored-looking
-        // provider is synthesized in between, and no protocol is computed
-        // here.
-        (ProtocolEmission emission, string? model) = request.Launch switch
-        {
-            LaunchResolution.ProviderCase providerCase => (
-                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
-                providerCase.Model),
-            LaunchResolution.AdHocCase adHoc => (
-                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
-                adHoc.Model),
-            _ => throw new InvalidOperationException(
-                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
-        };
+        (ProtocolEmission emission, string? model) = ResolveEmission(request);
 
         string configPath = ResolveConfigPath(_getEnvironmentVariable);
         string existing = File.Exists(configPath)
@@ -103,10 +107,34 @@ public sealed class CodexAdapter : IHarnessAdapter
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
             EnvironmentVariables = envVars,
+            // `codex exec [PROMPT]` is the one-shot subcommand; the prompt
+            // rides ArgumentList so it stays one argv element. When
+            // ArgumentList is non-empty the process library ignores the
+            // Arguments string - which `exec` wants. An empty list (the
+            // interactive launch) is the property's default.
+            ArgumentList = printPrompt is null ? [] : ["exec", printPrompt],
         };
 
         return new LaunchPlan(config, actions);
     }
+
+    /// <summary>
+    /// Direct case branching: each case hands over its own effective
+    /// protocol, base URL, and model - no stored-looking provider is
+    /// synthesized in between, and no protocol is computed here.
+    /// </summary>
+    private static (ProtocolEmission Emission, string? Model) ResolveEmission(ResolvedLaunch request) =>
+        request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
 
     /// <summary>
     /// Parses the existing config, refuses a user-authored harnessgateway

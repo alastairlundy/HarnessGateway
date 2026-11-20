@@ -191,10 +191,38 @@ harnessgateway launch [HARNESS] [options]
 | `--persist config` | Keep the codex `config.toml` edit instead of restoring the original on exit; for a GUI harness, also switches the launch to fire-and-forget mode |
 | `--persist model` | Save this launch's model as the entry's default for later launches |
 | `--confirm-running` | Assert that launching while the harness's app is already running was confirmed, skipping the prompt (GUI harnesses; see [Launching a GUI harness](#launching-a-gui-harness)) |
+| `-p PROMPT`, `--print PROMPT` | Run the harness non-interactively with a prompt instead of an interactive session; `-p` with no value reads the prompt from stdin (see [One-shot runs](#one-shot-runs)) |
 
 `--endpoint` and `--protocol` only make sense together; either one alone is a
 parse error. `--persist` takes both values at once (`--persist config model`)
 or comma-separated (`--persist config,model`).
+
+By default a CLI harness runs as an **interactive session**: the launcher
+hands it your terminal, so its interface draws on your screen and reads your
+keystrokes. That requires a terminal - launching one while stdin or stdout is
+redirected or piped refuses with exit code 13 instead of rendering into
+handles nobody can read. See [One-shot runs](#one-shot-runs) for the piped
+alternative.
+
+### One-shot runs
+
+`-p PROMPT` (or `--print PROMPT`) runs the harness in its own
+non-interactive mode instead: the prompt goes to the harness's one-shot
+spelling (`claude -p`, `opencode run`, `kilo run`, `codex exec`,
+`copilot -p`), and the run's output is printed when it finishes. No terminal
+is needed, so this is the form for scripts and CI:
+
+```bash
+harnessgateway launch claude-code -p "summarize the git history"
+echo "fix the failing test" | harnessgateway launch claude-code -p
+```
+
+`-p` with no value reads the prompt from stdin. Two misuses exit with exit
+code 2: a harness with no one-shot mode the launcher knows how to drive (the
+GUI harness, and `pi`), and `-p` with no prompt available - none passed as an
+argument and none readable from stdin. Everything else about the launch - the
+provider, key, model, and `--persist` behaviour - is unchanged from an
+interactive session.
 
 ```bash
 harnessgateway --version
@@ -520,7 +548,7 @@ leaves it untouched.
 | Code | Name | Meaning |
 |------|------|---------|
 | 0 | Ok | Command succeeded. For `launch`, the harness process itself exited 0. For a detached GUI launch (`--persist config`), the app was handed off successfully and there is no exit status to wait for |
-| 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), a `remove` that would break the default pointer or empty the entry list, or `--confirm-running` against a CLI harness, which has no running instance to confirm (ConfirmUnsupportedForHarness) |
+| 2 | UsageError | Invalid arguments, an incomplete `--endpoint`/`--protocol` pair or invalid override values, a launch with nothing configured (empty settings and no complete override pair), a `remove` that would break the default pointer or empty the entry list, `--confirm-running` against a CLI harness, which has no running instance to confirm (ConfirmUnsupportedForHarness), or `-p`/`--print` against a harness with no non-interactive mode or with no prompt to run (PrintUnsupportedForHarness, PrintPromptMissing) |
 | 3 | UnknownAgent | Unrecognized harness identifier, a protocol the chosen harness doesn't support, or a launch whose effective model is not listed in a provider's non-empty catalog (UnlistedModel). A near miss prompts a suggestion of the correct identifier or entry name |
 | 4 | HarnessUnavailable | The harness is known but not installed or not detectable on `PATH` (for a GUI harness: not found on `PATH` or in the OS's conventional install locations), or a GUI launch stopped because an already-running instance was not confirmed (RunningInstanceUnconfirmed), or because the harness's declared configuration support cannot carry the launch's key or overrides (GuiProviderUnsupported) |
 | 5 | EndpointUnreachable | **Reserved.** Declared but never returned; nothing currently probes an endpoint's reachability |
@@ -531,6 +559,7 @@ leaves it untouched.
 | 10 | ConfigConflict | A user-authored `model_providers.harnessgateway` block already exists in the codex config |
 | 11 | UpdateAvailable | `update check` found a newer release and reports both versions; it downloads, installs, and applies nothing |
 | 12 | CheckFailed | `update check` could not complete: a network failure, an HTTP error from the releases endpoint, or a response it cannot parse |
+| 13 | TerminalRequired | An interactive CLI launch with no terminal on stdin or stdout (piped or redirected): the harness would render into handles nobody can read. Run from a real terminal, or pass `-p`/`--print` for a one-shot run |
 
 Exit codes 5 and 6 are reserved and won't appear in this release. The enum
 keeps them so that a future build can claim those numbers without

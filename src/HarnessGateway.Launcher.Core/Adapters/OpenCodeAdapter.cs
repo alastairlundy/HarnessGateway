@@ -6,7 +6,7 @@ using HarnessGateway.Launcher.Core.Serialization;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
 
-public sealed class OpenCodeAdapter : IHarnessAdapter
+public sealed class OpenCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "OpenCode",
@@ -41,23 +41,24 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("opencode", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, printPrompt: null));
+
+    /// <summary>
+    /// The one-shot mode: <c>opencode run "&lt;message&gt;"</c> - the
+    /// harness's own subcommand for a single message. Configuration plans
+    /// exactly as the interactive launch does (the inline-config env var
+    /// carries the provider and model for both modes).
+    /// </summary>
+    public Task<LaunchPlan> PlanNonInteractiveAsync(
+        ResolvedLaunch request,
+        string prompt,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, prompt));
+
+    private static LaunchPlan BuildPlan(ResolvedLaunch request, string? printPrompt)
     {
-        // Direct case branching: each case hands over its own
-        // effective protocol, base URL, and model - no stored-looking
-        // provider is synthesized in between, and no protocol is computed
-        // here.
-        (ProtocolEmission emission, string? model) = request.Launch switch
-        {
-            LaunchResolution.ProviderCase providerCase => (
-                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
-                providerCase.Model),
-            LaunchResolution.AdHocCase adHoc => (
-                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
-                adHoc.Model),
-            _ => throw new InvalidOperationException(
-                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
-        };
+        (ProtocolEmission emission, string? model) = ResolveEmission(request);
 
         // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
@@ -78,7 +79,9 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
         // loads between global and project configuration and which never
         // touches a file on disk. Provider options use {env:...} references
         // rather than literals - the key never gets duplicated into a second
-        // channel, and the TUI prompts for auth when no key is set.
+        // channel, and the TUI prompts for auth when no key is set. `opencode
+        // run` reads the same configuration, so the one-shot plan sets the
+        // same variable.
         if (providerId is not null && model is { Length: > 0 })
         {
             string configContent = BuildSessionConfig(providerId, emission.BaseUrlValue, model);
@@ -91,10 +94,34 @@ public sealed class OpenCodeAdapter : IHarnessAdapter
             WorkingDirectoryPath = request.WorkingDirectory,
             OutputRedirection = true,
             EnvironmentVariables = envVars,
+            // `opencode run [message...]` is the one-shot subcommand; the
+            // message rides ArgumentList so it stays one argv element. When
+            // ArgumentList is non-empty the process library ignores the
+            // Arguments string - which is exactly what `run` wants. An empty
+            // list (the interactive launch) is the property's default.
+            ArgumentList = printPrompt is null ? [] : ["run", printPrompt],
         };
 
-        return Task.FromResult(new LaunchPlan(config, []));
+        return new LaunchPlan(config, []);
     }
+
+    /// <summary>
+    /// Direct case branching: each case hands over its own effective
+    /// protocol, base URL, and model - no stored-looking provider is
+    /// synthesized in between, and no protocol is computed here.
+    /// </summary>
+    private static (ProtocolEmission Emission, string? Model) ResolveEmission(ResolvedLaunch request) =>
+        request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
 
     /// <summary>
     /// Builds the inline session config (OPENCODE_CONFIG_CONTENT): the model

@@ -54,6 +54,22 @@ public class LaunchRunnerTests
         await Assert.That(exitCode).IsEqualTo(0);
     }
 
+    [Test]
+    public async Task RunInteractiveAsync_propagates_exit_code()
+    {
+        // The console-shared member: no output redirection, no timeout - the
+        // child inherits this process's handles and the wait ends when the
+        // child exits. The exit status still comes back like every other
+        // blocking member's.
+        LaunchRunner runner = new LaunchRunner();
+        ProcessConfiguration config = ShellCommand("exit 42", outputRedirection: false);
+        LaunchPlan plan = new LaunchPlan(config, []);
+
+        int exitCode = await runner.RunInteractiveAsync(plan);
+
+        await Assert.That(exitCode).IsEqualTo(42);
+    }
+
     // CI runs on Linux, where "cmd" does not exist; /bin/sh is rooted so CliInvoke's
     // PATH/PATHEXT probing cannot mis-resolve it on Unix either. ArgumentList (not the
     // Arguments string) keeps the command verbatim - no second tokenisation pass.

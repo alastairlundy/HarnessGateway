@@ -67,4 +67,25 @@ public enum LaunchRefusalKind
     /// unlisted-model refusal that reuses exit code 3.
     /// </summary>
     UnlistedModel,
+
+    /// <summary>
+    /// An interactive CLI launch with no terminal on stdin or stdout (piped
+    /// or redirected): the harness would render into handles nobody can
+    /// read. The message points at <c>-p/--print</c> as the one-shot
+    /// alternative. Producers exit 13.
+    /// </summary>
+    TerminalRequired,
+
+    /// <summary>
+    /// <c>-p/--print</c> against a harness with no non-interactive mode the
+    /// launcher knows how to drive: a GUI application, or a CLI harness
+    /// whose one-shot spelling is not implemented. Producers exit 2.
+    /// </summary>
+    PrintUnsupportedForHarness,
+
+    /// <summary>
+    /// <c>-p/--print</c> with no prompt to run: none passed as an argument
+    /// and none readable from stdin. Producers exit 2.
+    /// </summary>
+    PrintPromptMissing,
 }

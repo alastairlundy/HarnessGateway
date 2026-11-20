@@ -4,7 +4,7 @@ using HarnessGateway.Launcher.Core.Launch;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
 
-public sealed class ClaudeCodeAdapter : IHarnessAdapter
+public sealed class ClaudeCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "claude-code",
@@ -42,7 +42,53 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("claude", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, printPrompt: null));
+
+    /// <summary>
+    /// The one-shot mode: <c>claude -p "&lt;prompt&gt;"</c> - the harness's own
+    /// spelling. Everything else (base URL, auth token, model) plans exactly
+    /// as the interactive launch does, because -p changes how claude reads
+    /// its input, not how it is configured.
+    /// </summary>
+    public Task<LaunchPlan> PlanNonInteractiveAsync(
+        ResolvedLaunch request,
+        string prompt,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, prompt));
+
+    private static LaunchPlan BuildPlan(ResolvedLaunch request, string? printPrompt)
+    {
+        (Dictionary<string, string> envVars, List<ConfigurationAction> actions) =
+            BuildProcessEnvironment(request);
+
+        ProcessConfiguration config = new("claude")
+        {
+            Arguments = string.Empty,
+            WorkingDirectoryPath = request.WorkingDirectory,
+            OutputRedirection = true,
+            EnvironmentVariables = envVars,
+            // -p with the prompt on argv is claude's documented one-shot
+            // input path. ArgumentList only: when it is non-empty the
+            // process library ignores the Arguments string, and a list
+            // entry stays one argv element no matter what the prompt
+            // contains. An empty list (the interactive launch) changes
+            // nothing - it is the property's default.
+            ArgumentList = printPrompt is null ? [] : ["-p", printPrompt],
+        };
+
+        return new LaunchPlan(config, actions);
+    }
+
+    /// <summary>
+    /// The emission, the harness-owned key rename and the optional model:
+    /// everything that shapes the spawned process's environment rather than
+    /// its argv. No config file is ever read or written, so the user's
+    /// durable Claude Code settings are untouched and the launcher's own
+    /// process environment is never mutated.
+    /// </summary>
+    private static (Dictionary<string, string> EnvVars, List<ConfigurationAction> Actions)
+        BuildProcessEnvironment(ResolvedLaunch request)
     {
         // Direct case branching: each case hands over its own
         // effective protocol, base URL, and model - no stored-looking
@@ -60,12 +106,8 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
-        // claude-code is configured exclusively through environment variables
-        // scoped to the spawned process. No config file is ever read or written,
-        // so the user's durable Claude Code settings are untouched and the
-        // launcher's own process environment is never mutated. The emission's
-        // base-url variable merges verbatim - ANTHROPIC_BASE_URL is this
-        // harness's spelling too.
+        // The emission's base-url variable merges verbatim -
+        // ANTHROPIC_BASE_URL is this harness's spelling too.
         List<ConfigurationAction> actions = [];
         Dictionary<string, string> envVars = new(StringComparer.Ordinal)
         {
@@ -94,15 +136,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter
             actions.Add(new CliArgumentAction("--model", model));
         }
 
-        ProcessConfiguration config = new("claude")
-        {
-            Arguments = string.Empty,
-            WorkingDirectoryPath = request.WorkingDirectory,
-            OutputRedirection = true,
-            EnvironmentVariables = envVars,
-        };
-
-        return Task.FromResult(new LaunchPlan(config, actions));
+        return (envVars, actions);
     }
 
     private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)

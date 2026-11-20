@@ -152,6 +152,49 @@ public class LaunchCommandFlagParsingTests
     }
 
     [Test]
+    public async Task Parse_print_short_and_long_spellings_are_equivalent()
+    {
+        // -p and --print are one option: both spellings parse to the same
+        // prompt value with no errors.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult shortForm = command.Parse("launch claude-code -p \"hello there\"");
+        ParseResult longForm = command.Parse("launch claude-code --print \"hello there\"");
+
+        await Assert.That(shortForm.Errors).IsEmpty();
+        await Assert.That(longForm.Errors).IsEmpty();
+        await Assert.That(shortForm.GetValue(LaunchCommand.PrintOption)).IsEqualTo("hello there");
+        await Assert.That(shortForm.GetValue(LaunchCommand.PrintOption))
+            .IsEqualTo(longForm.GetValue(LaunchCommand.PrintOption));
+    }
+
+    [Test]
+    public async Task Parse_print_without_a_prompt_value_is_valid()
+    {
+        // ZeroOrOne: -p alone parses - the prompt may come from stdin, which
+        // is the edge's business, not the parser's. Presence, not the value,
+        // is what marks this launch as a print launch.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch claude-code -p");
+
+        await Assert.That(result.Errors).IsEmpty();
+        await Assert.That(result.GetValue(LaunchCommand.PrintOption)).IsNull();
+        await Assert.That(result.GetResult(LaunchCommand.PrintOption)).IsNotNull();
+    }
+
+    [Test]
+    public async Task Parse_print_without_agent_fails()
+    {
+        // Options without a harness stay a parse error for -p/--print too:
+        // the wizard fallback must not swallow it (the wizard has no
+        // one-shot mode to run).
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch -p \"hello\"");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+        await Assert.That(result.Errors[0].Message).Contains("A harness identifier is required");
+    }
+
+    [Test]
     public async Task Parse_persist_single_value()
     {
         LaunchCommand command = new LaunchCommand();
