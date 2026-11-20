@@ -13,9 +13,10 @@ public class KiloAdapterTests
         string? model = "gpt-5",
         string? apiKey = "sk-test",
         bool adHoc = false,
-        IProtocolEmissionPlanner? planner = null)
+        IProtocolEmissionPlanner? planner = null,
+        string baseUriText = "https://api.example.com/v1")
     {
-        Uri baseUri = new("https://api.example.com/v1");
+        Uri baseUri = new(baseUriText);
         Provider provider = new()
         {
             Name = "test",
@@ -110,6 +111,23 @@ public class KiloAdapterTests
 
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("ANTHROPIC_BASE_URL");
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("ANTHROPIC_API_KEY");
+    }
+
+    [Test]
+    public async Task PlanLaunch_responses_drops_a_trailing_responses_segment()
+    {
+        // Kilo's openai-responses protocol joins "/responses" onto the base
+        // URL itself, so an endpoint that already ends in the segment must
+        // reach it without it.
+        KiloAdapter adapter = new KiloAdapter();
+        ResolvedLaunch request = CreateRequest(
+            ProtocolKind.OpenAiResponses,
+            baseUriText: "https://api.example.com/v1/responses");
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+            .IsEqualTo("https://api.example.com/v1");
     }
 
     [Test]

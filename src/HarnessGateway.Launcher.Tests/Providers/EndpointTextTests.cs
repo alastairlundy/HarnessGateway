@@ -43,4 +43,77 @@ public class EndpointTextTests
             EndpointText.TrimTrailingPathSlash(new Uri("https://host/v1/#top")))
             .IsEqualTo("https://host/v1#top");
     }
+
+    [Test]
+    public async Task TrimTrailingResponsesSuffix_drops_a_single_trailing_segment()
+    {
+        // The launch-side normalisation for the adapters whose harness
+        // appends /responses itself: slash-trim plus one segment gone. Only
+        // one occurrence goes - a doubled user endpoint keeps one.
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1/responses")))
+            .IsEqualTo("https://host/v1");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1/responses/")))
+            .IsEqualTo("https://host/v1");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/responses/responses")))
+            .IsEqualTo("https://host/responses");
+    }
+
+    [Test]
+    public async Task TrimTrailingResponsesSuffix_is_segment_exact_and_case_insensitive()
+    {
+        // A partial match (/responsesfoo) is not a segment; the casing of
+        // the real segment is not load-bearing on the wire.
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1/responsesfoo")))
+            .IsEqualTo("https://host/v1/responsesfoo");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1/Responses")))
+            .IsEqualTo("https://host/v1");
+    }
+
+    [Test]
+    public async Task TrimTrailingResponsesSuffix_keeps_the_query_and_fragment()
+    {
+        // Gated proxies carry their credential in the query; the segment
+        // drop is a path concern only.
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1/responses?key=abc")))
+            .IsEqualTo("https://host/v1?key=abc");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1/responses#top")))
+            .IsEqualTo("https://host/v1#top");
+    }
+
+    [Test]
+    public async Task TrimTrailingResponsesSuffix_leaves_other_paths_unchanged()
+    {
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1")))
+            .IsEqualTo("https://host/v1");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host")))
+            .IsEqualTo("https://host");
+    }
+
+    [Test]
+    public async Task TrimTrailingResponsesSegment_drops_a_single_trailing_segment()
+    {
+        // The path-only variant (model-catalogue requests): the caller hands
+        // over a bare path, trailing slash included.
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSegment("/v1/responses"))
+            .IsEqualTo("/v1");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSegment("/v1/responses/"))
+            .IsEqualTo("/v1");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSegment("/v1/responsesfoo"))
+            .IsEqualTo("/v1/responsesfoo");
+        await Assert.That(
+            EndpointText.TrimTrailingResponsesSegment("/v1"))
+            .IsEqualTo("/v1");
+    }
 }

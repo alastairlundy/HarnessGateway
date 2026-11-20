@@ -303,6 +303,34 @@ public class CodexAdapterTests
     }
 
     [Test]
+    public async Task PlanLaunch_drops_a_trailing_responses_segment_from_the_endpoint()
+    {
+        // Codex joins the provider-relative /responses path onto base_url
+        // itself (wire_api = "responses"), so an endpoint that already ends
+        // in the segment must reach it without it - the written block and
+        // the process environment carry the same trimmed value.
+        (string tempDir, string codexHome, _) = CreateCodexHome();
+        try
+        {
+            CodexAdapter adapter = CreateAdapter(codexHome);
+            ResolvedLaunch request = CreateRequest(
+                model: "gpt-5", baseUri: "https://api.example.com/v1/responses");
+
+            LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+            string content = ((ConfigFileWriteAction)plan.ConfigurationActions[0]).Content;
+
+            await Assert.That(content).Contains("base_url = \"https://api.example.com/v1\"");
+            await Assert.That(content).Contains("wire_api = \"responses\"");
+            await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+                .IsEqualTo("https://api.example.com/v1");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task PlanLaunch_never_writes_a_dummy_key_value()
     {
         (string tempDir, string codexHome, _) = CreateCodexHome();

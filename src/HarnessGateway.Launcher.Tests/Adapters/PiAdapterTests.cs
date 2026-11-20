@@ -14,9 +14,10 @@ public class PiAdapterTests
         string? model = "gpt-4",
         string? apiKey = "sk-test",
         bool adHoc = false,
-        IProtocolEmissionPlanner? planner = null)
+        IProtocolEmissionPlanner? planner = null,
+        string baseUriText = "https://api.example.com/v1")
     {
-        Uri baseUri = new("https://api.example.com/v1");
+        Uri baseUri = new(baseUriText);
         Provider provider = new()
         {
             Name = "test",
@@ -99,6 +100,24 @@ public class PiAdapterTests
         await Assert.That(plan.Process.TargetFilePath).IsEqualTo("pi");
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("OPENAI_BASE_URL");
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("OPENAI_API_KEY");
+    }
+
+    [Test]
+    public async Task PlanLaunch_responses_drops_a_trailing_responses_segment()
+    {
+        // Pi's openai-responses family posts to {baseURL}/responses itself
+        // (the OpenAI SDK it constructs joins the resource path onto the
+        // base URL), so an endpoint that already ends in the segment must
+        // reach it without it.
+        PiAdapter adapter = new PiAdapter();
+        ResolvedLaunch request = CreateRequest(
+            ProtocolKind.OpenAiResponses,
+            baseUriText: "https://api.example.com/v1/responses");
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+            .IsEqualTo("https://api.example.com/v1");
     }
 
     [Test]

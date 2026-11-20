@@ -6,7 +6,10 @@ namespace HarnessGateway.Launcher.Core.Providers;
 /// settings or provider context in, one <see cref="ProtocolEmission"/> out.
 /// Per-harness config shapes (OpenCode's inline session config,
 /// Copilot's provider block, Claude Code's auth-token rename) stay
-/// adapter-owned and are never emitted here.
+/// adapter-owned and are never emitted here - and neither is per-harness
+/// URL normalisation: the adapters whose harness appends
+/// <c>/responses</c> to the base URL itself apply
+/// <see cref="EndpointText.TrimTrailingResponsesSuffix"/> adapter-side.
 /// </summary>
 public sealed class ProtocolEmissionPlanner : IProtocolEmissionPlanner
 {

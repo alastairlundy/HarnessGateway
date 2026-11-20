@@ -13,9 +13,10 @@ public class OpenCodeAdapterTests
         string? model = "gpt-4",
         string? apiKey = "sk-test",
         bool adHoc = false,
-        IProtocolEmissionPlanner? planner = null)
+        IProtocolEmissionPlanner? planner = null,
+        string baseUriText = "https://api.example.com/v1")
     {
-        Uri baseUri = new("https://api.example.com/v1");
+        Uri baseUri = new(baseUriText);
         Provider provider = new()
         {
             Name = "test",
@@ -114,6 +115,42 @@ public class OpenCodeAdapterTests
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("OPENAI_BASE_URL");
         await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"]).IsEqualTo("https://api.example.com/v1");
         await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("OPENAI_API_KEY");
+    }
+
+    [Test]
+    public async Task PlanLaunch_responses_drops_a_trailing_responses_segment()
+    {
+        // The AI SDK behind opencode posts Responses-API requests to
+        // {baseURL}/responses itself, so an endpoint that already ends in
+        // the segment would be doubled. The trimmed value reaches both
+        // channels the base URL rides: the env var and the inline config.
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        ResolvedLaunch request = CreateRequest(
+            ProtocolKind.OpenAiResponses,
+            baseUriText: "https://api.example.com/v1/responses");
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+            .IsEqualTo("https://api.example.com/v1");
+        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        await Assert.That(config).Contains("\"baseURL\":\"https://api.example.com/v1\"");
+    }
+
+    [Test]
+    public async Task PlanLaunch_chat_keeps_a_responses_suffixed_endpoint()
+    {
+        // The segment drop is the openai-responses launch path's concern:
+        // a chat launch keeps the endpoint exactly as configured.
+        OpenCodeAdapter adapter = new OpenCodeAdapter();
+        ResolvedLaunch request = CreateRequest(
+            ProtocolKind.OpenAiChat,
+            baseUriText: "https://api.example.com/v1/responses");
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+            .IsEqualTo("https://api.example.com/v1/responses");
     }
 
     [Test]

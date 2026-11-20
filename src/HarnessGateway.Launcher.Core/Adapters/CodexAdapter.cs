@@ -1,4 +1,5 @@
 using CliInvoke;
+using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Toml;
@@ -69,6 +70,14 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         CancellationToken cancellationToken)
     {
         (ProtocolEmission emission, string? model) = ResolveEmission(request);
+
+        // Codex joins the provider-relative "/responses" path onto base_url
+        // itself (this adapter writes wire_api = "responses" below), so an
+        // endpoint that already ends in the segment would be doubled. The
+        // drop is adapter-owned - codex is the harness whose own config
+        // guarantees the appending - and the trimmed value feeds the config
+        // block and the process environment alike.
+        emission = EmissionMerge.DropResponsesSegment(emission);
 
         string configPath = ResolveConfigPath(_getEnvironmentVariable);
         string existing = File.Exists(configPath)

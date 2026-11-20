@@ -57,6 +57,12 @@ public sealed class PiAdapter : IHarnessAdapter
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
+        // Pi's openai-responses API family posts to {baseURL}/responses
+        // itself (the OpenAI SDK it constructs joins the resource path onto
+        // the base URL), so an endpoint that already ends in the segment
+        // would be doubled. Adapter-owned and protocol-gated.
+        emission = EmissionMerge.DropResponsesSegment(emission);
+
         // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);

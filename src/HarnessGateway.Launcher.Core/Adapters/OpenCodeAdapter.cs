@@ -60,6 +60,13 @@ public sealed class OpenCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAdap
     {
         (ProtocolEmission emission, string? model) = ResolveEmission(request);
 
+        // The AI SDK behind opencode posts Responses-API requests to
+        // {baseURL}/responses itself, so an endpoint that already ends in
+        // the segment would be doubled. Adapter-owned and protocol-gated:
+        // the chat and anthropic launch paths keep the endpoint exactly as
+        // configured.
+        emission = EmissionMerge.DropResponsesSegment(emission);
+
         // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);

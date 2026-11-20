@@ -160,6 +160,12 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
+        // Same engine as the CLI sibling: the AI SDK behind the desktop app's
+        // embedded opencode server posts Responses-API requests to
+        // {baseURL}/responses itself, so an endpoint that already ends in
+        // the segment would be doubled. Adapter-owned and protocol-gated.
+        emission = EmissionMerge.DropResponsesSegment(emission);
+
         // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);

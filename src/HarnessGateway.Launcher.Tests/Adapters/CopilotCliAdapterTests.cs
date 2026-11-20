@@ -14,9 +14,10 @@ public class CopilotCliAdapterTests
         string? model = "gpt-4",
         string? apiKey = "sk-test",
         bool adHoc = false,
-        IProtocolEmissionPlanner? planner = null)
+        IProtocolEmissionPlanner? planner = null,
+        string baseUriText = "https://api.example.com/v1")
     {
-        Uri baseUri = new("https://api.example.com/v1");
+        Uri baseUri = new(baseUriText);
         Provider provider = new()
         {
             Name = "test",
@@ -110,6 +111,23 @@ public class CopilotCliAdapterTests
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.EnvironmentVariables["COPILOT_PROVIDER_TYPE"]).IsEqualTo("openai");
+    }
+
+    [Test]
+    public async Task PlanLaunch_responses_keeps_a_responses_suffixed_endpoint()
+    {
+        // Copilot's provider type has no Responses surface - both OpenAI
+        // protocols collapse to "openai" - so the adapter never trims: the
+        // endpoint rides COPILOT_PROVIDER_BASE_URL exactly as configured.
+        CopilotCliAdapter adapter = new CopilotCliAdapter();
+        ResolvedLaunch request = CreateRequest(
+            ProtocolKind.OpenAiResponses,
+            baseUriText: "https://api.example.com/v1/responses");
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.EnvironmentVariables["COPILOT_PROVIDER_BASE_URL"])
+            .IsEqualTo("https://api.example.com/v1/responses");
     }
 
     [Test]

@@ -83,6 +83,22 @@ public class ProtocolEmissionPlannerTests
     }
 
     [Test]
+    public async Task Plan_keeps_a_responses_suffixed_endpoint_untouched()
+    {
+        // The planner is a pure protocol mapping: the /responses segment
+        // drop is adapter-owned (EmissionMerge.DropResponsesSegment), so a
+        // base URL that already ends in the segment reaches the adapter
+        // exactly as configured - the harnesses that append it themselves
+        // trim it there.
+        IProtocolEmissionPlanner planner = new ProtocolEmissionPlanner();
+
+        ProtocolEmission responses = planner.Plan(
+            ProtocolKind.OpenAiResponses, new Uri("https://host/v1/responses"));
+
+        await Assert.That(responses.BaseUrlValue).IsEqualTo("https://host/v1/responses");
+    }
+
+    [Test]
     public async Task Plan_signature_is_two_plain_inputs_one_output_and_no_async()
     {
         MethodInfo? plan = typeof(IProtocolEmissionPlanner).GetMethod("Plan");

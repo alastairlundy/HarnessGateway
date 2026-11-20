@@ -18,9 +18,10 @@ public class OpenCodeDesktopAdapterTests
         string? model = "gpt-4",
         string? apiKey = "sk-test",
         bool adHoc = false,
-        IProtocolEmissionPlanner? planner = null)
+        IProtocolEmissionPlanner? planner = null,
+        string baseUriText = "https://api.example.com/v1")
     {
-        Uri baseUri = new("https://api.example.com/v1");
+        Uri baseUri = new(baseUriText);
         Provider provider = new()
         {
             Name = "test",
@@ -87,6 +88,26 @@ public class OpenCodeDesktopAdapterTests
         await Assert.That(planner.PlannedCalls[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
         await Assert.That(planner.PlannedCalls[0].BaseUri)
             .IsEqualTo(new Uri("https://api.example.com/v1"));
+    }
+
+    [Test]
+    public async Task PlanLaunch_responses_drops_a_trailing_responses_segment()
+    {
+        // Same engine as the CLI sibling: the AI SDK posts Responses-API
+        // requests to {baseURL}/responses itself, so the segment must not
+        // ride the base URL it is handed - the env var and the inline
+        // config carry the trimmed value.
+        OpenCodeDesktopAdapter adapter = new OpenCodeDesktopAdapter();
+        ResolvedLaunch request = CreateRequest(
+            ProtocolKind.OpenAiResponses,
+            baseUriText: "https://api.example.com/v1/responses");
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
+            .IsEqualTo("https://api.example.com/v1");
+        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        await Assert.That(config).Contains("\"baseURL\":\"https://api.example.com/v1\"");
     }
 
     [Test]

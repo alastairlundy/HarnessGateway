@@ -41,7 +41,14 @@ public sealed class ModelCatalogClient
     /// </summary>
     private static Uri BuildModelsUri(Provider backend)
     {
-        string basePath = backend.BaseUri.AbsolutePath.TrimEnd('/');
+        // When the provider speaks the OpenAI Responses API, a base URL that
+        // already ends in "/responses" would yield "/responses/models" here;
+        // strip a single trailing occurrence so the models request lands on
+        // "/v1/models" (or "/models") instead. Shared with the launch-side
+        // normalisation via EndpointText.
+        string basePath = backend.DefaultProtocol == ProtocolKind.OpenAiResponses
+            ? EndpointText.TrimTrailingResponsesSegment(backend.BaseUri.AbsolutePath)
+            : backend.BaseUri.AbsolutePath.TrimEnd('/');
 
         // A bare origin trims down to an empty path; keep its historical
         // /v1 target so https://host still fetches https://host/v1/models.

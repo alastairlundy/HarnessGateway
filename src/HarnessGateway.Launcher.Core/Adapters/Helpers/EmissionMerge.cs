@@ -12,6 +12,35 @@ namespace HarnessGateway.Launcher.Core.Adapters.Helpers;
 public static class EmissionMerge
 {
     /// <summary>
+    /// The adapter-side opt-in for harnesses that append <c>/responses</c>
+    /// to the base URL themselves: Codex joins the provider-relative path
+    /// (<c>wire_api = "responses"</c>) onto <c>base_url</c>, and the
+    /// OpenAI-family SDKs behind the opencode engine (OpenCode CLI and
+    /// desktop, Kilo) and Pi post to <c>{baseURL}/responses</c>. An endpoint
+    /// that already ends in the segment would be doubled, so the single
+    /// trailing occurrence is dropped from the emission's base URL here -
+    /// adapter-owned because it encodes those harnesses' URL behaviour, and
+    /// never in the shared planner. Adapters whose harness has no Responses
+    /// surface (Copilot's provider type collapses both OpenAI protocols to
+    /// "openai") do not call this and keep the endpoint exactly as
+    /// configured.
+    /// </summary>
+    public static ProtocolEmission DropResponsesSegment(ProtocolEmission emission)
+    {
+        if (emission.Protocol != ProtocolKind.OpenAiResponses)
+        {
+            return emission;
+        }
+
+        // The emission's value is already the planner's slash-trimmed
+        // endpoint; the same Uri-based normalisation re-applied to it is
+        // idempotent and only ever removes the segment.
+        return emission with
+        {
+            BaseUrlValue = EndpointText.TrimTrailingResponsesSuffix(new Uri(emission.BaseUrlValue)),
+        };
+    }
+    /// <summary>
     /// Merges <paramref name="emission"/> into
     /// <paramref name="environmentVariables"/>: the base-url variable plus
     /// every extra the planner filled, with <paramref name="apiKey"/>

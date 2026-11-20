@@ -71,19 +71,43 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
+        // Kilo's openai-responses protocol joins the "/responses" resource
+        // path onto the base URL itself, so an endpoint that already ends in
+        // the segment would be doubled. Adapter-owned and protocol-gated:
+        // the chat and anthropic launch paths keep the endpoint exactly as
+        // configured.
+        emission = EmissionMerge.DropResponsesSegment(emission);
+
         // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
         EmissionMerge.MergeInto(envVars, emission, request.ApiKey);
 
+        ProcessConfiguration config = new("kilo")
+        {
+            ArgumentList = BuildArguments(printPrompt, model),
+            WorkingDirectoryPath = request.WorkingDirectory,
+            OutputRedirection = true,
+            EnvironmentVariables = envVars,
+        };
+
+        return new LaunchPlan(config, []);
+    }
+
+    /// <summary>
+    /// The argv for the launch: the model rides -m/--model in the global
+    /// slot for the interactive launch, while the one-shot subcommand
+    /// <c>kilo run</c> takes the message as its positional and its own
+    /// -m/--model flag, so the model goes after <c>run</c> there. The
+    /// message is last, as one ArgumentList entry: the process library
+    /// keeps it a single argv element whatever it contains.
+    /// </summary>
+    private static List<string> BuildArguments(string? printPrompt, string? model)
+    {
         List<string> args = [];
 
         if (printPrompt is not null)
         {
-            // The one-shot subcommand first: `kilo run` takes the message as
-            // its positional and its own -m/--model flag, so the model goes
-            // after `run` here rather than in the global slot the
-            // interactive launch uses.
             args.Add("run");
             if (model is { Length: > 0 })
             {
@@ -91,8 +115,6 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
                 args.Add(model);
             }
 
-            // Message last, as one ArgumentList entry: the process library
-            // keeps it a single argv element whatever it contains.
             args.Add(printPrompt);
         }
         else if (model is { Length: > 0 })
@@ -101,15 +123,7 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             args.Add(model);
         }
 
-        ProcessConfiguration config = new("kilo")
-        {
-            ArgumentList = args,
-            WorkingDirectoryPath = request.WorkingDirectory,
-            OutputRedirection = true,
-            EnvironmentVariables = envVars,
-        };
-
-        return new LaunchPlan(config, []);
+        return args;
     }
 
     private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)

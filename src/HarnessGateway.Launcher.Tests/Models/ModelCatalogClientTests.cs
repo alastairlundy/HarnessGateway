@@ -139,6 +139,34 @@ public class ModelCatalogClientTests
     }
 
     [Test]
+    public async Task OpenAi_responses_endpoint_strips_trailing_responses_suffix()
+    {
+        var openAiResponse = new
+        {
+            data = new[]
+            {
+                new { id = "gpt-4o", @object = "model" }
+            }
+        };
+
+        StubHttpMessageHandler handler = new StubHttpMessageHandler(JsonSerializer.Serialize(openAiResponse));
+        HttpClient client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.com") };
+        ModelCatalogClient catalogClient = new ModelCatalogClient(client);
+
+        Provider backend = new Provider
+        {
+            Name = "openai-responses",
+            BaseUri = new Uri("https://api.openai.com/v1/responses"),
+            DefaultProtocol = ProtocolKind.OpenAiResponses,
+            ApiKey = "sk-test"
+        };
+
+        ModelCatalog catalog = await catalogClient.FetchModelsAsync(backend);
+
+        await Assert.That(handler.LastRequest?.RequestUri?.AbsoluteUri).IsEqualTo("https://api.openai.com/v1/models");
+    }
+
+    [Test]
     public async Task Backend_without_api_key_omits_authorization_header()
     {
         var openAiResponse = new
