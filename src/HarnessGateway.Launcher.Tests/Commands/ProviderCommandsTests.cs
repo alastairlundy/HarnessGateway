@@ -1407,6 +1407,73 @@ public class ProviderCommandsTests
             LauncherSettings saved = await store.LoadAsync();
             ModelEntry entry = saved.Providers[0].Models.Single(m => m.Name == "GPT-5");
             await Assert.That(entry.Protocol).IsNull();
+            await Assert.That(entry.Endpoint).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Model_add_with_endpoint_stores_the_override()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            SettingsStore store = CreateSettingsStore(tempDir);
+            store.Save(new LauncherSettings
+            {
+                Providers = [CreateProvider("work")],
+                DefaultProvider = "work"
+            });
+
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(
+                    store,
+                    "provider model add work GPT-5 --endpoint https://per-model.example/v1")));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(output).Contains("GPT-5");
+
+            LauncherSettings saved = await store.LoadAsync();
+            ModelEntry entry = saved.Providers[0].Models.Single(m => m.Name == "GPT-5");
+            await Assert.That(entry.Endpoint).IsEqualTo(new Uri("https://per-model.example/v1"));
+            // The endpoint flag is independent of the protocol override: no
+            // --protocol means the provider default protocol still applies.
+            await Assert.That(entry.Protocol).IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Model_add_invalid_endpoint_returns_usage_error_and_writes_nothing()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            SettingsStore store = CreateSettingsStore(tempDir);
+            store.Save(new LauncherSettings
+            {
+                Providers = [CreateProvider("work")],
+                DefaultProvider = "work"
+            });
+            string before = Fingerprint(store);
+
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(
+                    store,
+                    "provider model add work GPT-5 --endpoint not-a-url")));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("Invalid endpoint 'not-a-url'");
+            await Assert.That(Fingerprint(store)).IsEqualTo(before);
+
+            LauncherSettings saved = await store.LoadAsync();
+            await Assert.That(saved.Providers[0].Models).IsEmpty();
         }
         finally
         {
@@ -1605,6 +1672,52 @@ public class ProviderCommandsTests
             await Assert.That(output).Contains("GPT-5");
             await Assert.That(output).Contains("anthropic");
             await Assert.That(output).Contains("GPT-4o");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Model_list_prints_each_endpoint_or_the_provider_default()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            SettingsStore store = CreateSettingsStore(tempDir);
+            store.Save(new LauncherSettings
+            {
+                Providers =
+                [
+                    CreateProvider("work") with
+                    {
+                        Models =
+                        [
+                            new ModelEntry
+                            {
+                                Name = "GPT-5",
+                                Endpoint = new Uri("https://per-model.example/v1"),
+                            },
+                            new ModelEntry { Name = "GPT-4o" }
+                        ]
+                    }
+                ],
+                DefaultProvider = "work"
+            });
+            string before = Fingerprint(store);
+
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(store, "provider model list work")));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(Fingerprint(store)).IsEqualTo(before);
+
+            string[] lines = output.Split(Environment.NewLine);
+            await Assert.That(lines.Any(line =>
+                line.Contains("GPT-5") && line.Contains("https://per-model.example/v1"))).IsTrue();
+            await Assert.That(lines.Any(line =>
+                line.Contains("GPT-4o") && line.Contains("(provider default)"))).IsTrue();
         }
         finally
         {

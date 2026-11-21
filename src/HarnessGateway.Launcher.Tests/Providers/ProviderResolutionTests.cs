@@ -21,8 +21,8 @@ public class ProviderResolutionTests
         Models = models ?? []
     };
 
-    private static ModelEntry Model(string name, ProtocolKind? protocol = null) =>
-        new() { Name = name, Protocol = protocol };
+    private static ModelEntry Model(string name, ProtocolKind? protocol = null, Uri? endpoint = null) =>
+        new() { Name = name, Protocol = protocol, Endpoint = endpoint };
 
     private static LauncherSettings SettingsWith(string defaultPointer, params Provider[] providers) => new()
     {
@@ -469,5 +469,80 @@ public class ProviderResolutionTests
 
         ProviderResolutionResult launch = ProviderResolution.Resolve(settings, "primary", null, null, null);
         await Assert.That(launch).IsTypeOf<ProviderResolutionResult.Failed>();
+    }
+
+    [Test]
+    public async Task Resolve_model_entry_endpoint_override_applies_to_the_session_without_a_flag_pair()
+    {
+        // The stored DefaultModel path: nothing is named on the command line,
+        // and the same listed-entry lookup that layers the protocol override
+        // layers the endpoint override over the provider's BaseUri.
+        LauncherSettings settings = SettingsWith(
+            "primary",
+            Entry(
+                "primary",
+                uri: "https://api.example.com/v1",
+                defaultModel: "gpt-5",
+                models: [Model("gpt-5", endpoint: new Uri("https://per-model.example/v1"))]));
+
+        ProviderResolutionResult result = ProviderResolution.Resolve(settings, null, null, null, null);
+
+        LaunchResolution.ProviderCase providerCase = CaseOf(result);
+        await Assert.That(providerCase.BaseUri).IsEqualTo(new Uri("https://per-model.example/v1"));
+        // The session-layered Provider copy carries the effective endpoint too.
+        await Assert.That(providerCase.Provider.BaseUri).IsEqualTo(new Uri("https://per-model.example/v1"));
+        await Assert.That(providerCase.BaseUri).IsEqualTo(providerCase.Provider.BaseUri);
+    }
+
+    [Test]
+    public async Task Resolve_model_flag_applies_the_listed_entry_endpoint_else_the_provider_endpoint()
+    {
+        LauncherSettings settings = SettingsWith(
+            "primary",
+            Entry(
+                "primary",
+                uri: "https://api.example.com/v1",
+                defaultModel: "gpt-4o",
+                models:
+                [
+                    Model("gpt-4o"),
+                    Model("gpt-5", endpoint: new Uri("https://per-model.example/v1")),
+                ]));
+
+        ProviderResolutionResult overridden = ProviderResolution.Resolve(
+            settings, "primary", null, null, "gpt-5");
+        await Assert.That(CaseOf(overridden).BaseUri)
+            .IsEqualTo(new Uri("https://per-model.example/v1"));
+
+        ProviderResolutionResult inherited = ProviderResolution.Resolve(
+            settings, "primary", null, null, "gpt-4o");
+        await Assert.That(CaseOf(inherited).BaseUri)
+            .IsEqualTo(new Uri("https://api.example.com/v1"));
+    }
+
+    [Test]
+    public async Task Resolve_flag_pair_wins_wholesale_over_a_stored_endpoint_override()
+    {
+        // The flag pair is the session endpoint, so a stored per-model
+        // endpoint is silently ignored when one is named - documented in the
+        // README's launch section.
+        LauncherSettings settings = SettingsWith(
+            "primary",
+            Entry(
+                "primary",
+                uri: "https://api.example.com/v1",
+                defaultModel: "gpt-5",
+                models: [Model("gpt-5", endpoint: new Uri("https://per-model.example/v1"))]));
+
+        ProviderResolutionResult result = ProviderResolution.Resolve(
+            settings,
+            "primary",
+            "https://override.example/v1",
+            "openai-chat",
+            null);
+
+        LaunchResolution.ProviderCase providerCase = CaseOf(result);
+        await Assert.That(providerCase.BaseUri).IsEqualTo(new Uri("https://override.example/v1"));
+        await Assert.That(providerCase.Provider.BaseUri).IsEqualTo(new Uri("https://override.example/v1"));
     }
 }

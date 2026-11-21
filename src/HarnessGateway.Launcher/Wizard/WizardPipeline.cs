@@ -196,10 +196,28 @@ public sealed class WizardPipeline
                     continue;
                 }
 
+                // Per-model endpoint override (D011): the picked model's stored
+                // endpoint goes into the session endpoint the wizard returns -
+                // the launch request's flag pair, which wins wholesale - and a
+                // line names it so the swap is visible rather than silent. The
+                // wizard stays write-free: the override is read from the
+                // chosen provider's stored model list and never persisted, and
+                // the provider's endpoint stands when the pick carries none.
+                string sessionEndpoint = providerResult.endpoint;
+                ModelEntry? pickedEntry = FindStoredModelEntry(providerResult.provider, modelSelection.Model);
+                if (pickedEntry?.Endpoint is { } endpointOverride)
+                {
+                    sessionEndpoint = endpointOverride.ToString();
+                    string endpointLine =
+                        $"Using endpoint {sessionEndpoint} for model '{pickedEntry.Name}'.";
+                    await Task.Run(() => _console.WriteMarkup(endpointLine), cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 return new WizardCompleted(new WizardResult(
                     harnessName!,
                     ProviderName: providerResult.provider?.Name,
-                    providerResult.endpoint,
+                    sessionEndpoint,
                     Protocol: effectiveProtocol,
                     ApiKey: apiKey,
                     Model: modelSelection.Model));
@@ -404,6 +422,17 @@ public sealed class WizardPipeline
                $"({ProviderResolution.ProtocolName(protocol)}) is not supported by {harnessName}, " +
                $"which supports: {supported}.";
     }
+
+    /// <summary>
+    /// The stored entry the model step's pick names, matched with the launch
+    /// resolver's case-insensitive rule; null when nothing was picked or the
+    /// picked name is absent from the chosen provider's catalog.
+    /// </summary>
+    private static ModelEntry? FindStoredModelEntry(Provider? provider, string? model) =>
+        provider is not null && model is not null
+            ? provider.Models.FirstOrDefault(m =>
+                string.Equals(m.Name, model, StringComparison.OrdinalIgnoreCase))
+            : null;
 
     private async Task<(string? endpoint, ProtocolKind protocol, Provider? provider)> RunProviderStepAsync(
         LauncherSettings settings,

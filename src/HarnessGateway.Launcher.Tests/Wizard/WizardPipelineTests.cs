@@ -1224,4 +1224,69 @@ public class WizardPipelineTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task RunAsync_model_endpoint_override_swaps_the_session_endpoint_and_names_it()
+    {
+        // A stored endpoint on the picked model's entry goes into the
+        // session endpoint the wizard returns - the launch request's flag
+        // pair - and a line names it, so the swap is visible. The wizard
+        // stays write-free: the override is only ever read.
+        LauncherSettings settings = new LauncherSettings
+        {
+            Providers =
+            [
+                new Provider
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://provider.example/v1"),
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:default",
+                    Models =
+                    [
+                        new ModelEntry
+                        {
+                            Name = "gpt-4o",
+                            Endpoint = new Uri("https://per-model.example/v1"),
+                        }
+                    ],
+                }
+            ],
+            DefaultProvider = "default",
+        };
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter(
+                "RequiredAgent", requiresModel: true);
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("RequiredAgent");
+            console.EnqueueChoice("default");
+            console.EnqueueText("gpt-4o");
+
+            string before = Convert.ToBase64String(File.ReadAllBytes(store.SettingsFilePath));
+            WizardResult? result = await pipeline.RunAsync();
+            string after = Convert.ToBase64String(File.ReadAllBytes(store.SettingsFilePath));
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Endpoint).IsEqualTo("https://per-model.example/v1");
+            await Assert.That(result.Model).IsEqualTo("gpt-4o");
+
+            // The naming line's exact wording is non-contractual UX: only
+            // that it names the endpoint actually used is asserted.
+            await Assert.That(console.WrittenMessages.Any(
+                message => message.Contains("https://per-model.example/v1"))).IsTrue();
+
+            // No settings write anywhere.
+            await Assert.That(after).IsEqualTo(before);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

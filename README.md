@@ -200,6 +200,14 @@ harnessgateway launch [HARNESS] [options]
 parse error. `--persist` takes both values at once (`--persist config model`)
 or comma-separated (`--persist config,model`).
 
+The pair wins wholesale. When you pass it, the selected entry's stored
+endpoint and protocol are replaced for that launch, and a per-model endpoint
+override stored against the model you name is silently ignored - the flag
+pair is what the session uses. Without the pair, the effective model's stored
+endpoint override applies when its entry carries one (see
+[Provider models](#provider-models)); otherwise the entry's own endpoint is
+used.
+
 By default a CLI harness runs as an **interactive session**: the launcher
 hands it your terminal, so its interface draws on your screen and reads your
 keystrokes. That requires a terminal - launching one while stdin or stdout is
@@ -482,18 +490,33 @@ Model entries for a provider are managed through the `provider model`
 sub-verbs (models are deliberately not scriptable through `config set`):
 
 ```bash
-harnessgateway provider model add <provider> <name> [--protocol PROTOCOL]
+harnessgateway provider model add <provider> <name> [--protocol PROTOCOL] [--endpoint URL]
 harnessgateway provider model remove <provider> <name>
 harnessgateway provider model list <provider>
 ```
 
 `provider model add` appends a new entry to the catalog. `--protocol` is
-optional; when omitted the entry inherits the provider's default protocol. A
+optional; when omitted the entry inherits the provider's default protocol.
+`--endpoint URL` is optional too: it stores an endpoint override for that
+one model, so a single provider entry can serve a gateway that exposes a
+different endpoint per model. The URL must be absolute - the same rule
+`provider add` applies - and a malformed URL exits with code 2. Without the
+flag the entry inherits the provider's default endpoint, and the provider's
+API key stays the only credential: there is no per-model key. A
 name that is already listed for the provider (case-insensitively) exits with
 code 2 rather than replacing the existing entry; remove it first with
-`provider model remove` if you want to change it. `provider model remove`
-deletes the entry; a model name that is not listed exits with code 2.
-`provider model list` prints the entry names.
+`provider model remove` if you want to change it - there is no update verb,
+so changing a protocol or an endpoint means remove and re-add.
+`provider model remove` deletes the entry; a model name that is not listed
+exits with code 2. `provider model list` prints each entry's name, its
+protocol (or `(provider default)`), and its endpoint (or
+`(provider default)`).
+
+At launch, absent a complete `--endpoint <url> --protocol <protocol>` pair,
+the effective model's stored endpoint applies when its entry carries one,
+otherwise the provider's endpoint does - the same lookup that applies the
+protocol override applies the endpoint. Passing the pair replaces both for
+that launch and silently ignores the stored per-model endpoint.
 
 A provider with an empty catalog launches any model on its default protocol
 (or the entry's own override once one is listed). A provider with a non-empty

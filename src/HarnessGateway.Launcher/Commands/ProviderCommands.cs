@@ -502,12 +502,19 @@ internal sealed class ProviderCommands : Command
                 "Protocol override for this model (openai-chat, openai-responses, anthropic); " +
                 "omit to inherit the provider default",
         };
+        Option<string?> endpointOption = new("--endpoint")
+        {
+            Description =
+                "Endpoint override for this model (absolute URL); " +
+                "omit to inherit the provider default endpoint",
+        };
 
         Command cmd = new("add", "Add a model entry to a provider's catalog")
         {
             providerArg,
             modelArg,
             protocolOption,
+            endpointOption,
         };
 
         cmd.SetAction(async (result, cancellationToken) =>
@@ -515,6 +522,7 @@ internal sealed class ProviderCommands : Command
             string providerName = result.GetRequiredValue(providerArg);
             string modelName = result.GetRequiredValue(modelArg);
             string? protocol = result.GetValue(protocolOption);
+            string? endpoint = result.GetValue(endpointOption);
 
             (LauncherSettings settings, int loadExitCode) =
                 await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
@@ -538,6 +546,24 @@ internal sealed class ProviderCommands : Command
                 protocolOverride = kind;
             }
 
+            // Same absolute-URL rule provider add enforces through
+            // LaunchCommand.ParseEndpoint: an endpoint that does not parse as
+            // absolute is a usage error here, before the entry is resolved or
+            // anything is written.
+            Uri? endpointOverride = null;
+            if (endpoint is not null)
+            {
+                if (!Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? parsedEndpoint))
+                {
+                    await Console.Error.WriteLineAsync(
+                            $"Invalid endpoint '{endpoint}': must be an absolute URL.")
+                        .ConfigureAwait(true);
+                    return (int)LaunchExitCode.UsageError;
+                }
+
+                endpointOverride = parsedEndpoint;
+            }
+
             ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, providerName);
 
             (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
@@ -559,7 +585,16 @@ internal sealed class ProviderCommands : Command
 
             Provider updated = entry with
             {
-                Models = [.. entry.Models, new ModelEntry { Name = modelName, Protocol = protocolOverride }],
+                Models =
+                [
+                    .. entry.Models,
+                    new ModelEntry
+                    {
+                        Name = modelName,
+                        Protocol = protocolOverride,
+                        Endpoint = endpointOverride,
+                    }
+                ],
             };
             ConfigCommand.UpdateProvider(settings, updated);
             _settingsStore.Save(settings);
@@ -676,7 +711,10 @@ internal sealed class ProviderCommands : Command
                 string protocol = model.Protocol is { } overrideProtocol
                     ? ProviderResolution.ProtocolName(overrideProtocol)
                     : "(provider default)";
-                Console.WriteLine($"  {model.Name}  {protocol}");
+                string endpoint = model.Endpoint is { } overrideEndpoint
+                    ? overrideEndpoint.ToString()
+                    : "(provider default)";
+                Console.WriteLine($"  {model.Name}  {protocol}  {endpoint}");
             }
 
             return 0;
