@@ -132,6 +132,9 @@ through that lookup plus your OS's conventional install locations.
 | `opencode-desktop` | OpenCode Desktop (GUI app) | `OpenCode.exe` (Windows), `OpenCode.app` (macOS), `ai.opencode.desktop` (Linux) | chat, responses, anthropic | required | `brew install --cask opencode-desktop`, or download from https://opencode.ai/download |
 
 "chat" is shorthand for `openai-chat` and "responses" for `openai-responses`.
+Kilo supplies its own default model when `--model` is omitted, so the
+launcher's "requires a model" warning for it is informational and the launch
+still proceeds.
 If you request a protocol that the harness doesn't support, the launcher
 exits with exit code 3 and prints the protocols that harness supports.
 
