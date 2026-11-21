@@ -24,7 +24,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   themselves, so an endpoint that already ends in `/responses` is not doubled
   for the OpenAI Chat Completions and Anthropic paths.
 
-[0.1.2]: https://github.com/alastairlundy/HarnessGateway/compare/v0.1.1...HEAD
+[0.1.2]: https://github.com/alastairlundy/HarnessGateway/compare/0.1.1...HEAD
 
 ## [0.1.1] - 2026-11-20
 
