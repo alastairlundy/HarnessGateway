@@ -1,10 +1,26 @@
 name: Publish release
 
 # workflow_dispatch ONLY: the sole way a release becomes visible to users.
-# It asserts the dispatched tag matches the csproj <Version>, builds the
-# binaries from the tagged commit and both Windows MSIs, attaches them to
-# the existing draft, and then - as the last act - flips that draft to
-# published. A bare tag push publishes nothing.
+# It asserts the dispatched tag matches the csproj <Version>, builds every
+# artifact from the tagged commit, attaches them to the existing draft, and
+# then - as the last act - flips that draft to published. A bare tag push
+# publishes nothing.
+#
+# Release binaries are Native AOT, which cannot cross-compile across operating
+# systems, so the binary builds run as one job per OS, each publishing the RIDs
+# native to it. The final publish job runs no builds: it stages the uploaded
+# artifacts and attaches them.
+#   windows -> win-x64 (native) + win-arm64 (cross-arch; the image ships
+#              VC.Tools.ARM64) -> version-less zip archives
+#   linux   -> linux-x64 (native) + linux-arm64 (cross-arch) via the Linux-scoped
+#              dotnet-releaser.toml -> tar.gz archives + unsigned deb/rpm; also
+#              runs the TUnit suite against the tagged commit
+#   macos   -> osx-arm64 (native) + osx-x64 (cross-arch via the Xcode
+#              toolchains) -> version-less tar.gz archives
+# The msi job (below) publishes the Launcher AOT as each MSI's payload.
+# Each build job smoke-runs the one binary it can execute on its own runner
+# (win-x64, linux-x64, osx-arm64); win-arm64, linux-arm64 and osx-x64 are
+# published without execution, matching the old smoke matrix's practice.
 
 on:
   workflow_dispatch:
@@ -75,31 +91,273 @@ jobs:
             src/HarnessGateway.Installer/bin/Release/harnessgateway-win-x64.msi
             src/HarnessGateway.Installer/bin/Release/harnessgateway-win-arm64.msi
           if-no-files-found: error
-          # Ephemeral: only needed long enough for the attach step (same run),
-          # matching draft-release.yml's artifact-retention practice.
+          # Ephemeral: only needed long enough for the attach step (same run).
           retention-days: 1
 
-  publish:
-    name: Assert, attach, publish
-    # Installers first: attach stages their MSIs with the archives below, so a
-    # failed installer build must stop the dispatch before anything is
-    # uploaded or published.
-    needs: msi
-    runs-on: ubuntu-latest
+  windows:
+    name: Build win-x64 and win-arm64 zip archives
+    runs-on: windows-latest
     permissions:
-      contents: write
-      # Retained for changelog generation, which is currently disabled in
-      # dotnet-releaser.toml. Read-only; safe to keep while it stays off.
-      pull-requests: read
+      contents: read
     steps:
       - name: Checkout the tagged commit
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
-          fetch-depth: 0
 
-      # Fails before any build or publish work when the tag disagrees with the
-      # pinned <Version> of the checked-out (tagged) commit.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Native AOT publish per RID. win-arm64 cross-compiles from this x64
+      # runner: cross-arch is supported within one OS and the runner image
+      # ships the required VS "VC.Tools.ARM64" build tools component. Symbols
+      # stay out of the payload, matching the release archives.
+      - name: Publish win-x64
+        shell: bash
+        run: dotnet publish src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj -c Release -r win-x64 -p:PublishAot=true -p:CopyOutputSymbolsToPublishDirectory=false
+
+      - name: Publish win-arm64
+        shell: bash
+        run: dotnet publish src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj -c Release -r win-arm64 -p:PublishAot=true -p:CopyOutputSymbolsToPublishDirectory=false
+
+      # Files land at the archive root, matching the previous archive layout
+      # (extract and run the binary beside it). Symbols stay out of the
+      # archives: AOT publish can still stage referenced projects' pdbs
+      # (CopyOutputSymbolsToPublishDirectory does not cover them).
+      - name: Zip the publish payloads into the release archive names
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force stage | Out-Null
+          Remove-Item src/HarnessGateway.Launcher/bin/Release/net10.0/win-x64/publish/*.pdb, src/HarnessGateway.Launcher/bin/Release/net10.0/win-x64/publish/*.dbg, src/HarnessGateway.Launcher/bin/Release/net10.0/win-arm64/publish/*.pdb, src/HarnessGateway.Launcher/bin/Release/net10.0/win-arm64/publish/*.dbg -ErrorAction SilentlyContinue
+          Compress-Archive -Path src/HarnessGateway.Launcher/bin/Release/net10.0/win-x64/publish/* -DestinationPath stage/harnessgateway-win-x64.zip
+          Compress-Archive -Path src/HarnessGateway.Launcher/bin/Release/net10.0/win-arm64/publish/* -DestinationPath stage/harnessgateway-win-arm64.zip
+
+      # Binary load, version stamping, and argument parsing only -
+      # no harness launching, credential-store, or Codex TOML behavior here.
+      - name: Smoke-run win-x64 (--version, --help)
+        shell: bash
+        run: |
+          set -euo pipefail
+          csproj_version=$(sed -n 's/^[[:space:]]*<Version>\(.*\)<\/Version>.*/\1/p' src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj)
+          version_output=$(./src/HarnessGateway.Launcher/bin/Release/net10.0/win-x64/publish/harnessgateway.exe --version)
+          case "$version_output" in
+            "$csproj_version"*) ;;
+            *)
+              echo "::error::win-x64: --version reported '$version_output', expected '$csproj_version...'"
+              exit 1
+              ;;
+          esac
+          help_output=$(./src/HarnessGateway.Launcher/bin/Release/net10.0/win-x64/publish/harnessgateway.exe --help)
+          if [ -z "$help_output" ]; then
+            echo "::error::win-x64: --help produced no output"
+            exit 1
+          fi
+          # win-arm64 is published without execution: an x64 Windows runner
+          # cannot execute arm64 binaries (no emulation).
+
+      - name: Upload the windows archives
+        uses: actions/upload-artifact@v7
+        with:
+          name: archives-windows
+          path: |
+            stage/harnessgateway-win-x64.zip
+            stage/harnessgateway-win-arm64.zip
+          if-no-files-found: error
+          # Ephemeral: only needed long enough for the attach step (same run).
+          retention-days: 1
+
+  linux:
+    name: Build linux tar.gz, deb and rpm packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Cross-compiling linux-arm64 on this x64 runner needs a cross-linker
+      # (clang/llvm), arm64 objcopy (binutils), arm64 C-runtime objects (gcc)
+      # and arm64 zlib objects. The documented recipe
+      # (https://learn.microsoft.com/dotnet/core/deploying/native-aot/cross-compile)
+      # adds an arm64-only ports.ubuntu.com source list and pins the existing
+      # sources to amd64; this branch also covers the deb822 sources file that
+      # ubuntu-24.04+ images use.
+      - name: Install the linux-arm64 cross toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture arm64
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+            # deb822 layout: restrict the stock sources to amd64, then add an
+            # arm64-only ports list beside them.
+            sudo sed -i '/^Suites:/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+            printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s main restricted universe multiverse\n' "$codename" \
+              | sudo tee /etc/apt/sources.list.d/arm64.list > /dev/null
+          else
+            # Classic one-line layout: pin every existing source to amd64.
+            sudo sed -i -e 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
+            printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s main restricted universe multiverse\n' "$codename" \
+              | sudo tee /etc/apt/sources.list.d/arm64.list > /dev/null
+          fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang llvm zlib1g-dev \
+            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu zlib1g-dev:arm64
+
+      - name: Install dotnet-releaser
+        shell: bash
+        run: dotnet tool install --global dotnet-releaser
+
+      # The `build` sub-command: a pure local build - the two Linux RIDs,
+      # tests, packages - no release writes. dotnet-releaser itself cannot
+      # create, edit, or publish anything ([github] publish = false).
+      - name: Publish and package the Linux RIDs from the tagged commit
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          dotnet-releaser build --force --github-token "$GITHUB_TOKEN" dotnet-releaser.toml
+
+      # Binary load, version stamping, and argument parsing only.
+      - name: Smoke-run linux-x64 (--version, --help)
+        shell: bash
+        run: |
+          set -euo pipefail
+          csproj_version=$(sed -n 's/^[[:space:]]*<Version>\(.*\)<\/Version>.*/\1/p' src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj)
+          binary=$(find src/HarnessGateway.Launcher/bin -type f -path '*linux-x64*' -name harnessgateway | head -n1)
+          if [ -z "$binary" ]; then
+            echo "::error::linux-x64: no published harnessgateway binary found"
+            exit 1
+          fi
+          version_output=$("$binary" --version)
+          case "$version_output" in
+            "$csproj_version"*) ;;
+            *)
+              echo "::error::linux-x64: --version reported '$version_output', expected '$csproj_version...'"
+              exit 1
+              ;;
+          esac
+          help_output=$("$binary" --help)
+          if [ -z "$help_output" ]; then
+            echo "::error::linux-x64: --help produced no output"
+            exit 1
+          fi
+          # linux-arm64 is published without execution: an x64 runner cannot
+          # execute arm64 binaries.
+
+      - name: Drop the releaser build logs before staging
+        shell: bash
+        run: rm -rf artifacts-dotnet-releaser/msbuild_logs
+
+      - name: Upload the linux packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: artifacts-dotnet-releaser/*
+          if-no-files-found: error
+          # Ephemeral: only needed long enough for the attach step (same run).
+          retention-days: 1
+
+  macos:
+    name: Build osx-x64 and osx-arm64 tar.gz archives
+    # macos-26 is an arm64 runner: osx-arm64 is native, osx-x64 cross-compiles
+    # within macOS (the x64 and arm64 toolchains both ship in the default
+    # Xcode install).
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Symbols stay out of the payload, matching the release archives.
+      - name: Publish osx-arm64
+        shell: bash
+        run: dotnet publish src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj -c Release -r osx-arm64 -p:PublishAot=true -p:CopyOutputSymbolsToPublishDirectory=false
+
+      - name: Publish osx-x64
+        shell: bash
+        run: dotnet publish src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj -c Release -r osx-x64 -p:PublishAot=true -p:CopyOutputSymbolsToPublishDirectory=false
+
+      # Files land at the archive root, matching the previous archive layout
+      # (extract and run the binary beside it). Symbols stay out of the
+      # archives: AOT publish can still stage referenced projects' pdbs
+      # (CopyOutputSymbolsToPublishDirectory does not cover them).
+      - name: Tar the publish payloads into the release archive names
+        shell: bash
+        run: |
+          mkdir stage
+          tar -czf stage/harnessgateway-osx-arm64.tar.gz --exclude='*.pdb' --exclude='*.dbg' -C src/HarnessGateway.Launcher/bin/Release/net10.0/osx-arm64/publish .
+          tar -czf stage/harnessgateway-osx-x64.tar.gz --exclude='*.pdb' --exclude='*.dbg' -C src/HarnessGateway.Launcher/bin/Release/net10.0/osx-x64/publish .
+
+      # Binary load, version stamping, and argument parsing only.
+      - name: Smoke-run osx-arm64 (--version, --help)
+        shell: bash
+        run: |
+          set -euo pipefail
+          csproj_version=$(sed -n 's/^[[:space:]]*<Version>\(.*\)<\/Version>.*/\1/p' src/HarnessGateway.Launcher/HarnessGateway.Launcher.csproj)
+          version_output=$(./src/HarnessGateway.Launcher/bin/Release/net10.0/osx-arm64/publish/harnessgateway --version)
+          case "$version_output" in
+            "$csproj_version"*) ;;
+            *)
+              echo "::error::osx-arm64: --version reported '$version_output', expected '$csproj_version...'"
+              exit 1
+              ;;
+          esac
+          help_output=$(./src/HarnessGateway.Launcher/bin/Release/net10.0/osx-arm64/publish/harnessgateway --help)
+          if [ -z "$help_output" ]; then
+            echo "::error::osx-arm64: --help produced no output"
+            exit 1
+          fi
+          # osx-x64 is published without execution: Rosetta availability on
+          # arm64 runners is not assumed.
+
+      - name: Upload the macos archives
+        uses: actions/upload-artifact@v7
+        with:
+          name: archives-macos
+          path: |
+            stage/harnessgateway-osx-arm64.tar.gz
+            stage/harnessgateway-osx-x64.tar.gz
+          if-no-files-found: error
+          # Ephemeral: only needed long enough for the attach step (same run).
+          retention-days: 1
+
+  publish:
+    name: Assert, attach, publish
+    # Every build job first: attach stages their artifacts with the archives
+    # below, so a failed build must stop the dispatch before anything is
+    # uploaded or published.
+    needs: [msi, windows, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
+      # Fails before any publish work when the tag disagrees with the pinned
+      # <Version> of the checked-out (tagged) commit.
       - name: Assert the tag matches the csproj version
         shell: bash
         env:
@@ -120,41 +378,37 @@ jobs:
           fi
           echo "Tag ${TAG} matches the csproj version ${csproj_version}."
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Install dotnet-releaser
-        shell: bash
-        run: dotnet tool install --global dotnet-releaser
-
-      # The `build` sub-command here (vs `run` in draft-release.yml): a pure
-      # local build - all six RIDs, tests, packages - no release writes.
-      # dotnet-releaser itself cannot create, edit, or publish anything
-      # ([github] publish = false). Changelog generation is disabled in
-      # dotnet-releaser.toml, so the token makes no PR queries.
-      - name: Build binaries and packages from the tagged commit
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          dotnet-releaser build --force --github-token "$GITHUB_TOKEN" dotnet-releaser.toml
-
-      # Stage the two MSIs beside the archives so the attach loop below ships
-      # them with everything else. The draft carried no installers until this
-      # dispatch - they exist on the release only from here on.
+      # The binaries were built in the per-OS jobs above from this same tagged
+      # commit; here they are only staged and attached - no builds run in this
+      # job.
       - name: Stage the Windows installers with the built binaries
         uses: actions/download-artifact@v8
         with:
           name: installers
           path: artifacts-dotnet-releaser
 
-      # Attach every built artifact - the six-RID archives and both installers -
-      # to the existing draft, then publish it as the final act. GitHub release
-      # state is written only by these gh calls with GITHUB_TOKEN, scoped to
-      # this repository.
+      - name: Stage the windows zip archives
+        uses: actions/download-artifact@v8
+        with:
+          name: archives-windows
+          path: artifacts-dotnet-releaser
+
+      - name: Stage the linux packages
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+          path: artifacts-dotnet-releaser
+
+      - name: Stage the macos tar.gz archives
+        uses: actions/download-artifact@v8
+        with:
+          name: archives-macos
+          path: artifacts-dotnet-releaser
+
+      # Attach every built artifact - the six-RID archives, both installers
+      # and the deb/rpm packages - to the existing draft, then publish it as
+      # the final act. GitHub release state is written only by these gh calls
+      # with GITHUB_TOKEN, scoped to this repository.
       - name: Attach built binaries to the draft and publish it
         shell: bash
         env:

@@ -10,6 +10,12 @@ name: Draft release
 # changelog-extraction and draft-notes steps below are inert; rework or remove
 # them before re-enabling. The maintainer creates the draft by hand - see
 # docs/release/winget-manifest.md.
+#
+# STALE since the Native AOT rework: this workflow's artifact shape no longer
+# matches what ships. publish-release.yml now builds every artifact itself via
+# a per-OS AOT matrix, and dotnet-releaser.toml is scoped to the Linux
+# tar.gz/deb/rpm packages. Rework this workflow against that pipeline before
+# ever re-enabling it.
 
 on:
   push:
