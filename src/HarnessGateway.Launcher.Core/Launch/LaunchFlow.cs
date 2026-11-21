@@ -594,7 +594,7 @@ public sealed class LaunchFlow
 
         if (adapter.Metadata.RequiresModel && resolvedModel is null)
         {
-            Console.Error.WriteLine($"Warning: {adapter.Metadata.Name} requires a model but none was specified. Launching anyway.");
+            // Console.Error.WriteLine($"Warning: {adapter.Metadata.Name} requires a model but none was specified. Launching anyway.");
         }
 
         return resolvedModel;

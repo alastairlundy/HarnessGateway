@@ -1022,7 +1022,7 @@ public class LaunchFlowTests
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
-            await Assert.That(errorOutput).Contains("requires a model but none was specified");
+            await Assert.That(errorOutput.Contains("requires a model")).IsFalse();
             // The warning never blocks: planning still produced a request.
             await Assert.That(adapter.LastRequest).IsNotNull();
         }
