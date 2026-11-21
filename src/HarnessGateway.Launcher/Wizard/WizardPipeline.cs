@@ -305,9 +305,14 @@ public sealed class WizardPipeline
             if (!isAvailable) annotations.Add("not installed");
             if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
 
+            // The structured state rides alongside the raw annotation so the
+            // presenter can colour the line (whole-line red when unavailable,
+            // orange for the incompatible segment) without parsing the text.
             choices.Add(new ConsoleChoice(
                 adapter.Metadata.Name,
-                annotations.Count > 0 ? string.Join("; ", annotations) : null));
+                annotations.Count > 0 ? string.Join("; ", annotations) : null,
+                Unavailable: !isAvailable,
+                IncompatibleProtocols: incompatible));
         }
 
         return choices;

@@ -653,6 +653,32 @@ public class WizardPipelineTests
             await Assert.That(
                     console.Prompts[1].Choices.Single(c => c.Name == "AnthropicCapable").Annotation)
                 .IsNull();
+
+            // Structured state the presenter consumes: the whole-line red
+            // flag follows probe availability from the first prompt, and the
+            // orange-segment state appears once the incompatible re-prompt
+            // turns annotations on.
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "OpenAiOnly").Unavailable).IsFalse();
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "OpenAiOnly").IncompatibleProtocols)
+                .IsNull();
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "UnavailableOpenAi").Unavailable)
+                .IsTrue();
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "UnavailableOpenAi").IncompatibleProtocols)
+                .IsNull();
+            await Assert.That(
+                console.Prompts[1].Choices.Single(c => c.Name == "OpenAiOnly").IncompatibleProtocols)
+                .IsEqualTo("anthropic");
+            await Assert.That(
+                console.Prompts[1].Choices.Single(c => c.Name == "UnavailableOpenAi").IncompatibleProtocols)
+                .IsEqualTo("anthropic");
+            await Assert.That(
+                console.Prompts[1].Choices.Single(c => c.Name == "AnthropicCapable").IncompatibleProtocols)
+                .IsNull();
+
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
             await Assert.That(console.ErrorMessages[0]).Contains("anthropic");
