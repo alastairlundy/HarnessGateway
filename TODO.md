@@ -12,6 +12,17 @@ Deferred decisions and future work. Standing "we deliberately don't do this" ref
 
 Deferred out of the v1 scope; the pattern to follow is any shipped adapter (`Core/Adapters/*Adapter.cs`).
 
+## Effort / reasoning level passing
+
+- [ ] Add an effort/reasoning-level knob to `launch` and thread it through each adapter:
+  - Claude Code: `--effort <level>` (global; interactive + one-shot)
+  - Codex: `-c model_reasoning_effort=<level>` (global; installed CLI has no dedicated flag)
+  - GitHub Copilot CLI: `--reasoning-effort <level>` (global)
+  - Pi: `--thinking <level>` (global; also supports `provider/model:level` shorthand)
+  - Kilo: `--variant <name>` on `kilo run` only; no interactive launch flag (in-app `/variant`)
+  - OpenCode: `#variant` on the model selector for runs/sessions/agents/commands; root/default model does not retain a variant
+  - OpenCode Desktop: no launch-time knob (GUI/config-driven)
+
 ## CLI surface
 
 - [ ] Short flag aliases beyond the single shipped `-m` (`-e`, `-b`, `-p`, …) only when typing friction justifies them
