@@ -188,9 +188,10 @@ jobs:
       # (clang/llvm), arm64 objcopy (binutils), arm64 C-runtime objects (gcc)
       # and arm64 zlib objects. The documented recipe
       # (https://learn.microsoft.com/dotnet/core/deploying/native-aot/cross-compile)
-      # adds an arm64-only ports.ubuntu.com source list and pins the existing
-      # sources to amd64; this branch also covers the deb822 sources file that
-      # ubuntu-24.04+ images use.
+      # adds an arm64-only ports.ubuntu.com source list (base, -updates and
+      # -security suites, kept in step with the amd64 sources' pockets) and
+      # pins the existing sources to amd64; this branch also covers the
+      # deb822 sources file that ubuntu-24.04+ images use.
       - name: Install the linux-arm64 cross toolchain
         shell: bash
         run: |
@@ -201,12 +202,12 @@ jobs:
             # deb822 layout: restrict the stock sources to amd64, then add an
             # arm64-only ports list beside them.
             sudo sed -i '/^Suites:/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
-            printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s main restricted universe multiverse\n' "$codename" \
+            printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s main restricted universe multiverse\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s-updates main restricted universe multiverse\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s-security main restricted universe multiverse\n' "$codename" "$codename" "$codename" \
               | sudo tee /etc/apt/sources.list.d/arm64.list > /dev/null
           else
             # Classic one-line layout: pin every existing source to amd64.
             sudo sed -i -e 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
-            printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s main restricted universe multiverse\n' "$codename" \
+            printf 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s main restricted universe multiverse\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s-updates main restricted universe multiverse\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ %s-security main restricted universe multiverse\n' "$codename" "$codename" "$codename" \
               | sudo tee /etc/apt/sources.list.d/arm64.list > /dev/null
           fi
           sudo apt-get update
