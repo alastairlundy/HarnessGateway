@@ -42,7 +42,11 @@ The set of models a Provider declares as available.
 
 ## Provider
 
-An API identity that owns one endpoint, one API key reference, and a set of models, where each model may use its own wire protocol.
+An API identity that owns a default endpoint, one API key reference, and a set of models, where each model may use its own wire protocol and endpoint override.
+
+## Model entry
+
+One named model in a provider's catalog. An entry may override the provider's default wire protocol, its endpoint, or both; absent overrides inherit the provider defaults.
 
 ## Update check
 
