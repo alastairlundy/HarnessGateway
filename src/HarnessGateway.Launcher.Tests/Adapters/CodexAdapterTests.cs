@@ -233,7 +233,8 @@ public class CodexAdapterTests
                               + "name = \"HarnessGateway\"\n"
                               + "base_url = \"https://api.example.com/v1\"\n"
                               + "env_key = \"HARNESSGATEWAY_API_KEY\"\n"
-                              + "wire_api = \"responses\"\n";
+                              + "wire_api = \"responses\"\n"
++ "requires_openai_auth = false\n";
 
             await Assert.That(content).IsEqualTo(expected);
             // The editor output must re-parse to itself (round-trip sanity).
@@ -266,7 +267,8 @@ public class CodexAdapterTests
                 + "name = \"HarnessGateway\"\n"
                 + "base_url = \"https://api.example.com/v1\"\n"
                 + "env_key = \"HARNESSGATEWAY_API_KEY\"\n"
-                + "wire_api = \"responses\"\n");
+                + "wire_api = \"responses\"\n"
++ "requires_openai_auth = false\n");
         }
         finally
         {

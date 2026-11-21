@@ -174,6 +174,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             ["base_url"] = baseUrl,
             ["env_key"] = EnvKeyName,
             ["wire_api"] = "responses",
+            ["requires_openai_auth"] = false,
         });
         editor.SetTopLevelValue("model_provider", ProviderId);
         if (model is { Length: > 0 })
