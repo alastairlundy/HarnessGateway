@@ -31,12 +31,14 @@ public class ProviderCommandsTests
         SettingsStore store,
         string args,
         FakeSecureKeyStore? keyStore = null,
-        IKeyPrompt? keyPrompt = null)
+        IKeyPrompt? keyPrompt = null,
+        ApiKeySource? apiKeySource = null)
     {
         // The provider surface is top-level: the root carries only the
         // provider command here, exactly as production registers it beside
         // launch and config.
-        ProviderCommands cmd = new ProviderCommands(store, keyStore ?? new FakeSecureKeyStore(), keyPrompt ?? new ScriptedKeyPrompt(null));
+        ProviderCommands cmd = new ProviderCommands(store, keyStore ?? new FakeSecureKeyStore(),
+            keyPrompt ?? new ScriptedKeyPrompt(null), apiKeySource);
         RootCommand rootCmd = new RootCommand { cmd };
         ParseResult result = rootCmd.Parse(args);
         int previous = ConsoleErrorCapture.Depth.Value;
@@ -126,10 +128,10 @@ public class ProviderCommandsTests
             }
 
             Command addVerb = provider.Subcommands.Single(c => c.Name == "add");
-            await Assert.That(addVerb.Options.Count).IsEqualTo(3);
+            await Assert.That(addVerb.Options.Count).IsEqualTo(4);
 
             Command setKeyVerb = provider.Subcommands.Single(c => c.Name == "set-key");
-            await Assert.That(setKeyVerb.Options.Count).IsEqualTo(1);
+            await Assert.That(setKeyVerb.Options.Count).IsEqualTo(2);
 
             Command clearKeyVerb = provider.Subcommands.Single(c => c.Name == "clear-key");
             await Assert.That(clearKeyVerb.Options).IsEmpty();
@@ -333,6 +335,116 @@ public class ProviderCommandsTests
             string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("prompted-secret")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Add_key_env_flag_stores_secret_and_persists_only_a_reference()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
+            ApiKeySource apiKeySource = new(name => name == "HG_WORK_KEY" ? "env-secret-key" : null);
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompt-should-not-run");
+
+            int exitCode = InvokeProvider(
+                store,
+                "provider add work --endpoint https://api.work.example/v1 --protocol openai-chat --key-env HG_WORK_KEY",
+                keyStore,
+                prompt,
+                apiKeySource);
+
+            await Assert.That(exitCode).IsEqualTo(0);
+
+            LauncherSettings saved = await store.LoadAsync();
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
+            await Assert.That(keyStore.Contains("hgkey:work")).IsTrue();
+            string stored = await keyStore.RetrieveAsync("hgkey:work");
+            await Assert.That(stored).IsEqualTo("env-secret-key");
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
+            await Assert.That(prompt.CallCount).IsEqualTo(0);
+
+            // The settings file holds the opaque reference, never the secret.
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
+            await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
+            await Assert.That(fileBytes.Contains("env-secret-key")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Add_with_both_key_flags_exits_2_and_writes_nothing()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
+            int readCount = 0;
+            ApiKeySource apiKeySource = new(_ =>
+            {
+                readCount++;
+                return "should-not-be-read";
+            });
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompt-should-not-run");
+
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(
+                    store,
+                    "provider add work --endpoint https://api.work.example/v1 --protocol openai-chat --key inline-secret --key-env HG_WORK_KEY",
+                    keyStore,
+                    prompt,
+                    apiKeySource)));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("--key-env");
+            await Assert.That(errorOutput.Contains("cannot be used together")).IsTrue();
+            await Assert.That(File.Exists(store.SettingsFilePath)).IsFalse();
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
+            await Assert.That(prompt.CallCount).IsEqualTo(0);
+            await Assert.That(readCount).IsEqualTo(0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Add_with_unset_key_env_variable_exits_2_and_writes_nothing()
+    {
+        // No injected reader here: the default ApiKeySource reads the real
+        // environment, and the name is built to be one that cannot exist, so
+        // nothing about the process environment is touched either way.
+        string tempDir = CreateTempDir();
+        try
+        {
+            string variableName = $"HG_TEST_KEY_ENV_THAT_CANNOT_EXIST_{Guid.NewGuid():N}";
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompt-should-not-run");
+
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(
+                    store,
+                    $"provider add work --endpoint https://api.work.example/v1 --protocol openai-chat --key-env {variableName}",
+                    keyStore,
+                    prompt)));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains(variableName);
+            await Assert.That(File.Exists(store.SettingsFilePath)).IsFalse();
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
+            await Assert.That(prompt.CallCount).IsEqualTo(0);
         }
         finally
         {
@@ -559,6 +671,158 @@ public class ProviderCommandsTests
 
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(prompt.CallCount).IsEqualTo(0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task SetKey_key_env_flag_stores_secret_and_persists_only_a_reference()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            keyStore.Seed("hgkey:work", "old-secret");
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
+            store.Save(new LauncherSettings
+            {
+                Providers =
+                [
+                    CreateProvider(
+                        "work",
+                        url: "https://api.work.example/v1",
+                        protocol: ProtocolKind.Anthropic,
+                        apiKey: "hgkey:work",
+                        defaultModel: "GPT-4")
+                ],
+                DefaultProvider = "work"
+            });
+            ApiKeySource apiKeySource = new(name => name == "HG_WORK_KEY" ? "rotated-secret" : null);
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompt-should-not-run");
+
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(
+                    store,
+                    "provider set-key work --key-env HG_WORK_KEY",
+                    keyStore,
+                    prompt,
+                    apiKeySource)));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(output).Contains("API key for provider 'work' saved.");
+
+            LauncherSettings saved = await store.LoadAsync();
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
+            string stored = await keyStore.RetrieveAsync("hgkey:work");
+            await Assert.That(stored).IsEqualTo("rotated-secret");
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(1);
+            await Assert.That(prompt.CallCount).IsEqualTo(0);
+
+            // set-key touches only the credential record.
+            await Assert.That(saved.Providers[0].BaseUri).IsEqualTo(new Uri("https://api.work.example/v1"));
+            await Assert.That(saved.Providers[0].DefaultProtocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(saved.Providers[0].DefaultModel).IsEqualTo("GPT-4");
+            await Assert.That(saved.DefaultProvider).IsEqualTo("work");
+
+            string fileBytes = await File.ReadAllTextAsync(store.SettingsFilePath);
+            await Assert.That(fileBytes.Contains("hgkey:work")).IsTrue();
+            await Assert.That(fileBytes.Contains("rotated-secret")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task SetKey_with_both_key_flags_exits_2_and_writes_nothing()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            keyStore.Seed("hgkey:work", "old-secret");
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
+            store.Save(new LauncherSettings
+            {
+                Providers = [CreateProvider("work", apiKey: "hgkey:work")],
+                DefaultProvider = "work"
+            });
+            int readCount = 0;
+            ApiKeySource apiKeySource = new(_ =>
+            {
+                readCount++;
+                return "should-not-be-read";
+            });
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompt-should-not-run");
+            string before = Fingerprint(store);
+
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(
+                    store,
+                    "provider set-key work --key inline-secret --key-env HG_WORK_KEY",
+                    keyStore,
+                    prompt,
+                    apiKeySource)));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("--key-env");
+            await Assert.That(errorOutput.Contains("cannot be used together")).IsTrue();
+            await Assert.That(Fingerprint(store)).IsEqualTo(before);
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
+            await Assert.That(prompt.CallCount).IsEqualTo(0);
+            await Assert.That(readCount).IsEqualTo(0);
+
+            LauncherSettings saved = await store.LoadAsync();
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
+            string stored = await keyStore.RetrieveAsync("hgkey:work");
+            await Assert.That(stored).IsEqualTo("old-secret");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task SetKey_with_empty_key_env_variable_exits_2_and_writes_nothing()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
+            keyStore.Seed("hgkey:work", "old-secret");
+            SettingsStore store = CreateSettingsStore(tempDir, keyStore);
+            store.Save(new LauncherSettings
+            {
+                Providers = [CreateProvider("work", apiKey: "hgkey:work")],
+                DefaultProvider = "work"
+            });
+            ApiKeySource apiKeySource = new(_ => string.Empty);
+            ScriptedKeyPrompt prompt = new ScriptedKeyPrompt("prompt-should-not-run");
+            string before = Fingerprint(store);
+
+            (int exitCode, string errorOutput) = await ConsoleErrorCapture.RunAsync(() =>
+                Task.FromResult(InvokeProvider(
+                    store,
+                    "provider set-key work --key-env HG_EMPTY_KEY",
+                    keyStore,
+                    prompt,
+                    apiKeySource)));
+
+            await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
+            await Assert.That(errorOutput).Contains("HG_EMPTY_KEY");
+            await Assert.That(Fingerprint(store)).IsEqualTo(before);
+            await Assert.That(keyStore.StoreCallCount).IsEqualTo(0);
+            await Assert.That(prompt.CallCount).IsEqualTo(0);
+
+            LauncherSettings saved = await store.LoadAsync();
+            await Assert.That(saved.Providers[0].ApiKey).IsEqualTo("hgkey:work");
+            string stored = await keyStore.RetrieveAsync("hgkey:work");
+            await Assert.That(stored).IsEqualTo("old-secret");
         }
         finally
         {

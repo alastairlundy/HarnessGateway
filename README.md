@@ -424,10 +424,10 @@ The `provider` subcommands create and manage the saved entries that
 `launch` and `--provider` refer to:
 
 ```bash
-harnessgateway provider add <name> --endpoint URL --protocol PROTOCOL [--key SECRET]
+harnessgateway provider add <name> --endpoint URL --protocol PROTOCOL [--key SECRET | --key-env VAR]
 harnessgateway provider list
 harnessgateway provider remove <name>
-harnessgateway provider set-key <name> [--key SECRET]
+harnessgateway provider set-key <name> [--key SECRET | --key-env VAR]
 harnessgateway provider clear-key <name>
 ```
 
@@ -446,6 +446,14 @@ which is perfectly valid. `--key` skips the prompt, which is convenient for
 scripts but puts the secret in your shell history. If talking to the
 credential store fails, the command exits with code 7 and writes nothing.
 
+`--key-env VAR` reads the API key from the named environment variable in the
+launcher's own environment at invocation time and stores it through the
+credential store, so the secret never appears in your shell history; the
+settings file still keeps only the opaque `hgkey:` reference. It is mutually
+exclusive with `--key`: passing both flags, or naming a variable that is
+unset or empty, exits with code 2, writes nothing, and never falls back to
+the interactive prompt.
+
 `provider list` marks the default entry with `*`. It prints a hint to add an
 entry when the settings file is empty, or a hint to run `set defaultProvider`
 when there are entries but no default.
@@ -457,9 +465,11 @@ Set a new default first.
 `provider set-key` sets or replaces the saved API key for one provider. It
 touches only the credential store, never the entry's endpoint, protocol, or
 default model. The prompt rules are the same as for `provider add`, so
-`--key` skips the hidden prompt. If you decline the prompt, `set-key`
-reports success and writes nothing. A credential-store failure exits with
-code 7 and writes nothing.
+`--key` skips the hidden prompt, and `--key-env VAR` reads the named
+variable at invocation with the same exit-2 failure classes (both flags
+together, or the variable unset or empty). If you decline the prompt,
+`set-key` reports success and writes nothing. A credential-store failure
+exits with code 7 and writes nothing.
 
 `provider clear-key` removes the saved key and leaves everything else about
 the entry alone. Clearing a keyless provider succeeds and reports that there
