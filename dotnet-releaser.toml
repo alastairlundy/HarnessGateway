@@ -42,14 +42,17 @@ build_debug = false
 publish = true
 
 [msbuild.properties]
-# Publish shape for every RID: self-contained, multi-file - the same layout the
-# previous hand-written release workflow produced. Trimming, single-file
-# bundling and ReadyToRun are deliberately off (they were never part of the
-# shipped archives and trimming is unsafe for this CLI's reflection/CLI
-# parsing surface).
+# Publish shape for every RID: self-contained, multi-file. Trimming is on: the
+# trim/AOT analyzers gate every build (IsAotCompatible on the Launcher and
+# Launcher.Core) and the shipped code is trim-clean, so unused runtime and
+# library code is dropped from the archives (~80MB -> ~24MB per RID). The
+# previous blanket-off stance predated the source-generated JSON contexts;
+# the analyzer gate makes trimming safe now. Single-file bundling and
+# ReadyToRun stay deliberately off: AOT is the planned end state (single
+# ~10MB binary, per-OS release matrix), and R2R would be redundant beside it.
 SelfContained = true
 PublishSingleFile = false
-PublishTrimmed = false
+PublishTrimmed = true
 PublishReadyToRun = false
 CopyOutputSymbolsToPublishDirectory = false
 SkipCopyingSymbolsToOutputDirectory = true

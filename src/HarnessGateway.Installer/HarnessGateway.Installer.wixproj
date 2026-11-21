@@ -70,7 +70,7 @@
   <Target Name="PublishLauncherPayload" BeforeTargets="CoreCompile">
     <MSBuild Projects="$(MSBuildProjectDirectory)\..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj"
              Targets="Publish"
-             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(InstallerRuntimeIdentifier);SelfContained=true;PublishSingleFile=false;PublishTrimmed=false;PublishReadyToRun=false;CopyOutputSymbolsToPublishDirectory=false;BaseOutputPath=$(LauncherBuildDir)bin\;IntermediateOutputPath=$(LauncherBuildDir)obj\;PublishDir=$(LauncherPublishDir)" />
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(InstallerRuntimeIdentifier);SelfContained=true;PublishSingleFile=false;PublishTrimmed=true;PublishReadyToRun=false;CopyOutputSymbolsToPublishDirectory=false;BaseOutputPath=$(LauncherBuildDir)bin\;IntermediateOutputPath=$(LauncherBuildDir)obj\;PublishDir=$(LauncherPublishDir)" />
 
     <!-- The release archives ship without symbols, so the staged payload must too. -->
     <ItemGroup>
