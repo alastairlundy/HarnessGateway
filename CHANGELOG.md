@@ -4,6 +4,28 @@ All notable changes to HarnessGateway are documented in this file.
 
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) and version headings follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) in release-tag form (`0.1.0`). The heading matches the git tag the publish workflow asserts against the project's pinned version. Nothing enforces this format automatically. Release notes are written by hand when the maintainer creates the draft release, and the same curation writes the matching entry below, so the GitHub release page and this file cannot drift apart. Generated changelogs are not used.
 
+## [0.1.2] - Unreleased
+
+### Added
+
+- One-shot non-interactive mode via `-p`/`--print` for harnesses that
+  implement it (claude-code, opencode, kilo, copilot, codex). A prompt comes
+  from the flag value or stdin; `pi` and GUI harnesses refuse.
+
+### Fixed
+
+- Interactive TUI launches no longer paint into a hidden console on Windows:
+  the child now gets its own visible window, so Claude Code and other TUIs
+  render where the user can see them instead of leaving a bare caret.
+- Interactive spawns of harnesses shipped as `.cmd` shims (kilo, codex,
+  opencode) now run through the shell, so their console actually appears and
+  the launcher waits on the right process.
+- The `/responses` path segment is stripped only for harnesses that append it
+  themselves, so an endpoint that already ends in `/responses` is not doubled
+  for the chat and Anthropic paths.
+
+[0.1.2]: https://github.com/alastairlundy/HarnessGateway/compare/v0.1.1...HEAD
+
 ## [0.1.1] - 2026-11-20
 
 ### Added
