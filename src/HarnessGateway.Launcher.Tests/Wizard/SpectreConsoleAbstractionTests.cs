@@ -72,7 +72,7 @@ public class SpectreConsoleAbstractionTests
     [Test]
     public async Task BuildDisplayText_unavailable_choice_renders_the_whole_line_red()
     {
-        // D003: unavailable means the entire line - name plus annotation -
+        // Unavailable means the entire line - name plus annotation -
         // carries the red foreground, even when the line also carries an
         // incompatible indication (red takes precedence there).
         ConsoleChoice choice = new(
@@ -93,7 +93,7 @@ public class SpectreConsoleAbstractionTests
     [Test]
     public async Task BuildDisplayText_incompatible_segment_renders_orange_and_the_rest_stays_dim()
     {
-        // D012 amending D003: the incompatible segment replaces the dim
+        // The incompatible segment replaces the dim
         // rendering with orange; the name and the rest of the annotation do
         // not pick up the orange colour.
         ConsoleChoice choice = new(

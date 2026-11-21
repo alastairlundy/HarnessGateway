@@ -46,10 +46,10 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
     // would read as a style tag - e.g. the "[add new provider]" choice throws
     // "Could not find color or style 'add'". Escape the text, but keep the
     // intentional [dim] wrapper around the annotation as real markup, the
-    // whole-line [red] wrap for an unavailable choice as real markup (D003),
-    // and the [orange1] wrap around the incompatible segment as real markup
-    // (D012). Both the value added to the prompt and the value matched against
-    // its result must come from here so the round-trip stays byte-identical.
+    // whole-line [red] wrap for an unavailable choice as real markup, and the
+    // [orange1] wrap around the incompatible segment as real markup. Both the
+    // value added to the prompt and the value matched against its result must
+    // come from here so the round-trip stays byte-identical.
     internal static string BuildDisplayText(ConsoleChoice choice)
     {
         string name = Markup.Escape(choice.Name);
@@ -69,9 +69,9 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
             return $"[red]{name} ({annotation})[/]";
         }
 
-        // The incompatible segment renders orange instead of dim (D012
-        // amending D003): close the dim wrapper before the segment and
-        // re-open it after, so only that segment carries the orange colour.
+        // The incompatible segment renders orange instead of dim: close the
+        // dim wrapper before the segment and re-open it after, so only that
+        // segment carries the orange colour.
         // The segment text is located inside the already-escaped annotation
         // rather than re-derived, so the dim base keeps exactly the raw
         // annotation the caller composed.

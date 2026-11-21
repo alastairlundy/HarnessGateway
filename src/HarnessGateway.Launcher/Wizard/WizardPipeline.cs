@@ -173,7 +173,7 @@ public sealed class WizardPipeline
 
                 ProtocolKind effectiveProtocol = modelSelection.Protocol ?? providerResult.protocol;
 
-                // Post-model re-verify (D010): the model step can hand back a
+                // Post-model re-verify: the model step can hand back a
                 // protocol the chosen harness cannot speak, which the launch
                 // flow would refuse with exit 3 only after the wizard had
                 // already finished. Write the same incompatible message the
@@ -196,7 +196,7 @@ public sealed class WizardPipeline
                     continue;
                 }
 
-                // Per-model endpoint override (D011): the picked model's stored
+                // Per-model endpoint override: the picked model's stored
                 // endpoint goes into the session endpoint the wizard returns -
                 // the launch request's flag pair, which wins wholesale - and a
                 // line names it so the swap is visible rather than silent. The

@@ -240,7 +240,7 @@ public class ModelStepTests
     {
         // Same two-tag catalog, but the harness speaks openai-chat: one
         // speakable tag is enough to stay unmarked - the partial-match blind
-        // spot accepted by D012 - and the choice is still offered.
+        // spot accepted by design - and the choice is still offered.
         TestConsole console = new TestConsole();
         Provider backend = CreateProvider();
         ModelCatalog catalog = new ModelCatalog(

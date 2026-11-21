@@ -119,7 +119,7 @@ public sealed class ModelStep
                 annotationParts.Add("saved default");
             }
 
-            // Indication, never filtering (D012): a model whose every listed
+            // Indication, never filtering: a model whose every listed
             // protocol tag the harness cannot speak gets the harness list's
             // "incompatible: <protocols>" vocabulary appended to the
             // annotation, and the structured state rides along so the
