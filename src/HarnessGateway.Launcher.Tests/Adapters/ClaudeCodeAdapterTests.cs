@@ -51,7 +51,7 @@ public class ClaudeCodeAdapterTests
     {
         ClaudeCodeAdapter adapter = CreateAdapter();
 
-        await Assert.That(adapter.Metadata.Name).IsEqualTo("claude-code");
+        await Assert.That(adapter.Metadata.Name).IsEqualTo("Claude Code");
         await Assert.That(adapter.Metadata.Kind).IsEqualTo(HarnessKind.Cli);
         await Assert.That(adapter.Metadata.RequiresModel).IsFalse();
     }

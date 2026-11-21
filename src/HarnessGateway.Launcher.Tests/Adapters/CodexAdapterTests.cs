@@ -85,7 +85,7 @@ public class CodexAdapterTests
     {
         CodexAdapter adapter = CreateAdapter(codexHome: null);
 
-        await Assert.That(adapter.Metadata.Name).IsEqualTo("codex");
+        await Assert.That(adapter.Metadata.Name).IsEqualTo("Codex CLI");
         await Assert.That(adapter.Metadata.Kind).IsEqualTo(HarnessKind.Cli);
         await Assert.That(adapter.Metadata.RequiresModel).IsTrue();
     }
