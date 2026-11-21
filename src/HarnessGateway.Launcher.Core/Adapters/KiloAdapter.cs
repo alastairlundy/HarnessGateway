@@ -59,6 +59,14 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         // effective protocol, base URL, and model - no stored-looking
         // provider is synthesized in between, and no protocol is computed
         // here.
+        ProtocolKind protocol = request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => providerCase.Protocol,
+            LaunchResolution.AdHocCase adHoc => adHoc.Protocol,
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
         (ProtocolEmission emission, string? model) = request.Launch switch
         {
             LaunchResolution.ProviderCase providerCase => (
@@ -70,6 +78,18 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             _ => throw new InvalidOperationException(
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
+
+        string? providerId = protocol switch
+        {
+            ProtocolKind.OpenAiChat or ProtocolKind.OpenAiResponses => "openai",
+            ProtocolKind.Anthropic => "anthropic",
+            _ => null,
+        };
+        if (model is { Length: > 0 } && providerId is not null
+            && !model.Contains('/', StringComparison.Ordinal))
+        {
+            model = $"{providerId}/{model}";
+        }
 
         // Kilo's openai-responses protocol joins the "/responses" resource
         // path onto the base URL itself, so an endpoint that already ends in
