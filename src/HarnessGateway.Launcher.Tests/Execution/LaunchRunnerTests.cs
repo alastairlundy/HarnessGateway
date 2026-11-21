@@ -85,7 +85,32 @@ public class LaunchRunnerTests
 
         await Assert.That(config.OutputRedirection).IsFalse();
         await Assert.That(config.WindowCreation).IsTrue();
+        await Assert.That(config.UseShellExecution).IsFalse();
         await Assert.That(config.RedirectStandardInput).IsFalse();
+    }
+
+    [Test]
+    public async Task RunInteractiveAsync_applies_the_plans_environment_variables()
+    {
+        // Interactive spawns carry env vars on the CreateProcess path: the
+        // shell-execution shortcut cannot be used here, because UseShellExecute
+        // throws on Windows when the configuration carries environment
+        // variables - and every adapter emits base-URL and key env vars. This
+        // test pins that an env-var-carrying interactive spawn starts and its
+        // exit code propagates, the shape the regression hid.
+        LaunchRunner runner = new LaunchRunner();
+        Dictionary<string, string> env = new(StringComparer.Ordinal)
+        {
+            ["HGW_LAUNCHER_TEST_ENV"] = "seeded",
+        };
+        ProcessConfiguration config = OperatingSystem.IsWindows()
+            ? new ProcessConfiguration("cmd") { ArgumentList = ["/c", "exit 42"], OutputRedirection = false, EnvironmentVariables = env }
+            : new ProcessConfiguration("/bin/sh") { ArgumentList = ["-c", "exit 42"], OutputRedirection = false, EnvironmentVariables = env };
+        LaunchPlan plan = new LaunchPlan(config, []);
+
+        int exitCode = await runner.RunInteractiveAsync(plan);
+
+        await Assert.That(exitCode).IsEqualTo(42);
     }
 
     // CI runs on Linux, where "cmd" does not exist; /bin/sh is rooted so CliInvoke's

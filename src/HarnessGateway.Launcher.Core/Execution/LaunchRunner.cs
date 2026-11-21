@@ -61,7 +61,7 @@ public sealed class LaunchRunner : ILaunchRunner
     /// inherited either way.
     /// </summary>
     internal static ProcessConfiguration InteractiveConfiguration(LaunchPlan plan) =>
-        BuildProcessConfiguration(plan, outputRedirection: false, windowCreation: true, useShellExecution: true);
+        BuildProcessConfiguration(plan, outputRedirection: false, windowCreation: true);
 
     public int Handoff(LaunchPlan plan)
     {
@@ -111,8 +111,7 @@ public sealed class LaunchRunner : ILaunchRunner
     private static ProcessConfiguration BuildProcessConfiguration(
         LaunchPlan plan,
         bool outputRedirection,
-        bool windowCreation = false,
-        bool useShellExecution = false)
+        bool windowCreation = false)
     {
         return new(plan.Process.TargetFilePath)
         {
@@ -120,8 +119,8 @@ public sealed class LaunchRunner : ILaunchRunner
             ArgumentList = plan.Process.ArgumentList,
             WorkingDirectoryPath = plan.Process.WorkingDirectoryPath,
             OutputRedirection = outputRedirection,
-            WindowCreation = windowCreation,
-            UseShellExecution = useShellExecution || plan.Process.UseShellExecution,
+            WindowCreation = windowCreation || plan.Process.WindowCreation,
+            UseShellExecution = plan.Process.UseShellExecution,
             EnvironmentVariables = plan.Process.EnvironmentVariables,
             RedirectStandardInput = plan.Process.RedirectStandardInput,
         };

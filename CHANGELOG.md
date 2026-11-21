@@ -15,16 +15,18 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Fixed
 
 - Interactive TUI launches no longer paint into a hidden console on Windows:
-  the child now gets its own visible window, so Claude Code and other TUIs
-  render where the user can see them instead of leaving a bare caret.
-- Interactive spawns of harnesses shipped as `.cmd` shims (kilo, codex,
-  opencode) now run through the shell, so their console actually appears and
-  the launcher waits on the right process.
+  the child now shares the launcher's own console window, so Claude Code and
+  other TUIs render where the user can see them instead of leaving a bare
+  caret. Shell execution stays off, so the launch's environment variables
+  (base URLs and keys) still reach the child.
+- An interactive terminal launch now refuses with exit 13 when stdin or
+  stdout is redirected or piped, instead of handing the child handles nobody
+  can read. Pass `-p`/`--print "<prompt>"` for a one-shot non-interactive run.
 - The `/responses` path segment is stripped only for harnesses that append it
   themselves, so an endpoint that already ends in `/responses` is not doubled
   for the OpenAI Chat Completions and Anthropic paths.
 
-[0.1.2]: https://github.com/alastairlundy/HarnessGateway/compare/v0.1.1...HEAD
+[0.1.2]: https://github.com/alastairlundy/HarnessGateway/compare/0.1.1...HEAD
 
 ## [0.1.1] - 2026-11-20
 
