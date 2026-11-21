@@ -379,12 +379,17 @@ from you. The rename itself changes no exit codes.
 harnessgateway config show
 harnessgateway config get <key>
 harnessgateway config set <key> <value>
+harnessgateway config path
 ```
 
 `config show` prints the default provider: its endpoint, protocol, and default
 model, plus whether an API key is set. It never prints the key itself. When
 no default is set, the command reports that and prints the command that
 fixes it.
+
+`config path` prints the settings file's absolute path as a single line and
+exits 0. It reads and writes nothing, and never reports where the credential
+store lives.
 
 ### Typed keys
 

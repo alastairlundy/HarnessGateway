@@ -73,7 +73,7 @@ public class ConfigCommandTests
     }
 
     [Test]
-    public async Task Config_surface_is_show_get_set_only_with_no_backend_subcommand()
+    public async Task Config_surface_is_show_get_set_path_only_with_no_backend_subcommand()
     {
         ConfigCommand cmd = new ConfigCommand(CreateSettingsStore(CreateTempDir()));
 
@@ -82,10 +82,15 @@ public class ConfigCommandTests
         await Assert.That(verbs).Contains("show");
         await Assert.That(verbs).Contains("get");
         await Assert.That(verbs).Contains("set");
+        await Assert.That(verbs).Contains("path");
         // The provider surface moved to the top level: config carries
         // no backend subcommand and no deprecated alias.
         await Assert.That(verbs).DoesNotContain("backend");
-        await Assert.That(verbs.Count).IsEqualTo(3);
+        await Assert.That(verbs.Count).IsEqualTo(4);
+
+        // The verb must carry help text, not sit in the help output bare.
+        Command pathVerb = cmd.Subcommands.Single(c => c.Name == "path");
+        await Assert.That(string.IsNullOrWhiteSpace(pathVerb.Description)).IsFalse();
     }
 
     [Test]
@@ -307,6 +312,94 @@ public class ConfigCommandTests
             await Assert.That(exitCode).IsEqualTo(0);
             await Assert.That(output).Contains("No default provider configured.");
             await Assert.That(output).Contains("config set defaultProvider");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Path_verb_prints_the_settings_path_as_one_line_and_exits_zero()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            SettingsStore store = CreateSettingsStore(tempDir);
+
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
+                Task.FromResult(InvokeConfig(store, "config path")));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            // Exact equality, not Contains: the whole output is the path, so a
+            // label prefix, a second line, or the credential-store location
+            // (declined for this verb) fails here.
+            await Assert.That(output.Trim()).IsEqualTo(store.SettingsFilePath);
+            await Assert.That(output.Contains("HarnessGateway-keys.json")).IsFalse();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Path_verb_creates_no_settings_file()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            SettingsStore store = CreateSettingsStore(tempDir);
+            await Assert.That(File.Exists(store.SettingsFilePath)).IsFalse();
+            string[] before = Directory.GetFileSystemEntries(store.SettingsDirectory);
+            Array.Sort(before, StringComparer.Ordinal);
+
+            (int exitCode, _) = await ConsoleOutputCapture.RunAsync(() =>
+                Task.FromResult(InvokeConfig(store, "config path")));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(File.Exists(store.SettingsFilePath)).IsFalse();
+
+            // The settings directory holds exactly what the store's own
+            // construction left there - the verb adds nothing.
+            string[] after = Directory.GetFileSystemEntries(store.SettingsDirectory);
+            Array.Sort(after, StringComparer.Ordinal);
+            await Assert.That(after).IsEquivalentTo(before);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Path_verb_leaves_an_existing_settings_file_untouched()
+    {
+        string tempDir = CreateTempDir();
+        try
+        {
+            SettingsStore store = CreateSettingsStore(tempDir);
+            store.Save(new LauncherSettings
+            {
+                Providers =
+                [
+                    new Provider
+                    {
+                        Name = "work",
+                        BaseUri = new Uri("https://api.work.example/v1"),
+                        DefaultProtocol = ProtocolKind.Anthropic
+                    }
+                ],
+                DefaultProvider = "work"
+            });
+            string before = Fingerprint(store);
+
+            (int exitCode, string output) = await ConsoleOutputCapture.RunAsync(() =>
+                Task.FromResult(InvokeConfig(store, "config path")));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(output.Trim()).IsEqualTo(store.SettingsFilePath);
+            await Assert.That(Fingerprint(store)).IsEqualTo(before);
         }
         finally
         {
