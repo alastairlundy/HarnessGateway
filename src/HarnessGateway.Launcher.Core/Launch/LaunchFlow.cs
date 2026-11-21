@@ -1,4 +1,5 @@
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
+using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Settings;
@@ -80,12 +81,31 @@ public sealed class LaunchFlow
         {
             LauncherSettings settings = await _settingsStore.LoadAsync(ct).ConfigureAwait(false);
 
+            // Claude Code accepts arbitrary gateway model IDs that are never
+            // part of a provider's curated list, so the unlisted-model guard
+            // is waived for it: an unfamiliar model must still launch.
             ProviderResolutionResult resolution = ProviderResolution.Resolve(
                 settings,
                 request.ProviderName,
                 request.Endpoint,
                 request.Protocol,
                 request.Model);
+
+            if (resolution is ProviderResolutionResult.Failed firstFailure
+                && firstFailure.Failure == ProviderResolutionFailure.UnlistedModel)
+            {
+                Result<IHarnessAdapter> guardAdapter = HarnessLookup.TryResolve(_adapters, request.Harness);
+                if (guardAdapter.Success && guardAdapter.Value is ClaudeCodeAdapter)
+                {
+                    resolution = ProviderResolution.Resolve(
+                        settings,
+                        request.ProviderName,
+                        request.Endpoint,
+                        request.Protocol,
+                        request.Model,
+                        applyUnlistedModelGuard: false);
+                }
+            }
 
             if (resolution is ProviderResolutionResult.Failed failed)
             {
