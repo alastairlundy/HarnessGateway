@@ -4,6 +4,10 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <!-- Exclusively net10.0, so no TFM condition: gates the trim/AOT/single-file
+             analyzers on every build, keeping the app publishable with
+             PublishAot/PublishTrimmed without new IL warnings creeping in. -->
+        <IsAotCompatible>true</IsAotCompatible>
 
         <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
         <Version>0.1.1</Version>

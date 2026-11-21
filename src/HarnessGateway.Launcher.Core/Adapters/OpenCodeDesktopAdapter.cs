@@ -4,6 +4,7 @@ using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
+using HarnessGateway.Launcher.Core.Serialization;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
 
@@ -238,11 +239,11 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
             ? "{env:OPENAI_API_KEY}"
             : "{env:ANTHROPIC_API_KEY}";
 
-        string providerJson = JsonSerializer.Serialize(providerId);
-        string baseUrlJson = JsonSerializer.Serialize(baseUrl);
-        string apiKeyJson = JsonSerializer.Serialize(apiKeyRef);
-        string modelIdJson = JsonSerializer.Serialize($"{providerId}/{model}");
-        string modelJson = JsonSerializer.Serialize(model);
+        string providerJson = JsonSerializer.Serialize(providerId, StringJsonContext.Default.String);
+        string baseUrlJson = JsonSerializer.Serialize(baseUrl, StringJsonContext.Default.String);
+        string apiKeyJson = JsonSerializer.Serialize(apiKeyRef, StringJsonContext.Default.String);
+        string modelIdJson = JsonSerializer.Serialize($"{providerId}/{model}", StringJsonContext.Default.String);
+        string modelJson = JsonSerializer.Serialize(model, StringJsonContext.Default.String);
 
         return "{\"$schema\":\"https://opencode.ai/config.json\",\"model\":" + modelIdJson
                                                                              + ",\"provider\":{" + providerJson

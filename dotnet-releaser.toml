@@ -3,16 +3,23 @@
 # Every value that affects produced artifacts or publish behavior is set
 # explicitly here - nothing is left at a tool default.
 # GitHub release state (draft creation, asset upload, publication) is owned by
-# .github/workflows/draft-release.yml and .github/workflows/publish-release.yml
-# via the gh CLI and GITHUB_TOKEN only. This tool itself never creates, edits,
-# or publishes a release, and never writes to any GitHub repository other than
-# this one.
+# .github/workflows/publish-release.yml via the gh CLI and GITHUB_TOKEN only.
+# This tool itself never creates, edits, or publishes a release, and never
+# writes to any GitHub repository other than this one.
+#
+# SCOPE: Linux only. Native AOT cannot cross-compile across operating systems,
+# so the release pipeline in publish-release.yml runs one build job per OS.
+# Windows and macOS publish their own RIDs directly (dotnet publish +
+# version-less zip/tar.gz archives, named by the workflow scripts); this file
+# feeds only the ubuntu job, which produces the Linux tar.gz archives plus the
+# unsigned deb/rpm packages. The former all-RID configuration was replaced when
+# the release shape moved to Native AOT.
 
-# Use only the [[pack]] blocks below as the artifact matrix; the tool's default
+# Use only the [[pack]] block below as the artifact matrix; the tool's default
 # profiles (and their extra RIDs/kinds) must not add anything implicitly.
 profile = "custom"
 
-# Where built packages land (also the folder the workflows upload/verify).
+# Where built packages land (also the folder the workflow uploads/verifies).
 artifacts_folder = "artifacts-dotnet-releaser"
 
 # Draft releases carry hand-written notes - generated changelogs are disabled.
@@ -42,21 +49,26 @@ build_debug = false
 publish = true
 
 [msbuild.properties]
-# Publish shape for every RID: self-contained, multi-file - the same layout the
-# previous hand-written release workflow produced. Trimming, single-file
-# bundling and ReadyToRun are deliberately off (they were never part of the
-# shipped archives and trimming is unsafe for this CLI's reflection/CLI
-# parsing surface).
+# Publish shape for the Linux RIDs: Native AOT. The ubuntu job installs the
+# cross toolchain (clang/llvm, arm64 binutils/gcc, arm64 zlib via multiarch)
+# that cross-compiling linux-arm64 on an x64 runner requires - see
+# https://learn.microsoft.com/dotnet/core/deploying/native-aot/cross-compile .
+# AOT output is inherently self-contained and a single native binary, so the
+# single-file and ReadyToRun switches are pinned off for clarity. PublishTrimmed
+# must NOT be set at all alongside PublishAot: the SDK errors that trimming is
+# implied by native compilation and cannot be disabled. Note the shape matters
+# at restore time too: the ILCompiler runtime pack only reaches the assets file
+# through a restore that saw these properties.
 SelfContained = true
+PublishAot = true
 PublishSingleFile = false
-PublishTrimmed = false
 PublishReadyToRun = false
 CopyOutputSymbolsToPublishDirectory = false
 SkipCopyingSymbolsToOutputDirectory = true
 
 [test]
-# Tests run as part of every build, including the build that produces release
-# binaries from the tagged commit.
+# Tests run as part of the ubuntu release build, making it the tagged commit's
+# test gate in the release path (ci.yml covers every PR/push to main).
 enable = true
 run_tests = true
 run_tests_for_debug = false
@@ -77,7 +89,7 @@ api = "https://api.github.com"
 version_prefix = ""
 branches = ["main"]
 # dotnet-releaser itself is never allowed to publish to GitHub. The release
-# workflows own the draft/publish lifecycle, and no release step in this repo
+# workflow owns the draft/publish lifecycle, and no release step in this repo
 # can create or write to any GitHub repository other than this one.
 publish = false
 
@@ -119,21 +131,18 @@ publish = false
 # ---------------------------------------------------------------------------
 # Artifact matrix - the complete set of produced files.
 #
-# Archives: zip on Windows, tar.gz everywhere else, version-less and named
-# `harnessgateway-<rid>.<ext>` so the archive prefix equals the binary name
-# (AssemblyName `harnessgateway`). dotnet-releaser derives the default archive
-# name from PackageId, which is capitalized (`HarnessGateway`), so the renamer
-# must match case-insensitively; the replacement keeps the lowercase shape.
-# The renamer strips the default `harnessgateway.<version>.` segment from
-# every archive and Linux package file name (deb/rpm are already emitted
-# without a version segment and never match).
+# Linux archives: tar.gz, version-less and named `harnessgateway-<rid>.tar.gz`
+# so the archive prefix equals the binary name (AssemblyName `harnessgateway`).
+# dotnet-releaser derives the default archive name from PackageId, which is
+# capitalized (`HarnessGateway`), so the renamer must match case-insensitively;
+# the replacement keeps the lowercase shape. The renamer strips the default
+# `harnessgateway.<version>.` segment from every archive file name (deb/rpm are
+# already emitted without a version segment and never match).
+#
+# The windows zip and macOS tar.gz archives are NOT produced here: the
+# windows/macos jobs in publish-release.yml name them
+# `harnessgateway-<rid>.zip|.tar.gz` directly.
 # ---------------------------------------------------------------------------
-
-[[pack]]
-publish = true
-rid = ["win-x64", "win-arm64"]
-kinds = ["zip"]
-renamer = [{ pattern = '(?i)^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
 
 [[pack]]
 # .deb (Debian/Ubuntu) and .rpm (Fedora/RHEL) ship UNSIGNED - signing is
@@ -141,10 +150,4 @@ renamer = [{ pattern = '(?i)^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace 
 publish = true
 rid = ["linux-x64", "linux-arm64"]
 kinds = ["tar", "deb", "rpm"]
-renamer = [{ pattern = '(?i)^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]
-
-[[pack]]
-publish = true
-rid = ["osx-x64", "osx-arm64"]
-kinds = ["tar"]
 renamer = [{ pattern = '(?i)^harnessgateway\.\d+(\.\d+)+(-[\w.-]+)?\.', replace = 'harnessgateway-' }]

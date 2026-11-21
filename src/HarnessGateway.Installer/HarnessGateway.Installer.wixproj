@@ -64,26 +64,46 @@
 
   <!--
     Publish the Launcher for this RID and hand the payload path plus the product version to
-    Package.wxs. The payload and the version both come from the Launcher build, so neither
-    is restated in this project.
+    Package.wxs. The payload comes from the Launcher build; the version comes from the Launcher
+    csproj's pinned <Version> (under AOT there is no managed payload dll to read an identity
+    from). Neither is restated in this project. The one exception is the payload's publish
+    shape: it is pinned in the Properties string below (Native AOT, matching the release
+    archives).
   -->
   <Target Name="PublishLauncherPayload" BeforeTargets="CoreCompile">
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj"
-             Targets="Publish"
-             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(InstallerRuntimeIdentifier);SelfContained=true;PublishSingleFile=false;PublishTrimmed=false;PublishReadyToRun=false;CopyOutputSymbolsToPublishDirectory=false;BaseOutputPath=$(LauncherBuildDir)bin\;IntermediateOutputPath=$(LauncherBuildDir)obj\;PublishDir=$(LauncherPublishDir)" />
+    <!--
+      The payload publish runs through the dotnet CLI rather than the MSBuild task because
+      PublishAot must reach restore: `dotnet publish` re-restores with the same properties
+      before publishing (the ILCompiler runtime pack only enters the assets file that way),
+      while a raw MSBuild Publish reuses whatever assets file the solution restore last wrote
+      and silently falls back to a JIT payload. The build stays in this project's disjoint
+      launcher-build tree (BaseOutputPath/IntermediateOutputPath), so the payload never writes
+      into the shared bin/obj the solution build uses; no obj-root override is needed - the
+      payload's implicit restore simply rewrites the shared assets file to the AOT shape,
+      which plain builds and publishes are unaffected by.
+    -->
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj&quot; -c $(Configuration) -r $(InstallerRuntimeIdentifier) --self-contained true -p:PublishSingleFile=false -p:PublishAot=true -p:CopyOutputSymbolsToPublishDirectory=false -p:BaseOutputPath=&quot;$(LauncherBuildDir)bin/&quot; -p:IntermediateOutputPath=&quot;$(LauncherBuildDir)obj/&quot; -p:PublishDir=&quot;$(LauncherPublishDir)/&quot;" />
 
-    <!-- The release archives ship without symbols, so the staged payload must too. -->
+    <!-- The release archives ship without symbols, so the staged payload must too. AOT
+         publish can still stage referenced projects' pdbs (CopyOutputSymbolsToPublishDirectory
+         does not cover them), so delete any symbols before packaging. -->
     <ItemGroup>
       <_PayloadSymbols Include="$(LauncherPublishDir)\**\*.pdb" />
     </ItemGroup>
     <Delete Files="@(_PayloadSymbols)" />
 
-    <GetAssemblyIdentity AssemblyFiles="$(LauncherPublishDir)\harnessgateway.dll">
-      <Output TaskParameter="Assemblies" ItemName="_LauncherAssembly" />
-    </GetAssemblyIdentity>
+    <!--
+      The payload version. Under AOT the publish output is a single native exe with no managed
+      harnessgateway.dll to read an assembly identity from, so the version is read from the
+      Launcher csproj's pinned <Version> - the same source of truth the publish workflow's
+      tag assertion checks against. It is never restated here.
+    -->
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj"
+             Query="/Project/PropertyGroup/Version/text()">
+      <Output TaskParameter="Result" PropertyName="_LauncherVersion" />
+    </XmlPeek>
 
     <PropertyGroup>
-      <_LauncherVersion>@(_LauncherAssembly->'%(Version)')</_LauncherVersion>
       <!-- Windows Installer takes Major.Minor.Build only, so drop the revision component. -->
       <LauncherProductVersion>$([System.Text.RegularExpressions.Regex]::Match($(_LauncherVersion), '^\d+\.\d+\.\d+').Value)</LauncherProductVersion>
       <DefineConstants>ProductVersion=$(LauncherProductVersion);LauncherPublishDir=$(LauncherPublishDir);$(DefineConstants)</DefineConstants>
