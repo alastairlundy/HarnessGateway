@@ -587,7 +587,7 @@ public class CodexAdapterTests
             // `codex exec [PROMPT]` is the harness's one-shot subcommand; the
             // provider block still rides the config write it always did.
             await Assert.That(plan.Process.ArgumentList)
-                .IsEquivalentTo(["exec", "fix the failing test"]);
+                .IsEquivalentTo(["exec", "--skip-git-repo-check", "fix the failing test"]);
             List<ConfigFileWriteAction> writes =
                 [.. plan.ConfigurationActions.OfType<ConfigFileWriteAction>()];
             await Assert.That(writes).Count().IsEqualTo(1);
