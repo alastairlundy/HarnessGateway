@@ -57,61 +57,11 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 
     private static LaunchPlan BuildPlan(ResolvedLaunch request, string? printPrompt)
     {
-        // Direct case branching: each case hands over its own
-        // effective protocol, base URL, and model - no stored-looking
-        // provider is synthesized in between, and no protocol is computed
-        // here.
-        ProtocolKind protocol = request.Launch switch
-        {
-            LaunchResolution.ProviderCase providerCase => providerCase.Protocol,
-            LaunchResolution.AdHocCase adHoc => adHoc.Protocol,
-            _ => throw new InvalidOperationException(
-                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
-        };
+        ProtocolKind protocol = ResolveProtocol(request);
+        (ProtocolEmission emission, string? model) = ResolveEmissionAndModel(request);
 
-        (ProtocolEmission emission, string? model) = request.Launch switch
-        {
-            LaunchResolution.ProviderCase providerCase => (
-                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
-                providerCase.Model),
-            LaunchResolution.AdHocCase adHoc => (
-                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
-                adHoc.Model),
-            _ => throw new InvalidOperationException(
-                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
-        };
-
-        // Kilo's built-in provider registry only accepts --model values of
-        // the form provider_id/model_id, and the model must exist in that
-        // provider's list - a bare id is rejected as `Model not found:
-        // <id>/`, and a catalog provider id paired with a model Kilo does
-        // not know is rejected too. The launch therefore registers the
-        // model under the protocol's own provider id through
-        // KILO_CONFIG_CONTENT (Kilo, an OpenCode fork, honours the inline
-        // config env var and treats it as trusted config, so {env:...}
-        // key references resolve) and passes the prefixed id on --model.
-        // Kilo's documented provider vocabulary: `openai-compatible` is
-        // the OpenAI Chat Completions-compatible custom endpoint,
-        // `openai` speaks the Responses API, `anthropic` the Messages API.
-        string? modelRef = null;
-        string? providerId = protocol switch
-        {
-            ProtocolKind.OpenAiChat => "openai-compatible",
-            ProtocolKind.OpenAiResponses => "openai",
-            ProtocolKind.Anthropic => "anthropic",
-            _ => null,
-        };
-        if (model is { Length: > 0 } && providerId is not null
-            && !model.Contains('/', StringComparison.Ordinal))
-        {
-            // The registry reference Kilo's --model flag resolves; the raw
-            // model id stays the models key the session config registers.
-            modelRef = $"{providerId}/{model}";
-        }
-        else if (model is { Length: > 0 })
-        {
-            modelRef = model;
-        }
+        string? providerId = ResolveProviderId(protocol);
+        string? modelRef = ResolveModelRef(model, providerId);
 
         // Kilo's openai-responses protocol joins the "/responses" resource
         // path onto the base URL itself, so an endpoint that already ends in
@@ -151,6 +101,62 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         return new LaunchPlan(config, []);
     }
 
+    private static ProtocolKind ResolveProtocol(ResolvedLaunch request) =>
+        request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => providerCase.Protocol,
+            LaunchResolution.AdHocCase adHoc => adHoc.Protocol,
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
+    private static (ProtocolEmission Emission, string? Model) ResolveEmissionAndModel(ResolvedLaunch request) =>
+        request.Launch switch
+        {
+            LaunchResolution.ProviderCase providerCase => (
+                request.EmissionPlanner.Plan(providerCase.Protocol, providerCase.BaseUri),
+                providerCase.Model),
+            LaunchResolution.AdHocCase adHoc => (
+                request.EmissionPlanner.Plan(adHoc.Protocol, adHoc.BaseUri),
+                adHoc.Model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
+        };
+
+    // Kilo's documented provider vocabulary: `openai-compatible` is the
+    // OpenAI Chat Completions-compatible custom endpoint, `openai` speaks
+    // the Responses API, `anthropic` the Messages API.
+    private static string? ResolveProviderId(ProtocolKind protocol) => protocol switch
+    {
+        ProtocolKind.OpenAiChat => "openai-compatible",
+        ProtocolKind.OpenAiResponses => "openai",
+        ProtocolKind.Anthropic => "anthropic",
+        _ => null,
+    };
+
+    private static string? ResolveModelRef(string? model, string? providerId)
+    {
+        // Kilo's built-in provider registry only accepts --model values of
+        // the form provider_id/model_id, and the model must exist in that
+        // provider's list - a bare id is rejected as `Model not found:
+        // <id>/`, and a catalog provider id paired with a model Kilo does
+        // not know is rejected too. The launch therefore registers the
+        // model under the protocol's own provider id through
+        // KILO_CONFIG_CONTENT and passes the prefixed id on --model.
+        if (model is { Length: > 0 } && providerId is not null
+            && !model.Contains('/', StringComparison.Ordinal))
+        {
+            return $"{providerId}/{model}";
+        }
+
+        if (model is { Length: > 0 })
+        {
+            return model;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Builds the inline session config (KILO_CONFIG_CONTENT): the model
     /// selection plus the provider entry that carries the per-launch endpoint
@@ -179,7 +185,7 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
                                                                              + ":{\"options\":{\"baseURL\":" + baseUrlJson
                                                                              + ",\"apiKey\":" + apiKeyJson
                                                                              + "},\"models\":{" + modelJson
-                                                                             + ":{\"name\":" + modelJson + "}}}}}";
+                                                                             + ":{\"name\":" + modelJson + "}}}}";
     }
 
     /// <summary>
