@@ -106,7 +106,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAdap
             // ArgumentList is non-empty the process library ignores the
             // Arguments string - which is exactly what `run` wants. An empty
             // list (the interactive launch) is the property's default.
-            ArgumentList = printPrompt is null ? [] : ["run", printPrompt],
+            ArgumentList = printPrompt is null ? ["--standalone"] : ["run", "--standalone", printPrompt],
         };
 
         return new LaunchPlan(config, []);

@@ -34,6 +34,8 @@ public static class ProviderResolution
         string? model)
         => Resolve(settings, providerName, endpoint, protocol, model, applyUnlistedModelGuard: true);
 
+
+
     /// <summary>
     /// Resolve a saved entry for the management and read paths (config
     /// pointer writes, key lifecycle, the wizard's prefill read): identical
@@ -48,7 +50,7 @@ public static class ProviderResolution
         => Resolve(settings, providerName, endpoint: null, protocol: null, model: null,
             applyUnlistedModelGuard: false);
 
-    private static ProviderResolutionResult Resolve(
+    public static ProviderResolutionResult Resolve(
         LauncherSettings settings,
         string? providerName,
         string? endpoint,

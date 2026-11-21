@@ -139,7 +139,7 @@ public class KiloAdapterTests
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.ArgumentList).Contains("--model");
-        await Assert.That(plan.Process.ArgumentList).Contains("claude-sonnet-5");
+        await Assert.That(plan.Process.ArgumentList).Contains("openai-compatible/claude-sonnet-5");
     }
 
     [Test]
@@ -244,6 +244,6 @@ public class KiloAdapterTests
         // -m/--model flag, so the model moves into the run subcommand's
         // options rather than the global slot the interactive launch uses.
         await Assert.That(plan.Process.ArgumentList).IsEquivalentTo(
-            ["run", "--model", "gpt-5", "fix the failing test"]);
+            ["run", "--model", "openai-compatible/gpt-5", "fix the failing test"]);
     }
 }

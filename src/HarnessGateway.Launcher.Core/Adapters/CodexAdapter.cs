@@ -121,7 +121,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             // ArgumentList is non-empty the process library ignores the
             // Arguments string - which `exec` wants. An empty list (the
             // interactive launch) is the property's default.
-            ArgumentList = printPrompt is null ? [] : ["exec", printPrompt],
+            ArgumentList = printPrompt is null ? [] : ["exec", "--skip-git-repo-check", printPrompt],
         };
 
         return new LaunchPlan(config, actions);
@@ -174,6 +174,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             ["base_url"] = baseUrl,
             ["env_key"] = EnvKeyName,
             ["wire_api"] = "responses",
+            ["requires_openai_auth"] = false,
         });
         editor.SetTopLevelValue("model_provider", ProviderId);
         if (model is { Length: > 0 })
