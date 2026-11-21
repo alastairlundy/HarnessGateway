@@ -1,5 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 using HarnessGateway.Launcher.Wizard;
@@ -1083,6 +1084,140 @@ public class WizardPipelineTests
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result.Endpoint).IsEqualTo("https://host/v1?next=/");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_post_model_protocol_mismatch_loops_back_to_harness()
+    {
+        // The model step can return a protocol the chosen harness cannot
+        // speak (here: openai-responses under an openai-chat provider). The
+        // wizard must surface the incompatible message and return to the
+        // harness step instead of completing and letting the launch flow
+        // refuse with exit 3 afterwards.
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
+            endpoint: "https://api.example.com/v1",
+            protocol: ProtocolKind.OpenAiChat,
+            apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            StubHttpMessageHandler handler = new("""{"data":[{"id":"gpt-4"}]}""");
+            HttpClient http = new HttpClient(handler);
+            ModelCatalogClient catalogClient = new ModelCatalogClient(http);
+
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
+                "OpenAiOnly",
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+            IHarnessAdapter responsesCapable = WizardTestHelper.CreateTestAdapter(
+                "ResponsesCapable",
+                supportedProtocols: new HashSet<ProtocolKind>
+                {
+                    ProtocolKind.OpenAiChat,
+                    ProtocolKind.OpenAiResponses
+                });
+            WizardPipeline pipeline = new WizardPipeline(
+                console, [openAiOnly, responsesCapable], store, keyStore, catalogClient);
+
+            console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("default");
+            console.EnqueueChoice("gpt-4");
+            console.EnqueueChoice("openai-responses");
+            // Loop-back: the harness list is re-presented with annotations,
+            // and a harness that can speak the effective protocol is picked.
+            console.EnqueueChoice("ResponsesCapable");
+            // The model selection was discarded on loop-back and is collected
+            // again from scratch.
+            console.EnqueueChoice("gpt-4");
+            console.EnqueueChoice("openai-responses");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.AgentCommandName).IsEqualTo("ResponsesCapable");
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+            await Assert.That(result.Model).IsEqualTo("gpt-4");
+            await Assert.That(result.ApiKey).IsEqualTo("saved-key");
+
+            // Two harness prompts and two model prompts: the mismatch looped
+            // back rather than completing, and the model was re-collected.
+            await Assert.That(console.Prompts.Count).IsEqualTo(7);
+            await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
+            await Assert.That(console.Prompts[4].Title).IsEqualTo("Select a harness:");
+            await Assert.That(
+                console.Prompts.Count(p => p.Title == "Select a model (or skip):")).IsEqualTo(2);
+
+            // The incompatible message names the harness and the model's
+            // effective protocol, and nothing else failed along the way.
+            await Assert.That(console.ErrorMessages.Count).IsEqualTo(1);
+            await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
+            await Assert.That(console.ErrorMessages[0]).Contains("openai-responses");
+
+            // The re-presented harness list keeps the annotations visible.
+            await Assert.That(
+                    console.Prompts[4].Choices.Single(c => c.Name == "OpenAiOnly").IncompatibleProtocols)
+                .IsEqualTo("openai-responses");
+            await Assert.That(
+                    console.Prompts[4].Choices.Single(c => c.Name == "ResponsesCapable").IncompatibleProtocols)
+                .IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_post_model_dead_end_aborts_instead_of_looping()
+    {
+        // No installed harness can speak openai-responses: after the
+        // mismatch message the loop-top dead-end guard must abort with
+        // NoHarnessSupportsProtocol rather than re-prompting forever.
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
+            endpoint: "https://api.example.com/v1",
+            protocol: ProtocolKind.OpenAiChat,
+            apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            StubHttpMessageHandler handler = new("""{"data":[{"id":"gpt-4"}]}""");
+            HttpClient http = new HttpClient(handler);
+            ModelCatalogClient catalogClient = new ModelCatalogClient(http);
+
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
+                "OpenAiOnly",
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+            WizardPipeline pipeline = new WizardPipeline(
+                console, [openAiOnly], store, keyStore, catalogClient);
+
+            console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("default");
+            console.EnqueueChoice("gpt-4");
+            console.EnqueueChoice("openai-responses");
+
+            WizardOutcome outcome = await pipeline.RunAsync();
+
+            WizardAborted? aborted = outcome as WizardAborted;
+            await Assert.That(aborted).IsNotNull();
+            await Assert.That(aborted!.Reason).IsEqualTo(WizardAbortReason.NoHarnessSupportsProtocol);
+
+            // The incompatible message comes first, then the dead-end
+            // refusal; the guard fires before a second harness prompt, so
+            // the wizard cannot loop.
+            await Assert.That(
+                console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(1);
+            await Assert.That(console.ErrorMessages.Count).IsEqualTo(2);
+            await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
+            await Assert.That(console.ErrorMessages[1]).Contains("No agent harness supports");
+            await Assert.That(console.ErrorMessages[1]).Contains("openai-responses");
         }
         finally
         {

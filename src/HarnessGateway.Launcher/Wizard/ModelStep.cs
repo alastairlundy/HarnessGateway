@@ -33,7 +33,11 @@ public sealed class ModelStep
         _provider = backend;
     }
 
-    public async Task<ModelSelection> RunAsync(bool requiresModel, string? savedDefaultModel, CancellationToken cancellationToken = default)
+    public async Task<ModelSelection> RunAsync(
+        bool requiresModel,
+        string? savedDefaultModel,
+        IReadOnlySet<ProtocolKind>? harnessProtocols = null,
+        CancellationToken cancellationToken = default)
     {
         // One catalogue request, made with the provider's own wire protocol so
         // the authentication header matches the endpoint it is sent to. Chat
@@ -83,12 +87,13 @@ public sealed class ModelStep
             return await RunDegradedAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
         }
 
-        return await RunWithCatalogAsync(found, requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
+        return await RunWithCatalogAsync(found, requiresModel, savedDefaultModel, harnessProtocols, cancellationToken).ConfigureAwait(true);
     }
 
     private async Task<ModelSelection> RunWithCatalogAsync(
         Dictionary<string, HashSet<ProtocolKind>> found,
         bool requiresModel, string? savedDefaultModel,
+        IReadOnlySet<ProtocolKind>? harnessProtocols,
         CancellationToken cancellationToken)
     {
         List<ConsoleChoice> choices = [];
@@ -114,7 +119,26 @@ public sealed class ModelStep
                 annotationParts.Add("saved default");
             }
 
-            choices.Add(new ConsoleChoice(entry.Key, string.Join("; ", annotationParts)));
+            // Indication, never filtering (D012): a model whose every listed
+            // protocol tag the harness cannot speak gets the harness list's
+            // "incompatible: <protocols>" vocabulary appended to the
+            // annotation, and the structured state rides along so the
+            // presenter can colour it. A model with at least one speakable
+            // tag stays unmarked - the partial-match blind spot is accepted -
+            // and no choice is ever dropped from the list.
+            string? incompatible = null;
+            if (harnessProtocols is not null && !entry.Value.Overlaps(harnessProtocols))
+            {
+                incompatible = protocolsText;
+                annotationParts.Add($"incompatible: {protocolsText}");
+            }
+
+            choices.Add(new ConsoleChoice(
+                entry.Key,
+                string.Join("; ", annotationParts))
+            {
+                IncompatibleProtocols = incompatible,
+            });
         }
 
         string title = requiresModel ? "Select a model (required):" : "Select a model (or skip):";
