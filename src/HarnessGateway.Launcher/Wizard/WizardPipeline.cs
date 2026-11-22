@@ -10,6 +10,7 @@ using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Wizard.Abstractions;
 using HarnessGateway.Launcher.Wizard.Models;
+using Spectre.Console;
 
 namespace HarnessGateway.Launcher.Wizard;
 
@@ -96,16 +97,32 @@ public sealed class WizardPipeline
                 Result<IHarnessAdapter> adapterResult = HarnessLookup.TryResolve(_adapters, harnessName);
                 adapter = adapterResult.Success ? adapterResult.Value : null;
 
+                // The provider step runs exactly once: the pass that establishes
+                // the endpoint and protocol for the session. Only that
+                // establishing selection is gated against the provider protocol
+                // below - a harness picked on a later model-protocol retry
+                // reuses the established pair, and the post-model check is its
+                // gate. Re-checking the provider protocol there would bounce the
+                // loop between the two gates: a retry can only select a harness
+                // speaking the retried protocol, which then fails the provider
+                // check and forces the pick back, forever (neither dead-end
+                // guard fires, because some harness speaks each protocol).
+                bool establishingPass = providerResult.endpoint is null;
+
+                // The endpoint test is repeated rather than keyed off the flag:
+                // testing the value itself is what keeps endpoint provably
+                // non-null past this block for the session below.
                 if (providerResult.endpoint is null)
                 {
                     providerResult = await RunProviderStepAsync(settings, cancellationToken).ConfigureAwait(true);
                     if (providerResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
                 }
 
-                if (adapter is not null
+                if (establishingPass
+                    && adapter is not null
                     && !adapter.Metadata.SupportedProtocols.Contains(providerResult.protocol))
                 {
-                    // Post-endpoint re-verify: the interactive counterpart of
+                    // Establishing-pass pre-check: the interactive counterpart of
                     // the direct-mode exit-3 pre-check. A dead end aborts before the
                     // refusal so an unsupported protocol can never trap the user in a
                     // re-prompt loop; otherwise mirror the direct-mode reason and loop
@@ -171,7 +188,19 @@ public sealed class WizardPipeline
                     adapter?.Metadata.SupportedProtocols,
                     cancellationToken).ConfigureAwait(true);
 
-                ProtocolKind effectiveProtocol = modelSelection.Protocol ?? providerResult.protocol;
+                // The picked model's stored entry, looked up once before the
+                // protocol is decided: it feeds both the precedence below and
+                // the endpoint swap, so the compatibility check and the
+                // returned endpoint/protocol pair are computed from the same
+                // entry instead of disagreeing about it.
+                ModelEntry? pickedEntry = FindStoredModelEntry(
+                    providerResult.provider, modelSelection.Model);
+
+                // Precedence: the model step's protocol first (an explicit
+                // pick, or the one the catalogue reported), then the stored
+                // entry's own override, then the provider's protocol.
+                ProtocolKind effectiveProtocol =
+                    modelSelection.Protocol ?? pickedEntry?.Protocol ?? providerResult.protocol;
 
                 // Post-model re-verify: the model step can hand back a
                 // protocol the chosen harness cannot speak, which the launch
@@ -204,12 +233,17 @@ public sealed class WizardPipeline
                 // chosen provider's stored model list and never persisted, and
                 // the provider's endpoint stands when the pick carries none.
                 string sessionEndpoint = providerResult.endpoint;
-                ModelEntry? pickedEntry = FindStoredModelEntry(providerResult.provider, modelSelection.Model);
                 if (pickedEntry?.Endpoint is { } endpointOverride)
                 {
                     sessionEndpoint = endpointOverride.ToString();
+                    // Both values are stored, user-editable text and this line
+                    // goes through WriteMarkup's Spectre markup parser, so a
+                    // "[" in an endpoint (an IPv6 literal) or a model name
+                    // would be read as a style tag and throw. Escape the values,
+                    // never the surrounding message.
                     string endpointLine =
-                        $"Using endpoint {sessionEndpoint} for model '{pickedEntry.Name}'.";
+                        $"Using endpoint {Markup.Escape(sessionEndpoint)} for model " +
+                        $"'{Markup.Escape(pickedEntry.Name)}'.";
                     await Task.Run(() => _console.WriteMarkup(endpointLine), cancellationToken)
                         .ConfigureAwait(false);
                 }
