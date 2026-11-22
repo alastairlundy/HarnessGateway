@@ -32,6 +32,22 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   themselves, so an endpoint that already ends in `/responses` is not doubled
   for the OpenAI Chat Completions and Anthropic paths.
 
+### Known Issues
+
+- Windows only: any process the launcher starts - a harness, or the `where`
+  / `which` availability probe every CLI harness runs before launching -
+  can intermittently fail to spawn with `Win32Exception: Access is denied`.
+  Where it lands decides what you see: an exit-7 `Launch failed:` error; an
+  installed harness wrongly refused with the install hint (the probe
+  swallows the fault); or, on an interactive `codex` launch, the same
+  swallowed fault in the best-effort `codex app-server daemon stop` step,
+  after which the TUI falls back to the stale daemon and reports
+  `Missing environment variable: HARNESSGATEWAY_API_KEY` again. The cause
+  is upstream in CliInvoke, which pins every child to CPUs 0-15 from its
+  start hook; a child that exits first makes that call fail. Long-lived
+  harnesses rarely hit it, but the test suite can flake on the Windows CI
+  job until CliInvoke ships the fix and the dependency is bumped.
+
 [0.1.2]: https://github.com/alastairlundy/HarnessGateway/compare/0.1.1...HEAD
 
 ## [0.1.1] - 2026-11-20
