@@ -68,4 +68,70 @@ public class SpectreConsoleAbstractionTests
         await Assert.That(caught).IsNotNull();
         await Assert.That(caught!.Message).Contains("Could not find color or style 'add'");
     }
+
+    [Test]
+    public async Task BuildDisplayText_unavailable_choice_renders_the_whole_line_red()
+    {
+        // Unavailable means the entire line - name plus annotation -
+        // carries the red foreground, even when the line also carries an
+        // incompatible indication (red takes precedence there).
+        ConsoleChoice choice = new(
+            "UnavailableAgent",
+            "not installed; incompatible: anthropic",
+            Unavailable: true,
+            IncompatibleProtocols: "anthropic");
+
+        string display = SpectreConsoleAbstraction.BuildDisplayText(choice);
+
+        List<AnsiMarkupSegment> segments = [.. AnsiMarkup.Parse(display)];
+
+        await Assert.That(string.Concat(segments.Select(s => s.Text)))
+            .IsEqualTo("UnavailableAgent (not installed; incompatible: anthropic)");
+        await Assert.That(segments.All(s => Color.Red.Equals(s.Style.Foreground))).IsTrue();
+    }
+
+    [Test]
+    public async Task BuildDisplayText_incompatible_segment_renders_orange_and_the_rest_stays_dim()
+    {
+        // The incompatible segment replaces the dim
+        // rendering with orange; the name and the rest of the annotation do
+        // not pick up the orange colour.
+        ConsoleChoice choice = new(
+            "OpenAiOnly",
+            "not installed; incompatible: anthropic",
+            IncompatibleProtocols: "anthropic");
+
+        string display = SpectreConsoleAbstraction.BuildDisplayText(choice);
+
+        List<AnsiMarkupSegment> segments = [.. AnsiMarkup.Parse(display)];
+
+        // The style changes must not alter the text the round-trip matches on.
+        await Assert.That(string.Concat(segments.Select(s => s.Text)))
+            .IsEqualTo("OpenAiOnly (not installed; incompatible: anthropic)");
+
+        AnsiMarkupSegment incompatible = segments.Single(
+            s => s.Text.Contains("incompatible: anthropic", StringComparison.Ordinal));
+        await Assert.That(Color.Orange1.Equals(incompatible.Style.Foreground)).IsTrue();
+
+        foreach (AnsiMarkupSegment other in segments.Where(s => !ReferenceEquals(s, incompatible)))
+        {
+            await Assert.That(Color.Orange1.Equals(other.Style.Foreground)).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task BuildDisplayText_available_choice_without_state_renders_unchanged()
+    {
+        // Available and compatible choices keep the plain rendering: no
+        // colour of their own on either the name or the annotation.
+        ConsoleChoice choice = new("AnthropicCapable", "not installed");
+
+        string display = SpectreConsoleAbstraction.BuildDisplayText(choice);
+
+        List<AnsiMarkupSegment> segments = [.. AnsiMarkup.Parse(display)];
+
+        await Assert.That(segments.All(s => Color.Default.Equals(s.Style.Foreground))).IsTrue();
+        await Assert.That(string.Concat(segments.Select(s => s.Text)))
+            .IsEqualTo("AnthropicCapable (not installed)");
+    }
 }

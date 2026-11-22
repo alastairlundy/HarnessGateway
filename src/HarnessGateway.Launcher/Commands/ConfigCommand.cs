@@ -26,10 +26,12 @@ public sealed class ConfigCommand : Command
         Command showVerb = new("show", "Display the current default provider configuration");
         Command getVerb = CreateGetCommand();
         Command setVerb = CreateSetCommand();
+        Command pathVerb = new("path", "Print the settings file path");
 
         Add(showVerb);
         Add(getVerb);
         Add(setVerb);
+        Add(pathVerb);
 
         showVerb.SetAction(async (result, cancellationToken) =>
         {
@@ -64,6 +66,16 @@ public sealed class ConfigCommand : Command
             Console.WriteLine($"Protocol: {FormatProtocol(backend.DefaultProtocol)}");
             Console.WriteLine($"Saved key: {(string.IsNullOrEmpty(backend.ApiKey) ? "(not set)" : "(set)")}");
             Console.WriteLine($"Default model: {backend.DefaultModel ?? "(not set)"}");
+            return 0;
+        });
+
+        // Read-only by construction: the path is a property of the store, so
+        // the action never loads (and therefore never migrates or writes) the
+        // settings file, and reports only that location - never the
+        // credential-store one.
+        pathVerb.SetAction(_ =>
+        {
+            Console.WriteLine(_settingsStore.SettingsFilePath);
             return 0;
         });
     }

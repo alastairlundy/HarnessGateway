@@ -7,4 +7,15 @@
 
 namespace HarnessGateway.Launcher.Wizard.Models;
 
-public sealed record ConsoleChoice(string Name, string? Annotation = null);
+/// <summary>
+/// One selectable line in a wizard prompt: the raw display name plus its raw
+/// annotation text, and the structured state the presenter needs to colour the
+/// line without parsing that text back apart. The state fields are safe
+/// defaults - call sites that only carry text keep compiling and render as
+/// before.
+/// </summary>
+public sealed record ConsoleChoice(
+    string Name,
+    string? Annotation = null,
+    bool Unavailable = false,
+    string? IncompatibleProtocols = null);

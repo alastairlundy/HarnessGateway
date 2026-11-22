@@ -45,15 +45,51 @@ public sealed class SpectreConsoleAbstraction : IConsoleAbstraction
     // from settings) and may contain "[...]" that Spectre's markup parser
     // would read as a style tag - e.g. the "[add new provider]" choice throws
     // "Could not find color or style 'add'". Escape the text, but keep the
-    // intentional [dim] wrapper around the annotation as real markup. Both the
+    // intentional [dim] wrapper around the annotation as real markup, the
+    // whole-line [red] wrap for an unavailable choice as real markup, and the
+    // [orange1] wrap around the incompatible segment as real markup. Both the
     // value added to the prompt and the value matched against its result must
     // come from here so the round-trip stays byte-identical.
     internal static string BuildDisplayText(ConsoleChoice choice)
     {
         string name = Markup.Escape(choice.Name);
-        return choice.Annotation is not null
-            ? $"{name} [dim]({Markup.Escape(choice.Annotation)})[/]"
-            : name;
+
+        if (choice.Annotation is null)
+        {
+            return choice.Unavailable ? $"[red]{name}[/]" : name;
+        }
+
+        string annotation = Markup.Escape(choice.Annotation);
+
+        // Not installed: the entire line (name plus annotation) renders red,
+        // taking precedence over the incompatible indication - a harness that
+        // is both unavailable and incompatible is red first.
+        if (choice.Unavailable)
+        {
+            return $"[red]{name} ({annotation})[/]";
+        }
+
+        // The incompatible segment renders orange instead of dim: close the
+        // dim wrapper before the segment and re-open it after, so only that
+        // segment carries the orange colour.
+        // The segment text is located inside the already-escaped annotation
+        // rather than re-derived, so the dim base keeps exactly the raw
+        // annotation the caller composed.
+        if (choice.IncompatibleProtocols is not null)
+        {
+            string segment = Markup.Escape($"incompatible: {choice.IncompatibleProtocols}");
+            int index = annotation.IndexOf(segment, StringComparison.Ordinal);
+
+            if (index >= 0)
+            {
+                string before = annotation[..index];
+                string after = annotation[(index + segment.Length)..];
+
+                return $"{name} [dim]({before}[/][orange1]{segment}[/][dim]{after})[/]";
+            }
+        }
+
+        return $"{name} [dim]({annotation})[/]";
     }
 
     public Task<string> PromptTextAsync(string prompt, string? defaultValue = null,

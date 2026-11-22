@@ -12,17 +12,28 @@ namespace HarnessGateway.Launcher.Commands;
 
 internal sealed class ProviderCommands : Command
 {
+    /// <summary>
+    /// One description for both credential verbs' <c>--key-env</c> option, so
+    /// the two spellings of the flag can never drift apart.
+    /// </summary>
+    private const string KeyEnvOptionDescription =
+        "Environment variable holding the API key to save in the platform credential store; " +
+        "read from this process's environment at invocation time. " +
+        "Cannot be combined with --key";
+
     private readonly SettingsStore _settingsStore;
     private readonly ISecureKeyStore _keyStore;
     private readonly IKeyPrompt _keyPrompt;
+    private readonly ApiKeySource _apiKeySource;
 
     internal ProviderCommands(SettingsStore settingsStore, ISecureKeyStore keyStore,
-        IKeyPrompt keyPrompt)
+        IKeyPrompt keyPrompt, ApiKeySource? apiKeySource = null)
         : base("provider", "Manage saved providers")
     {
         _settingsStore = settingsStore;
         _keyStore = keyStore;
         _keyPrompt = keyPrompt;
+        _apiKeySource = apiKeySource ?? new ApiKeySource();
 
         Add(CreateAddCommand());
         Add(CreateListCommand());
@@ -52,6 +63,10 @@ internal sealed class ProviderCommands : Command
                 "API key to save in the platform credential store; skips the interactive prompt. " +
                 "Warning: the value is visible in your shell history - prefer the interactive prompt",
         };
+        Option<string?> keyEnvOption = new("--key-env")
+        {
+            Description = KeyEnvOptionDescription,
+        };
 
         Command cmd = new("add", "Create or replace a saved provider entry")
         {
@@ -59,6 +74,7 @@ internal sealed class ProviderCommands : Command
             endpointOption,
             protocolOption,
             keyOption,
+            keyEnvOption,
         };
 
         cmd.SetAction(async (result, cancellationToken) =>
@@ -67,6 +83,17 @@ internal sealed class ProviderCommands : Command
             string? endpoint = result.GetValue(endpointOption);
             string? protocol = result.GetValue(protocolOption);
             string? key = result.GetValue(keyOption);
+            string? keyEnv = result.GetValue(keyEnvOption);
+
+            // Key sourcing runs first: a flag conflict or a missing variable
+            // fails before anything is read from or written to the settings
+            // file, and never reaches the interactive prompt.
+            ApiKeySourceResult keySource = _apiKeySource.Resolve(key, keyEnv);
+            int? keySourceExitCode = await ReportKeySourceFailureAsync(keySource).ConfigureAwait(true);
+            if (keySourceExitCode is { } usageError)
+            {
+                return usageError;
+            }
 
             (LauncherSettings settings, int loadExitCode) =
                 await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
@@ -137,7 +164,7 @@ internal sealed class ProviderCommands : Command
                     "provider add reached the create path without --endpoint and --protocol.");
             }
 
-            string? secret = key ?? _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
+            string? secret = SecretOrPrompt(keySource, entry);
 
             if (secret is not null)
             {
@@ -311,17 +338,33 @@ internal sealed class ProviderCommands : Command
                 "API key to save in the platform credential store; skips the interactive prompt. " +
                 "Warning: the value is visible in your shell history - prefer the interactive prompt",
         };
+        Option<string?> keyEnvOption = new("--key-env")
+        {
+            Description = KeyEnvOptionDescription,
+        };
 
         Command cmd = new("set-key", "Set or replace the saved API key for a provider entry")
         {
             nameArg,
             keyOption,
+            keyEnvOption,
         };
 
         cmd.SetAction(async (result, cancellationToken) =>
         {
             string name = result.GetRequiredValue(nameArg);
             string? key = result.GetValue(keyOption);
+            string? keyEnv = result.GetValue(keyEnvOption);
+
+            // Same shared sourcing rule as provider add: a failure here exits
+            // before the settings file is even loaded, so nothing is stored
+            // and nothing is saved, and the prompt never runs.
+            ApiKeySourceResult keySource = _apiKeySource.Resolve(key, keyEnv);
+            int? keySourceExitCode = await ReportKeySourceFailureAsync(keySource).ConfigureAwait(true);
+            if (keySourceExitCode is { } usageError)
+            {
+                return usageError;
+            }
 
             (LauncherSettings settings, int loadExitCode) =
                 await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
@@ -339,8 +382,7 @@ internal sealed class ProviderCommands : Command
                 return resolutionExitCode;
             }
 
-            string? secret = key ??
-                             _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null);
+            string? secret = SecretOrPrompt(keySource, entry);
 
             if (secret is null)
             {
@@ -460,12 +502,19 @@ internal sealed class ProviderCommands : Command
                 "Protocol override for this model (openai-chat, openai-responses, anthropic); " +
                 "omit to inherit the provider default",
         };
+        Option<string?> endpointOption = new("--endpoint")
+        {
+            Description =
+                "Endpoint override for this model (absolute URL); " +
+                "omit to inherit the provider default endpoint",
+        };
 
         Command cmd = new("add", "Add a model entry to a provider's catalog")
         {
             providerArg,
             modelArg,
             protocolOption,
+            endpointOption,
         };
 
         cmd.SetAction(async (result, cancellationToken) =>
@@ -473,6 +522,7 @@ internal sealed class ProviderCommands : Command
             string providerName = result.GetRequiredValue(providerArg);
             string modelName = result.GetRequiredValue(modelArg);
             string? protocol = result.GetValue(protocolOption);
+            string? endpoint = result.GetValue(endpointOption);
 
             (LauncherSettings settings, int loadExitCode) =
                 await ConfigCommand.TryLoadSettingsAsync(_settingsStore, cancellationToken).ConfigureAwait(true);
@@ -496,6 +546,24 @@ internal sealed class ProviderCommands : Command
                 protocolOverride = kind;
             }
 
+            // Same absolute-URL rule provider add enforces through
+            // LaunchCommand.ParseEndpoint: an endpoint that does not parse as
+            // absolute is a usage error here, before the entry is resolved or
+            // anything is written.
+            Uri? endpointOverride = null;
+            if (endpoint is not null)
+            {
+                if (!Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? parsedEndpoint))
+                {
+                    await Console.Error.WriteLineAsync(
+                            $"Invalid endpoint '{endpoint}': must be an absolute URL.")
+                        .ConfigureAwait(true);
+                    return (int)LaunchExitCode.UsageError;
+                }
+
+                endpointOverride = parsedEndpoint;
+            }
+
             ProviderResolutionResult resolution = ProviderResolution.ResolveEntry(settings, providerName);
 
             (Provider? entry, int resolutionExitCode) = await TryResolveEntryAsync(resolution)
@@ -517,7 +585,16 @@ internal sealed class ProviderCommands : Command
 
             Provider updated = entry with
             {
-                Models = [.. entry.Models, new ModelEntry { Name = modelName, Protocol = protocolOverride }],
+                Models =
+                [
+                    .. entry.Models,
+                    new ModelEntry
+                    {
+                        Name = modelName,
+                        Protocol = protocolOverride,
+                        Endpoint = endpointOverride,
+                    }
+                ],
             };
             ConfigCommand.UpdateProvider(settings, updated);
             _settingsStore.Save(settings);
@@ -634,7 +711,10 @@ internal sealed class ProviderCommands : Command
                 string protocol = model.Protocol is { } overrideProtocol
                     ? ProviderResolution.ProtocolName(overrideProtocol)
                     : "(provider default)";
-                Console.WriteLine($"  {model.Name}  {protocol}");
+                string endpoint = model.Endpoint is { } overrideEndpoint
+                    ? overrideEndpoint.ToString()
+                    : "(provider default)";
+                Console.WriteLine($"  {model.Name}  {protocol}  {endpoint}");
             }
 
             return 0;
@@ -668,6 +748,37 @@ internal sealed class ProviderCommands : Command
                 return (null, (int)LaunchExitCode.UsageError);
         }
     }
+
+    /// <summary>
+    /// Maps a failed key source to stderr plus the usage-error exit code -
+    /// the command layer's side of the sourcing contract, shared by both
+    /// credential verbs so no verb grows its own copy. Returns null when a
+    /// source resolved or no source flag was given, so the caller continues.
+    /// </summary>
+    private static async Task<int?> ReportKeySourceFailureAsync(ApiKeySourceResult source)
+    {
+        if (source is not ApiKeySourceResult.Failed failed)
+        {
+            return null;
+        }
+
+        await Console.Error.WriteLineAsync(failed.Message).ConfigureAwait(true);
+        return (int)LaunchExitCode.UsageError;
+    }
+
+    /// <summary>
+    /// The secret to store for <paramref name="entry"/>: the resolved source
+    /// value when a flag supplied one, otherwise the interactive prompt. A
+    /// failed source never reaches here - <see cref="ReportKeySourceFailureAsync"/>
+    /// returns first - so there is no prompt fallback on failure.
+    /// </summary>
+    private string? SecretOrPrompt(ApiKeySourceResult source, Provider entry) =>
+        source switch
+        {
+            ApiKeySourceResult.Resolved resolved => resolved.Secret,
+            ApiKeySourceResult.Prompt => _keyPrompt.PromptForNewKey(entry.Name, entry.ApiKey is not null),
+            _ => throw new InvalidOperationException("A failed key source reached the interactive prompt."),
+        };
 
     private static int ExitCodeFor(ProviderResolutionFailure failure) =>
         failure is ProviderResolutionFailure.UnknownProviderName

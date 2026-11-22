@@ -1,5 +1,6 @@
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 using HarnessGateway.Launcher.Wizard;
@@ -9,6 +10,36 @@ namespace HarnessGateway.Launcher.Tests.Wizard;
 
 public class WizardPipelineTests
 {
+    /// <summary>
+    /// A provider whose default is openai-chat and a single stored model
+    /// entry overriding both protocol and endpoint to Anthropic - the shape a
+    /// per-model gateway creates, and the one where an adopted endpoint with a
+    /// non-adopted protocol would be visible.
+    /// </summary>
+    private static LauncherSettings CreateStoredOverrideSettings() => new()
+    {
+        Providers =
+        [
+            new Provider
+            {
+                Name = "default",
+                BaseUri = new Uri("https://provider.example/v1"),
+                DefaultProtocol = ProtocolKind.OpenAiChat,
+                ApiKey = "hgkey:default",
+                Models =
+                [
+                    new ModelEntry
+                    {
+                        Name = "claude-x",
+                        Protocol = ProtocolKind.Anthropic,
+                        Endpoint = new Uri("https://anthropic-gw.example/v1"),
+                    }
+                ],
+            }
+        ],
+        DefaultProvider = "default",
+    };
+
     [Test]
     public async Task RunAsync_harness_step_shows_unavailable_annotated()
     {
@@ -653,6 +684,32 @@ public class WizardPipelineTests
             await Assert.That(
                     console.Prompts[1].Choices.Single(c => c.Name == "AnthropicCapable").Annotation)
                 .IsNull();
+
+            // Structured state the presenter consumes: the whole-line red
+            // flag follows probe availability from the first prompt, and the
+            // orange-segment state appears once the incompatible re-prompt
+            // turns annotations on.
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "OpenAiOnly").Unavailable).IsFalse();
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "OpenAiOnly").IncompatibleProtocols)
+                .IsNull();
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "UnavailableOpenAi").Unavailable)
+                .IsTrue();
+            await Assert.That(
+                console.Prompts[0].Choices.Single(c => c.Name == "UnavailableOpenAi").IncompatibleProtocols)
+                .IsNull();
+            await Assert.That(
+                console.Prompts[1].Choices.Single(c => c.Name == "OpenAiOnly").IncompatibleProtocols)
+                .IsEqualTo("anthropic");
+            await Assert.That(
+                console.Prompts[1].Choices.Single(c => c.Name == "UnavailableOpenAi").IncompatibleProtocols)
+                .IsEqualTo("anthropic");
+            await Assert.That(
+                console.Prompts[1].Choices.Single(c => c.Name == "AnthropicCapable").IncompatibleProtocols)
+                .IsNull();
+
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
             await Assert.That(console.ErrorMessages[0]).Contains("anthropic");
@@ -1057,6 +1114,477 @@ public class WizardPipelineTests
 
             await Assert.That(result).IsNotNull();
             await Assert.That(result.Endpoint).IsEqualTo("https://host/v1?next=/");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_post_model_protocol_mismatch_loops_back_to_harness()
+    {
+        // The model step can return a protocol the chosen harness cannot
+        // speak (here: openai-responses under an openai-chat provider). The
+        // wizard must surface the incompatible message and return to the
+        // harness step instead of completing and letting the launch flow
+        // refuse with exit 3 afterwards.
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
+            endpoint: "https://api.example.com/v1",
+            protocol: ProtocolKind.OpenAiChat,
+            apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            StubHttpMessageHandler handler = new("""{"data":[{"id":"gpt-4"}]}""");
+            HttpClient http = new HttpClient(handler);
+            ModelCatalogClient catalogClient = new ModelCatalogClient(http);
+
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
+                "OpenAiOnly",
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+            IHarnessAdapter responsesCapable = WizardTestHelper.CreateTestAdapter(
+                "ResponsesCapable",
+                supportedProtocols: new HashSet<ProtocolKind>
+                {
+                    ProtocolKind.OpenAiChat,
+                    ProtocolKind.OpenAiResponses
+                });
+            WizardPipeline pipeline = new WizardPipeline(
+                console, [openAiOnly, responsesCapable], store, keyStore, catalogClient);
+
+            console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("default");
+            console.EnqueueChoice("gpt-4");
+            console.EnqueueChoice("openai-responses");
+            // Loop-back: the harness list is re-presented with annotations,
+            // and a harness that can speak the effective protocol is picked.
+            console.EnqueueChoice("ResponsesCapable");
+            // The model selection was discarded on loop-back and is collected
+            // again from scratch.
+            console.EnqueueChoice("gpt-4");
+            console.EnqueueChoice("openai-responses");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.AgentCommandName).IsEqualTo("ResponsesCapable");
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.OpenAiResponses);
+            await Assert.That(result.Model).IsEqualTo("gpt-4");
+            await Assert.That(result.ApiKey).IsEqualTo("saved-key");
+
+            // Two harness prompts and two model prompts: the mismatch looped
+            // back rather than completing, and the model was re-collected.
+            await Assert.That(console.Prompts.Count).IsEqualTo(7);
+            await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
+            await Assert.That(console.Prompts[4].Title).IsEqualTo("Select a harness:");
+            await Assert.That(
+                console.Prompts.Count(p => p.Title == "Select a model (or skip):")).IsEqualTo(2);
+
+            // The incompatible message names the harness and the model's
+            // effective protocol, and nothing else failed along the way.
+            await Assert.That(console.ErrorMessages.Count).IsEqualTo(1);
+            await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
+            await Assert.That(console.ErrorMessages[0]).Contains("openai-responses");
+
+            // The re-presented harness list keeps the annotations visible.
+            await Assert.That(
+                    console.Prompts[4].Choices.Single(c => c.Name == "OpenAiOnly").IncompatibleProtocols)
+                .IsEqualTo("openai-responses");
+            await Assert.That(
+                    console.Prompts[4].Choices.Single(c => c.Name == "ResponsesCapable").IncompatibleProtocols)
+                .IsNull();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_post_model_dead_end_aborts_instead_of_looping()
+    {
+        // No installed harness can speak openai-responses: after the
+        // mismatch message the loop-top dead-end guard must abort with
+        // NoHarnessSupportsProtocol rather than re-prompting forever.
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(
+            endpoint: "https://api.example.com/v1",
+            protocol: ProtocolKind.OpenAiChat,
+            apiKey: "hgkey:default");
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            StubHttpMessageHandler handler = new("""{"data":[{"id":"gpt-4"}]}""");
+            HttpClient http = new HttpClient(handler);
+            ModelCatalogClient catalogClient = new ModelCatalogClient(http);
+
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
+                "OpenAiOnly",
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+            WizardPipeline pipeline = new WizardPipeline(
+                console, [openAiOnly], store, keyStore, catalogClient);
+
+            console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("default");
+            console.EnqueueChoice("gpt-4");
+            console.EnqueueChoice("openai-responses");
+
+            WizardOutcome outcome = await pipeline.RunAsync();
+
+            WizardAborted? aborted = outcome as WizardAborted;
+            await Assert.That(aborted).IsNotNull();
+            await Assert.That(aborted!.Reason).IsEqualTo(WizardAbortReason.NoHarnessSupportsProtocol);
+
+            // The incompatible message comes first, then the dead-end
+            // refusal; the guard fires before a second harness prompt, so
+            // the wizard cannot loop.
+            await Assert.That(
+                console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(1);
+            await Assert.That(console.ErrorMessages.Count).IsEqualTo(2);
+            await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch OpenAiOnly");
+            await Assert.That(console.ErrorMessages[1]).Contains("No agent harness supports");
+            await Assert.That(console.ErrorMessages[1]).Contains("openai-responses");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_model_endpoint_override_swaps_the_session_endpoint_and_names_it()
+    {
+        // A stored endpoint on the picked model's entry goes into the
+        // session endpoint the wizard returns - the launch request's flag
+        // pair - and a line names it, so the swap is visible. The wizard
+        // stays write-free: the override is only ever read.
+        LauncherSettings settings = new LauncherSettings
+        {
+            Providers =
+            [
+                new Provider
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://provider.example/v1"),
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:default",
+                    Models =
+                    [
+                        new ModelEntry
+                        {
+                            Name = "gpt-4o",
+                            Endpoint = new Uri("https://per-model.example/v1"),
+                        }
+                    ],
+                }
+            ],
+            DefaultProvider = "default",
+        };
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter(
+                "RequiredAgent", requiresModel: true);
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("RequiredAgent");
+            console.EnqueueChoice("default");
+            console.EnqueueText("gpt-4o");
+
+            string before = Convert.ToBase64String(File.ReadAllBytes(store.SettingsFilePath));
+            WizardResult? result = await pipeline.RunAsync();
+            string after = Convert.ToBase64String(File.ReadAllBytes(store.SettingsFilePath));
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Endpoint).IsEqualTo("https://per-model.example/v1");
+            await Assert.That(result.Model).IsEqualTo("gpt-4o");
+
+            // The naming line's exact wording is non-contractual UX: only
+            // that it names the endpoint actually used is asserted.
+            await Assert.That(console.WrittenMessages.Any(
+                message => message.Contains("https://per-model.example/v1"))).IsTrue();
+
+            // No settings write anywhere.
+            await Assert.That(after).IsEqualTo(before);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_escapes_bracketed_override_values_in_the_naming_line()
+    {
+        // The naming line is handed to WriteMarkup, which parses Spectre
+        // markup: a stored model name or endpoint containing "[...]" (here a
+        // bracketed IPv6 literal and a bracketed model tag) must be escaped
+        // there or the wizard throws instead of completing. The values the
+        // launch request receives stay raw - escaping is display-only.
+        LauncherSettings settings = new LauncherSettings
+        {
+            Providers =
+            [
+                new Provider
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://provider.example/v1"),
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:default",
+                    Models =
+                    [
+                        new ModelEntry
+                        {
+                            Name = "gpt-4o [beta]",
+                            Endpoint = new Uri("http://[::1]:8080/v1"),
+                        }
+                    ],
+                }
+            ],
+            DefaultProvider = "default",
+        };
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter(
+                "RequiredAgent", requiresModel: true);
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("RequiredAgent");
+            console.EnqueueChoice("default");
+            console.EnqueueText("gpt-4o [beta]");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Model).IsEqualTo("gpt-4o [beta]");
+            await Assert.That(result.Endpoint).IsEqualTo("http://[::1]:8080/v1");
+
+            await Assert.That(console.WrittenMessages.Any(
+                message => message.Contains("Using endpoint")
+                           && message.Contains("[[beta]]")
+                           && message.Contains("[[::1]]"))).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_stored_model_protocol_and_endpoint_return_one_consistent_pair()
+    {
+        // The model step carries no protocol of its own on the degraded path,
+        // so the stored entry's override supplies it - the same entry the
+        // endpoint swap reads, which is what keeps the returned pair agreed.
+        LauncherSettings settings = CreateStoredOverrideSettings();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter adapter = WizardTestHelper.CreateTestAdapter(
+                "AnthropicCapable", requiresModel: true);
+            WizardPipeline pipeline = new WizardPipeline(console, [adapter], store, keyStore);
+
+            console.EnqueueChoice("AnthropicCapable");
+            console.EnqueueChoice("default");
+            console.EnqueueText("claude-x");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(result.Endpoint).IsEqualTo("https://anthropic-gw.example/v1");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_stored_model_protocol_drives_the_compatibility_check()
+    {
+        // Same stored entry, but a harness that only speaks openai-chat: the
+        // post-model check must run against the stored protocol rather than
+        // the provider default, so the wizard refuses instead of completing
+        // with an anthropic endpoint on an openai-chat session.
+        LauncherSettings settings = CreateStoredOverrideSettings();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
+                "OpenAiOnly",
+                requiresModel: true,
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+            WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly], store, keyStore);
+
+            console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("default");
+            console.EnqueueText("claude-x");
+
+            WizardOutcome outcome = await pipeline.RunAsync();
+
+            WizardAborted? aborted = outcome as WizardAborted;
+            await Assert.That(aborted).IsNotNull();
+            await Assert.That(aborted!.Reason).IsEqualTo(WizardAbortReason.NoHarnessSupportsProtocol);
+            await Assert.That(console.ErrorMessages.Any(
+                message => message.Contains("anthropic"))).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_stored_model_protocol_unblocks_the_provider_default_gates()
+    {
+        // The default provider's protocol is openai-chat, but its only stored
+        // model overrides to anthropic and the only installed harness speaks
+        // anthropic. The provider default used to seed the harness step (its
+        // dead-end guard aborted: nothing speaks openai-chat) and the
+        // establishing gate re-checked the harness against it (dead-end
+        // abort again) - both blocked a launch the stored model fully
+        // supports. The post-model check still gates the protocol that
+        // actually ships.
+        LauncherSettings settings = CreateStoredOverrideSettings();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter anthropicOnly = WizardTestHelper.CreateTestAdapter(
+                "AnthropicCapable",
+                requiresModel: true,
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.Anthropic });
+            WizardPipeline pipeline = new WizardPipeline(console, [anthropicOnly], store, keyStore);
+
+            console.EnqueueChoice("AnthropicCapable");
+            console.EnqueueChoice("default");
+            console.EnqueueText("claude-x");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.AgentCommandName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(result.Endpoint).IsEqualTo("https://anthropic-gw.example/v1");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_model_protocol_retry_skips_the_provider_protocol_gate()
+    {
+        // Pass 1 picks an openai-only harness, the model resolves to the
+        // stored anthropic override, and the post-model check loops back. The
+        // retry can only select an anthropic harness - which the provider
+        // protocol gate used to reject, forcing the pick back to the openai
+        // harness and bouncing forever between the two gates (no dead-end
+        // guard fires: some harness speaks each protocol). The gate now
+        // applies only to the establishing pass, so the retry reaches the
+        // model step and the post-model check decides.
+        //
+        // The script is shaped so the pre-fix path terminates with the wrong
+        // pair rather than hanging the run: the openai harness does not
+        // require a model, so its model step is the degraded choice prompt
+        // ([manual]/[skip]) while the anthropic harness's is a text prompt.
+        // The paths therefore drain different queues - fixed: the two model
+        // texts and two harness picks; pre-fix: one model text, the [skip]
+        // choice, and three harness picks - and each finishes on its own last
+        // input, leaving the wrong result for the assertions to catch.
+        LauncherSettings settings = new LauncherSettings
+        {
+            Providers =
+            [
+                new Provider
+                {
+                    Name = "default",
+                    BaseUri = new Uri("https://provider.example/v1"),
+                    DefaultProtocol = ProtocolKind.OpenAiChat,
+                    ApiKey = "hgkey:default",
+                    Models =
+                    [
+                        new ModelEntry
+                        {
+                            Name = "claude-x",
+                            Protocol = ProtocolKind.Anthropic,
+                            Endpoint = new Uri("https://anthropic-gw.example/v1"),
+                        },
+                        new ModelEntry
+                        {
+                            Name = "claude-y",
+                            Protocol = ProtocolKind.Anthropic,
+                            Endpoint = new Uri("https://anthropic-gw.example/v1"),
+                        },
+                    ],
+                }
+            ],
+            DefaultProvider = "default",
+        };
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
+                "OpenAiOnly",
+                requiresModel: false,
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+            IHarnessAdapter anthropicCapable = WizardTestHelper.CreateTestAdapter(
+                "AnthropicCapable",
+                requiresModel: true,
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.Anthropic });
+            WizardPipeline pipeline = new WizardPipeline(
+                console, [openAiOnly, anthropicCapable], store, keyStore);
+
+            console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("default");
+            // Pass 1: the openai harness's model step is a choice prompt, so
+            // [manual] opens the text prompt that names the stored override.
+            console.EnqueueChoice("[manual]");
+            console.EnqueueText("claude-x");
+            // Retry, forced onto the anthropic harness by the loop-back.
+            console.EnqueueChoice("AnthropicCapable");
+            console.EnqueueText("claude-y");
+            // Pre-fix path only: the gate bounced the retry back to openai,
+            // where [skip] ends the session without a stored override.
+            console.EnqueueChoice("OpenAiOnly");
+            console.EnqueueChoice("[skip]");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.AgentCommandName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(result.Endpoint).IsEqualTo("https://anthropic-gw.example/v1");
+            await Assert.That(result.Model).IsEqualTo("claude-y");
+
+            // The retry went straight to the model step: two harness picks,
+            // not three.
+            await Assert.That(
+                console.Prompts.Count(p => p.Title == "Select a harness:")).IsEqualTo(2);
         }
         finally
         {

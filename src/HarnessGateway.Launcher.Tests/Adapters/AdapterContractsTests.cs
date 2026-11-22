@@ -73,7 +73,7 @@ public class HarnessMetadataTests
     public async Task HarnessMetadata_declares_only_the_protocols_it_is_given()
     {
         HarnessMetadata metadata = new HarnessMetadata(
-            Name: "claude-code",
+            Name: "Claude Code",
             CommandName: "claude-code",
             [],
             Kind: HarnessKind.Cli,
@@ -133,8 +133,8 @@ public class ShippedAdapterContractTests
             ["Kilo"] = true,
             ["GitHub Copilot CLI"] = true,
             ["Pi"] = false,
-            ["codex"] = true,
-            ["claude-code"] = false
+            ["Codex CLI"] = true,
+            ["Claude Code"] = false
         };
 
         string[] names = [.. shipped.Select(adapter => adapter.Metadata.Name)];
@@ -172,8 +172,8 @@ public class ShippedAdapterContractTests
             ["Kilo"] = true,
             ["GitHub Copilot CLI"] = true,
             ["Pi"] = false,
-            ["codex"] = true,
-            ["claude-code"] = true
+            ["Codex CLI"] = true,
+            ["Claude Code"] = true
         };
 
         foreach (IHarnessAdapter adapter in shipped)

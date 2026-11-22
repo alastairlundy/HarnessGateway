@@ -7,11 +7,11 @@ namespace HarnessGateway.Launcher.Core.Adapters;
 public sealed class ClaudeCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
-        Name: "claude-code",
+        Name: "Claude Code",
         CommandName: "claude-code",
         // The binary and the vendor's docs both say "claude", so users reach
         // for that spelling. Accepted as an input token only; help output and
-        // the wizard list show "claude-code".
+        // the wizard list show "Claude Code".
         ["claude"],
         Kind: HarnessKind.Cli,
         RequiresModel: false,

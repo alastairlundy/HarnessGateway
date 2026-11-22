@@ -193,4 +193,75 @@ public class ModelStepTests
         await Assert.That(observedProtocol).IsEqualTo(ProtocolKind.Anthropic);
         await Assert.That(selection.Model).IsEqualTo("claude-sonnet-5");
     }
+
+    [Test]
+    public async Task RunAsync_marks_models_whose_every_protocol_tag_is_unsupported()
+    {
+        // The catalog is fetched through an OpenAI-style provider, so every
+        // model is two-tagged (openai-chat, openai-responses). An
+        // anthropic-only harness can speak neither tag: the indication is
+        // appended in the harness list's vocabulary, on every entry - while
+        // no choice is filtered out of the list.
+        TestConsole console = new TestConsole();
+        Provider backend = CreateProvider();
+        ModelCatalog catalog = new ModelCatalog(
+        [
+            new ModelCatalogEntry("gpt-4"),
+            new ModelCatalogEntry("claude-sonnet-5")
+        ], DateTimeOffset.UtcNow);
+
+        ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
+        console.EnqueueChoice("gpt-4");
+
+        _ = await step.RunAsync(
+            requiresModel: false,
+            savedDefaultModel: null,
+            harnessProtocols: new HashSet<ProtocolKind> { ProtocolKind.Anthropic });
+
+        PromptLogEntry prompt = console.Prompts[0];
+
+        await Assert.That(prompt.Choices.Count).IsEqualTo(3);
+        await Assert.That(prompt.Choices.Any(c => c.Name == "[skip]")).IsTrue();
+
+        foreach (ConsoleChoice model in prompt.Choices.Where(c => c.Name != "[skip]"))
+        {
+            await Assert.That(model.Annotation)
+                .IsEqualTo("openai-chat, openai-responses; incompatible: openai-chat, openai-responses");
+            await Assert.That(model.IncompatibleProtocols)
+                .IsEqualTo("openai-chat, openai-responses");
+        }
+
+        await Assert.That(
+            prompt.Choices.Single(c => c.Name == "[skip]").IncompatibleProtocols).IsNull();
+    }
+
+    [Test]
+    public async Task RunAsync_leaves_models_with_one_speakable_tag_unmarked()
+    {
+        // Same two-tag catalog, but the harness speaks openai-chat: one
+        // speakable tag is enough to stay unmarked - the partial-match blind
+        // spot accepted by design - and the choice is still offered.
+        TestConsole console = new TestConsole();
+        Provider backend = CreateProvider();
+        ModelCatalog catalog = new ModelCatalog(
+        [
+            new ModelCatalogEntry("gpt-4"),
+            new ModelCatalogEntry("claude-sonnet-5")
+        ], DateTimeOffset.UtcNow);
+
+        ModelStep step = new ModelStep(console, CreateCatalogFetcher(catalog), backend);
+        console.EnqueueChoice("gpt-4");
+
+        _ = await step.RunAsync(
+            requiresModel: false,
+            savedDefaultModel: null,
+            harnessProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+
+        PromptLogEntry prompt = console.Prompts[0];
+
+        await Assert.That(prompt.Choices.Count).IsEqualTo(3);
+        ConsoleChoice model = prompt.Choices.Single(c => c.Name == "gpt-4");
+        await Assert.That(model.Annotation).IsEqualTo("openai-chat, openai-responses");
+        await Assert.That(model.IncompatibleProtocols).IsNull();
+    }
 }

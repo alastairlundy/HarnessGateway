@@ -10,6 +10,7 @@ using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Wizard.Abstractions;
 using HarnessGateway.Launcher.Wizard.Models;
+using Spectre.Console;
 
 namespace HarnessGateway.Launcher.Wizard;
 
@@ -73,10 +74,24 @@ public sealed class WizardPipeline
                 ? providerCase.Provider
                 : null;
 
-            // Locked step order (harness, provider, key, model). The pairing
-            // guard re-enters only the harness step: the provider step runs
-            // exactly once and its chosen endpoint/protocol survive a loop-back.
-            ProtocolKind? protocolToCheck = defaultProvider?.DefaultProtocol;
+            // Locked step order (harness, provider, key, model), with both
+            // protocol mismatch checks inside the loop so each can re-enter
+            // the harness step. The provider step runs exactly once and its
+            // chosen endpoint/protocol survive a loop-back; the model
+            // selection does not - it is discarded and re-collected on the
+            // next pass.
+            //
+            // The provider default seeds the first harness pass, but a stored
+            // model's own protocol outranks it once that entry is picked (the
+            // precedence below), so a default carrying a protocol override is
+            // not what the session will necessarily speak: seeding from it
+            // would filter the pick to - and dead-end abort on - a protocol
+            // a stored model could replace. Leave the first pass unfiltered
+            // in that case; the post-model check still gates the final
+            // protocol.
+            ProtocolKind? protocolToCheck = HasProtocolOverride(defaultProvider)
+                ? null
+                : defaultProvider?.DefaultProtocol;
             bool annotateIncompatible = false;
             (string? endpoint, ProtocolKind protocol, Provider? provider) providerResult =
                 (null, ProtocolKind.OpenAiChat, null);
@@ -93,87 +108,174 @@ public sealed class WizardPipeline
                 Result<IHarnessAdapter> adapterResult = HarnessLookup.TryResolve(_adapters, harnessName);
                 adapter = adapterResult.Success ? adapterResult.Value : null;
 
+                // The provider step runs exactly once: the pass that establishes
+                // the endpoint and protocol for the session. Only that
+                // establishing selection is gated against the provider protocol
+                // below - a harness picked on a later model-protocol retry
+                // reuses the established pair, and the post-model check is its
+                // gate. Re-checking the provider protocol there would bounce the
+                // loop between the two gates: a retry can only select a harness
+                // speaking the retried protocol, which then fails the provider
+                // check and forces the pick back, forever (neither dead-end
+                // guard fires, because some harness speaks each protocol).
+                bool establishingPass = providerResult.endpoint is null;
+
+                // The endpoint test is repeated rather than keyed off the flag:
+                // testing the value itself is what keeps endpoint provably
+                // non-null past this block for the session below.
                 if (providerResult.endpoint is null)
                 {
                     providerResult = await RunProviderStepAsync(settings, cancellationToken).ConfigureAwait(true);
                     if (providerResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
                 }
 
-                if (adapter is null || adapter.Metadata.SupportedProtocols.Contains(providerResult.protocol))
+                // The chosen provider's stored models can replace the provider
+                // protocol outright (an entry's protocol wins the precedence
+                // below when the model step carries none), so while such an
+                // entry exists the provider protocol is only a candidate:
+                // rejecting the harness on it here - or aborting because no
+                // harness speaks it - could kill a launch a stored model would
+                // have made valid. The post-model check gates the protocol
+                // that actually ships.
+                if (establishingPass
+                    && !HasProtocolOverride(providerResult.provider)
+                    && adapter is not null
+                    && !adapter.Metadata.SupportedProtocols.Contains(providerResult.protocol))
                 {
-                    break;
+                    // Establishing-pass pre-check: the interactive counterpart of
+                    // the direct-mode exit-3 pre-check. A dead end aborts before the
+                    // refusal so an unsupported protocol can never trap the user in a
+                    // re-prompt loop; otherwise mirror the direct-mode reason and loop
+                    // back to the harness step only - the endpoint result stands.
+                    if (!AnyAdapterSupports(providerResult.protocol))
+                    {
+                        WriteNoHarnessSupports(providerResult.protocol);
+                        return new WizardAborted(WizardAbortReason.NoHarnessSupportsProtocol);
+                    }
+
+                    await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(
+                        adapter.Metadata.Name,
+                        providerResult.protocol,
+                        adapter.Metadata.SupportedProtocols)), cancellationToken).ConfigureAwait(false);
+
+                    protocolToCheck = providerResult.protocol;
+                    annotateIncompatible = true;
+                    continue;
                 }
 
-                // Post-endpoint re-verify: the interactive counterpart of
-                // the direct-mode exit-3 pre-check. A dead end aborts before the
-                // refusal so an unsupported protocol can never trap the user in a
-                // re-prompt loop; otherwise mirror the direct-mode reason and loop
-                // back to the harness step only - the endpoint result stands.
-                if (!AnyAdapterSupports(providerResult.protocol))
+                // Resolve the chosen stored entry (the provider step's pick) before the
+                // key and model steps so catalogue HTTP auth and the key step both see
+                // the secret, never the at-rest reference. A dangling reference
+                // names the saved provider.
+                //
+                // An "[add new provider]" session resolves to nothing: the fresh
+                // endpoint is keyless until the user types a key, and it never
+                // inherits the default entry's stored credential or default model -
+                // the default entry is not what the user picked, so its allowance to
+                // speak for the wizard's launch does not extend to an arbitrary new
+                // endpoint. A first run resolves to nothing too (no entries exist).
+                Provider? resolvedProvider = providerResult.provider;
+                if (resolvedProvider is not null)
                 {
-                    WriteNoHarnessSupports(providerResult.protocol);
-                    return new WizardAborted(WizardAbortReason.NoHarnessSupportsProtocol);
+                    try
+                    {
+                        resolvedProvider = await ProviderKeyResolver.ResolveAsync(resolvedProvider, _keyStore, cancellationToken).ConfigureAwait(true);
+                    }
+                    catch (SecureKeyStoreException ex)
+                    {
+                        await Task.Run(() => _console.WriteError(ex.Message), cancellationToken).ConfigureAwait(false);
+                        return new WizardAborted(WizardAbortReason.CredentialStoreError);
+                    }
                 }
 
-                await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(
-                    adapter.Metadata.Name,
-                    providerResult.protocol,
-                    adapter.Metadata.SupportedProtocols)), cancellationToken).ConfigureAwait(false);
-            
-                protocolToCheck = providerResult.protocol;
-                annotateIncompatible = true;
+                Provider effectiveProvider = new()
+                {
+                    Name = resolvedProvider?.Name ?? "wizard",
+                    BaseUri = new Uri(providerResult.endpoint),
+                    DefaultProtocol = providerResult.protocol,
+                    ApiKey = resolvedProvider?.ApiKey,
+                    DefaultModel = resolvedProvider?.DefaultModel,
+                };
+
+                string? apiKey = await RunKeyStepAsync(effectiveProvider, cancellationToken).ConfigureAwait(true);
+
+                ModelStep modelStep = new(_console, _catalogClient, effectiveProvider);
+                bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
+                string? savedDefaultModel = providerResult.provider?.DefaultModel;
+                ModelSelection modelSelection = await modelStep.RunAsync(
+                    requiresModel,
+                    savedDefaultModel,
+                    adapter?.Metadata.SupportedProtocols,
+                    cancellationToken).ConfigureAwait(true);
+
+                // The picked model's stored entry, looked up once before the
+                // protocol is decided: it feeds both the precedence below and
+                // the endpoint swap, so the compatibility check and the
+                // returned endpoint/protocol pair are computed from the same
+                // entry instead of disagreeing about it.
+                ModelEntry? pickedEntry = FindStoredModelEntry(
+                    providerResult.provider, modelSelection.Model);
+
+                // Precedence: the model step's protocol first (an explicit
+                // pick, or the one the catalogue reported), then the stored
+                // entry's own override, then the provider's protocol.
+                ProtocolKind effectiveProtocol =
+                    modelSelection.Protocol ?? pickedEntry?.Protocol ?? providerResult.protocol;
+
+                // Post-model re-verify: the model step can hand back a
+                // protocol the chosen harness cannot speak, which the launch
+                // flow would refuse with exit 3 only after the wizard had
+                // already finished. Write the same incompatible message the
+                // other two checks use and re-enter the harness step instead -
+                // the model selection is discarded and re-collected on the
+                // next pass. The loop-top dead-end guard still aborts with
+                // NoHarnessSupportsProtocol when no harness can speak the
+                // effective protocol, so a mismatch with no possible pick
+                // cannot loop forever.
+                if (adapter is not null
+                    && !adapter.Metadata.SupportedProtocols.Contains(effectiveProtocol))
+                {
+                    await Task.Run(() => _console.WriteError(BuildIncompatibleMessage(
+                        adapter.Metadata.Name,
+                        effectiveProtocol,
+                        adapter.Metadata.SupportedProtocols)), cancellationToken).ConfigureAwait(false);
+
+                    protocolToCheck = effectiveProtocol;
+                    annotateIncompatible = true;
+                    continue;
+                }
+
+                // Per-model endpoint override: the picked model's stored
+                // endpoint goes into the session endpoint the wizard returns -
+                // the launch request's flag pair, which wins wholesale - and a
+                // line names it so the swap is visible rather than silent. The
+                // wizard stays write-free: the override is read from the
+                // chosen provider's stored model list and never persisted, and
+                // the provider's endpoint stands when the pick carries none.
+                string sessionEndpoint = providerResult.endpoint;
+                if (pickedEntry?.Endpoint is { } endpointOverride)
+                {
+                    sessionEndpoint = endpointOverride.ToString();
+                    // Both values are stored, user-editable text and this line
+                    // goes through WriteMarkup's Spectre markup parser, so a
+                    // "[" in an endpoint (an IPv6 literal) or a model name
+                    // would be read as a style tag and throw. Escape the values,
+                    // never the surrounding message.
+                    string endpointLine =
+                        $"Using endpoint {Markup.Escape(sessionEndpoint)} for model " +
+                        $"'{Markup.Escape(pickedEntry.Name)}'.";
+                    await Task.Run(() => _console.WriteMarkup(endpointLine), cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                return new WizardCompleted(new WizardResult(
+                    harnessName!,
+                    ProviderName: providerResult.provider?.Name,
+                    sessionEndpoint,
+                    Protocol: effectiveProtocol,
+                    ApiKey: apiKey,
+                    Model: modelSelection.Model));
             }
-
-            // Resolve the chosen stored entry (the provider step's pick) before the
-            // key and model steps so catalogue HTTP auth and the key step both see
-            // the secret, never the at-rest reference. A dangling reference
-            // names the saved provider.
-            //
-            // An "[add new provider]" session resolves to nothing: the fresh
-            // endpoint is keyless until the user types a key, and it never
-            // inherits the default entry's stored credential or default model -
-            // the default entry is not what the user picked, so its allowance to
-            // speak for the wizard's launch does not extend to an arbitrary new
-            // endpoint. A first run resolves to nothing too (no entries exist).
-            Provider? resolvedProvider = providerResult.provider;
-            if (resolvedProvider is not null)
-            {
-                try
-                {
-                    resolvedProvider = await ProviderKeyResolver.ResolveAsync(resolvedProvider, _keyStore, cancellationToken).ConfigureAwait(true);
-                }
-                catch (SecureKeyStoreException ex)
-                {
-                    await Task.Run(() => _console.WriteError(ex.Message), cancellationToken).ConfigureAwait(false);
-                    return new WizardAborted(WizardAbortReason.CredentialStoreError);
-                }
-            }
-
-            Provider effectiveProvider = new()
-            {
-                Name = resolvedProvider?.Name ?? "wizard",
-                BaseUri = new Uri(providerResult.endpoint),
-                DefaultProtocol = providerResult.protocol,
-                ApiKey = resolvedProvider?.ApiKey,
-                DefaultModel = resolvedProvider?.DefaultModel,
-            };
-
-            string? apiKey = await RunKeyStepAsync(effectiveProvider, cancellationToken).ConfigureAwait(true);
-
-            ModelStep modelStep = new(_console, _catalogClient, effectiveProvider);
-            bool requiresModel = adapter?.Metadata.RequiresModel ?? false;
-            string? savedDefaultModel = providerResult.provider?.DefaultModel;
-            ModelSelection modelSelection = await modelStep.RunAsync(requiresModel, savedDefaultModel, cancellationToken).ConfigureAwait(true);
-
-            ProtocolKind effectiveProtocol = modelSelection.Protocol ?? providerResult.protocol;
-
-            return new WizardCompleted(new WizardResult(
-                harnessName!,
-                ProviderName: providerResult.provider?.Name,
-                providerResult.endpoint,
-                Protocol: effectiveProtocol,
-                ApiKey: apiKey,
-                Model: modelSelection.Model));
         }
         catch (OperationCanceledException)
         {
@@ -305,9 +407,14 @@ public sealed class WizardPipeline
             if (!isAvailable) annotations.Add("not installed");
             if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
 
+            // The structured state rides alongside the raw annotation so the
+            // presenter can colour the line (whole-line red when unavailable,
+            // orange for the incompatible segment) without parsing the text.
             choices.Add(new ConsoleChoice(
                 adapter.Metadata.Name,
-                annotations.Count > 0 ? string.Join("; ", annotations) : null));
+                annotations.Count > 0 ? string.Join("; ", annotations) : null,
+                Unavailable: !isAvailable,
+                IncompatibleProtocols: incompatible));
         }
 
         return choices;
@@ -315,6 +422,13 @@ public sealed class WizardPipeline
 
     private bool AnyAdapterSupports(ProtocolKind protocol) =>
         _adapters.Any(adapter => adapter.Metadata.SupportedProtocols.Contains(protocol));
+
+    // A stored model with its own protocol can supply the effective one
+    // instead of the provider's (the picked entry wins the precedence in
+    // RunAsync), so both protocol gates must treat such a provider's default
+    // protocol as a candidate rather than a promise.
+    private static bool HasProtocolOverride(Provider? provider) =>
+        provider?.Models.Any(model => model.Protocol is not null) == true;
 
     private void WriteNoHarnessInstalled()
     {
@@ -369,6 +483,17 @@ public sealed class WizardPipeline
                $"({ProviderResolution.ProtocolName(protocol)}) is not supported by {harnessName}, " +
                $"which supports: {supported}.";
     }
+
+    /// <summary>
+    /// The stored entry the model step's pick names, matched with the launch
+    /// resolver's case-insensitive rule; null when nothing was picked or the
+    /// picked name is absent from the chosen provider's catalog.
+    /// </summary>
+    private static ModelEntry? FindStoredModelEntry(Provider? provider, string? model) =>
+        provider is not null && model is not null
+            ? provider.Models.FirstOrDefault(m =>
+                string.Equals(m.Name, model, StringComparison.OrdinalIgnoreCase))
+            : null;
 
     private async Task<(string? endpoint, ProtocolKind protocol, Provider? provider)> RunProviderStepAsync(
         LauncherSettings settings,

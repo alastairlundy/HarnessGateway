@@ -150,9 +150,11 @@ public static class ProviderResolution
         }
 
         // Precedence: the effective model is --model else the stored default;
-        // the effective protocol is the listed model entry's override, else
-        // the provider default. The flag pair wins wholesale for the session
-        // and exempts the launch from the unlisted-model guard.
+        // absent a flag pair the effective model's listed entry layers both of
+        // its overrides - endpoint and protocol - over the provider defaults,
+        // through the same single lookup. The flag pair wins wholesale for the
+        // session and exempts the launch from the unlisted-model guard, so a
+        // stored per-model endpoint is silently ignored when it is passed.
         string? effectiveModel = model ?? entry.DefaultModel;
         Uri sessionBaseUri;
         ProtocolKind sessionProtocol;
@@ -180,6 +182,7 @@ public static class ProviderResolution
                 }
 
                 sessionProtocol = listed.Protocol ?? entry.DefaultProtocol;
+                sessionBaseUri = listed.Endpoint ?? entry.BaseUri;
             }
         }
 

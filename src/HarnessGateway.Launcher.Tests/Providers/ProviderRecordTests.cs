@@ -86,4 +86,27 @@ public class ProviderRecordTests
         await Assert.That(unmarked.Protocol).IsNull();
         await Assert.That(overridden.Protocol).IsEqualTo(ProtocolKind.Anthropic);
     }
+
+    [Test]
+    public async Task ModelEntry_endpoint_is_omitted_when_null_and_preserved_when_set()
+    {
+        ModelEntry inherited = new() { Name = "gpt-4o" };
+        ModelEntry overridden = new()
+        {
+            Name = "o3",
+            Endpoint = new Uri("https://per-model.example/v1"),
+        };
+
+        string inheritedJson = JsonSerializer.Serialize(inherited);
+        await Assert.That(inheritedJson).DoesNotContain("endpoint");
+
+        ModelEntry? roundTripped =
+            JsonSerializer.Deserialize<ModelEntry>(JsonSerializer.Serialize(overridden));
+
+        await Assert.That(roundTripped).IsNotNull();
+        await Assert.That(roundTripped.Endpoint).IsEqualTo(new Uri("https://per-model.example/v1"));
+
+        // No per-model credential exists anywhere on the entry.
+        await Assert.That(typeof(ModelEntry).GetProperty("ApiKey")).IsNull();
+    }
 }

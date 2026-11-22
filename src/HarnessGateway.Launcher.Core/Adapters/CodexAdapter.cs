@@ -30,7 +30,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         _getEnvironmentVariable = getEnvironmentVariable ?? Environment.GetEnvironmentVariable;
 
         Metadata = new HarnessMetadata(
-            Name: "codex",
+            Name: "Codex CLI",
             CommandName: "codex",
             ["codex-cli"],
             Kind: HarnessKind.Cli,
