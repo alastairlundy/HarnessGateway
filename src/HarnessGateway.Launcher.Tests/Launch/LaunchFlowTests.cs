@@ -1135,6 +1135,44 @@ public class LaunchFlowTests
     }
 
     [Test]
+    public async Task ExecuteAsync_codex_interactive_plans_the_daemon_stop_for_the_runner()
+    {
+        const string originalConfig = "# my codex config\n";
+        LaunchPlan? planDuringLaunch = null;
+        CallbackLaunchRunner runner = new(plan =>
+        {
+            planDuringLaunch = plan;
+            return Task.FromResult(0);
+        });
+
+        (LaunchFlow flow, string tempDir, _, _) = CreateCodexFlow(
+            originalConfig,
+            runner: runner);
+
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("codex", null, null, null, "gpt-5", [], null));
+
+            LaunchCompleted completed = (LaunchCompleted)outcome;
+            await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
+
+            // The plan reaches the runner with its pre-launch step intact:
+            // the flow executes the configuration actions and hands the
+            // plan over otherwise untouched, so the daemon stop still runs
+            // before the spawn it exists to prepare.
+            await Assert.That(planDuringLaunch).IsNotNull();
+            await Assert.That(planDuringLaunch!.PreLaunchProcess).IsNotNull();
+            await Assert.That(planDuringLaunch.PreLaunchProcess!.ArgumentList)
+                .IsEquivalentTo(["app-server", "daemon", "stop"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task ExecuteAsync_codex_persist_config_keeps_the_write_and_consumes_the_marker()
     {
         const string originalConfig = "# my codex config\nmodel = \"user-model\"\n";

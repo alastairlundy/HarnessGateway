@@ -113,6 +113,76 @@ public class LaunchRunnerTests
         await Assert.That(exitCode).IsEqualTo(42);
     }
 
+    [Test]
+    public async Task RunInteractiveAsync_runs_the_prerun_before_the_harness()
+    {
+        // Ordering, proved rather than asserted in a comment: the harness
+        // command reports whether the marker the pre-launch step writes
+        // existed when it started, so its exit code is the ordering.
+        LaunchRunner runner = new LaunchRunner();
+        string marker = Path.Combine(
+            Path.GetTempPath(), $"hgw-prerun-{Guid.NewGuid():N}.txt");
+        try
+        {
+            LaunchPlan plan = new(
+                ShellCommand(MarkerProbeCommand(marker), outputRedirection: false),
+                [],
+                ShellCommand(MakeMarkerCommand(marker), outputRedirection: true));
+
+            int exitCode = await runner.RunInteractiveAsync(plan);
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(File.Exists(marker)).IsTrue();
+        }
+        finally
+        {
+            File.Delete(marker);
+        }
+    }
+
+    [Test]
+    public async Task RunWithoutTimeoutAsync_runs_the_prerun_before_the_harness()
+    {
+        // The same contract on the blocking buffered path, so a print or
+        // GUI launch that plans a pre-launch step gets it too.
+        LaunchRunner runner = new LaunchRunner();
+        string marker = Path.Combine(
+            Path.GetTempPath(), $"hgw-prerun-{Guid.NewGuid():N}.txt");
+        try
+        {
+            LaunchPlan plan = new(
+                ShellCommand(MarkerProbeCommand(marker), outputRedirection: false),
+                [],
+                ShellCommand(MakeMarkerCommand(marker), outputRedirection: true));
+
+            int exitCode = await runner.RunWithoutTimeoutAsync(plan);
+
+            await Assert.That(exitCode).IsEqualTo(0);
+            await Assert.That(File.Exists(marker)).IsTrue();
+        }
+        finally
+        {
+            File.Delete(marker);
+        }
+    }
+
+    [Test]
+    public async Task RunInteractiveAsync_treats_a_failing_prerun_as_nothing()
+    {
+        // Best effort by contract: the pre-launch step clears the way for
+        // the harness, it does not gate it, so its own failure is the
+        // step's report - not the launch's exit code.
+        LaunchRunner runner = new LaunchRunner();
+        LaunchPlan plan = new(
+            ShellCommand("exit 0", outputRedirection: false),
+            [],
+            ShellCommand("exit 7", outputRedirection: true));
+
+        int exitCode = await runner.RunInteractiveAsync(plan);
+
+        await Assert.That(exitCode).IsEqualTo(0);
+    }
+
     // CI runs on Linux, where "cmd" does not exist; /bin/sh is rooted so CliInvoke's
     // PATH/PATHEXT probing cannot mis-resolve it on Unix either. ArgumentList (not the
     // Arguments string) keeps the command verbatim - no second tokenisation pass.
@@ -122,4 +192,15 @@ public class LaunchRunnerTests
             ? new ProcessConfiguration("cmd", $"/c {command}", outputRedirection)
             : new ProcessConfiguration("/bin/sh", ["-c", command], outputRedirection);
     }
+
+    // The pre-launch step of the ordering test: creates the marker file.
+    private static string MakeMarkerCommand(string path) =>
+        OperatingSystem.IsWindows() ? $"echo ok> \"{path}\"" : $"echo ok > \"{path}\"";
+
+    // The harness side of the ordering test: succeeds only if the marker
+    // was already there when it started.
+    private static string MarkerProbeCommand(string path) =>
+        OperatingSystem.IsWindows()
+            ? $"if exist \"{path}\" (exit 0) else (exit 1)"
+            : $"test -f \"{path}\"";
 }

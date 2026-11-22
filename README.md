@@ -291,6 +291,17 @@ block that you wrote yourself, the launcher makes no changes to it and exits
 with exit code 10 rather than adopt or overwrite it. Rename the block or
 point `CODEX_HOME` elsewhere.
 
+An interactive `codex` launch also runs `codex app-server daemon stop`
+before the TUI starts. Codex's TUI is a client of a shared app-server
+daemon: when one is already running - started by any earlier codex session -
+it attaches to that instead of starting its own, and a daemon keeps the
+environment it was spawned with, so the API key this launch passes to its
+child never reaches it and every request fails with
+`Missing environment variable: HARNESSGATEWAY_API_KEY`. Stopping the shared
+daemon makes the TUI start a fresh one that inherits this launch's
+environment. A `-p`/`--print` launch skips the step, because `codex exec`
+runs inside its own process and never consults the daemon.
+
 `--persist model` saves the model this launch used as the entry's default.
 Note that choosing `--provider` never promotes an entry to default. Only
 `config set defaultProvider` does that.
