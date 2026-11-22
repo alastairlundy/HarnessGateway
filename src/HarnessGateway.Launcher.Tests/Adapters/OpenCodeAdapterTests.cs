@@ -328,7 +328,7 @@ public class OpenCodeAdapterTests
 
         // `opencode run [message...]` is the harness's one-shot subcommand.
         await Assert.That(plan.Process.ArgumentList)
-            .IsEquivalentTo(["run", "fix the failing test"]);
+            .IsEquivalentTo(["run", "--standalone", "fix the failing test"]);
         // One-shot changes argv only: the inline-config env var that carries
         // provider and model plans exactly as the interactive launch does.
         await Assert.That(plan.Process.EnvironmentVariables)

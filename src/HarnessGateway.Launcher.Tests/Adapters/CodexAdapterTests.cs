@@ -233,7 +233,8 @@ public class CodexAdapterTests
                               + "name = \"HarnessGateway\"\n"
                               + "base_url = \"https://api.example.com/v1\"\n"
                               + "env_key = \"HARNESSGATEWAY_API_KEY\"\n"
-                              + "wire_api = \"responses\"\n";
+                              + "wire_api = \"responses\"\n"
++ "requires_openai_auth = false\n";
 
             await Assert.That(content).IsEqualTo(expected);
             // The editor output must re-parse to itself (round-trip sanity).
@@ -266,7 +267,8 @@ public class CodexAdapterTests
                 + "name = \"HarnessGateway\"\n"
                 + "base_url = \"https://api.example.com/v1\"\n"
                 + "env_key = \"HARNESSGATEWAY_API_KEY\"\n"
-                + "wire_api = \"responses\"\n");
+                + "wire_api = \"responses\"\n"
++ "requires_openai_auth = false\n");
         }
         finally
         {
@@ -585,7 +587,7 @@ public class CodexAdapterTests
             // `codex exec [PROMPT]` is the harness's one-shot subcommand; the
             // provider block still rides the config write it always did.
             await Assert.That(plan.Process.ArgumentList)
-                .IsEquivalentTo(["exec", "fix the failing test"]);
+                .IsEquivalentTo(["exec", "--skip-git-repo-check", "fix the failing test"]);
             List<ConfigFileWriteAction> writes =
                 [.. plan.ConfigurationActions.OfType<ConfigFileWriteAction>()];
             await Assert.That(writes).Count().IsEqualTo(1);

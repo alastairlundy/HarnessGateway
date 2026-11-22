@@ -134,6 +134,11 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAd
         {
             envVars["ANTHROPIC_MODEL"] = model;
             actions.Add(new CliArgumentAction("--model", model));
+            // Claude Code does not know arbitrary gateway model IDs, so it would
+            // otherwise assume a 1m-token context window and auto-compact on
+            // that (wrong) bound. Disable that enforcement so Claude Code only
+            // compacts after the API actually rejects the conversation.
+            envVars["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] = "1";
         }
 
         return (envVars, actions);
