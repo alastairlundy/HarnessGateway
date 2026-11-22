@@ -80,7 +80,18 @@ public sealed class WizardPipeline
             // chosen endpoint/protocol survive a loop-back; the model
             // selection does not - it is discarded and re-collected on the
             // next pass.
-            ProtocolKind? protocolToCheck = defaultProvider?.DefaultProtocol;
+            //
+            // The provider default seeds the first harness pass, but a stored
+            // model's own protocol outranks it once that entry is picked (the
+            // precedence below), so a default carrying a protocol override is
+            // not what the session will necessarily speak: seeding from it
+            // would filter the pick to - and dead-end abort on - a protocol
+            // a stored model could replace. Leave the first pass unfiltered
+            // in that case; the post-model check still gates the final
+            // protocol.
+            ProtocolKind? protocolToCheck = HasProtocolOverride(defaultProvider)
+                ? null
+                : defaultProvider?.DefaultProtocol;
             bool annotateIncompatible = false;
             (string? endpoint, ProtocolKind protocol, Provider? provider) providerResult =
                 (null, ProtocolKind.OpenAiChat, null);
@@ -118,7 +129,16 @@ public sealed class WizardPipeline
                     if (providerResult.endpoint is null) return new WizardAborted(WizardAbortReason.Cancelled);
                 }
 
+                // The chosen provider's stored models can replace the provider
+                // protocol outright (an entry's protocol wins the precedence
+                // below when the model step carries none), so while such an
+                // entry exists the provider protocol is only a candidate:
+                // rejecting the harness on it here - or aborting because no
+                // harness speaks it - could kill a launch a stored model would
+                // have made valid. The post-model check gates the protocol
+                // that actually ships.
                 if (establishingPass
+                    && !HasProtocolOverride(providerResult.provider)
                     && adapter is not null
                     && !adapter.Metadata.SupportedProtocols.Contains(providerResult.protocol))
                 {
@@ -402,6 +422,13 @@ public sealed class WizardPipeline
 
     private bool AnyAdapterSupports(ProtocolKind protocol) =>
         _adapters.Any(adapter => adapter.Metadata.SupportedProtocols.Contains(protocol));
+
+    // A stored model with its own protocol can supply the effective one
+    // instead of the provider's (the picked entry wins the precedence in
+    // RunAsync), so both protocol gates must treat such a provider's default
+    // protocol as a candidate rather than a promise.
+    private static bool HasProtocolOverride(Provider? provider) =>
+        provider?.Models.Any(model => model.Protocol is not null) == true;
 
     private void WriteNoHarnessInstalled()
     {

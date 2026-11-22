@@ -1453,6 +1453,47 @@ public class WizardPipelineTests
     }
 
     [Test]
+    public async Task RunAsync_stored_model_protocol_unblocks_the_provider_default_gates()
+    {
+        // The default provider's protocol is openai-chat, but its only stored
+        // model overrides to anthropic and the only installed harness speaks
+        // anthropic. The provider default used to seed the harness step (its
+        // dead-end guard aborted: nothing speaks openai-chat) and the
+        // establishing gate re-checked the harness against it (dead-end
+        // abort again) - both blocked a launch the stored model fully
+        // supports. The post-model check still gates the protocol that
+        // actually ships.
+        LauncherSettings settings = CreateStoredOverrideSettings();
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
+            WizardTestHelper.CreateTestEnvironment(settings);
+        keyStore.Seed("hgkey:default", "saved-key");
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter anthropicOnly = WizardTestHelper.CreateTestAdapter(
+                "AnthropicCapable",
+                requiresModel: true,
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.Anthropic });
+            WizardPipeline pipeline = new WizardPipeline(console, [anthropicOnly], store, keyStore);
+
+            console.EnqueueChoice("AnthropicCapable");
+            console.EnqueueChoice("default");
+            console.EnqueueText("claude-x");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.AgentCommandName).IsEqualTo("AnthropicCapable");
+            await Assert.That(result.Protocol).IsEqualTo(ProtocolKind.Anthropic);
+            await Assert.That(result.Endpoint).IsEqualTo("https://anthropic-gw.example/v1");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task RunAsync_model_protocol_retry_skips_the_provider_protocol_gate()
     {
         // Pass 1 picks an openai-only harness, the model resolves to the
