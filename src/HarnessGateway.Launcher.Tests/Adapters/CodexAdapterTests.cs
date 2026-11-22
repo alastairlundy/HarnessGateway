@@ -1,3 +1,4 @@
+using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
@@ -591,6 +592,57 @@ public class CodexAdapterTests
             List<ConfigFileWriteAction> writes =
                 [.. plan.ConfigurationActions.OfType<ConfigFileWriteAction>()];
             await Assert.That(writes).Count().IsEqualTo(1);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task PlanLaunch_carries_a_daemon_stop_for_the_shared_tui_daemon()
+    {
+        (string tempDir, string codexHome, _) = CreateCodexHome();
+        try
+        {
+            CodexAdapter adapter = CreateAdapter(codexHome);
+            ResolvedLaunch request = CreateRequest();
+
+            LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+            // The TUI rides codex's managed app-server daemon, so an
+            // interactive launch plans the stop that forces a fresh one -
+            // the only way this launch's key reaches that daemon at all.
+            ProcessConfiguration? preLaunch = plan.PreLaunchProcess;
+            await Assert.That(preLaunch).IsNotNull();
+            await Assert.That(preLaunch!.TargetFilePath).IsEqualTo("codex");
+            await Assert.That(preLaunch.ArgumentList)
+                .IsEquivalentTo(["app-server", "daemon", "stop"]);
+            await Assert.That(preLaunch.WorkingDirectoryPath)
+                .IsEqualTo(request.WorkingDirectory);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task PlanNonInteractive_omits_the_daemon_stop()
+    {
+        (string tempDir, string codexHome, _) = CreateCodexHome();
+        try
+        {
+            CodexAdapter adapter = CreateAdapter(codexHome);
+            ResolvedLaunch request = CreateRequest();
+
+            LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+            // `codex exec` runs embedded inside this launch's own process:
+            // it reads the config and inherits the key either way, so
+            // stopping the shared daemon would buy nothing and would
+            // disturb whatever else is attached to it.
+            await Assert.That(plan.PreLaunchProcess).IsNull();
         }
         finally
         {

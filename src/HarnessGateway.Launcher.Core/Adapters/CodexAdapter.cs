@@ -124,7 +124,50 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             ArgumentList = printPrompt is null ? [] : ["exec", "--skip-git-repo-check", printPrompt],
         };
 
-        return new LaunchPlan(config, actions);
+        // The interactive launch additionally plans a daemon stop; the
+        // reasoning lives with the helper it calls.
+        return new LaunchPlan(config, actions, BuildDaemonStopProcess(request, printPrompt));
+    }
+
+    /// <summary>
+    /// The interactive-only pre-launch step: <c>codex app-server daemon
+    /// stop</c>, so the TUI attaches to a daemon this launch spawned (and
+    /// gave its key to) instead of a shared one that predates it. Null for
+    /// a print launch, which runs embedded and never consults a daemon.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Why the TUI needs this and <c>codex exec</c> does not: the TUI is a
+    /// client of codex's managed app-server daemon, and when one is already
+    /// running - started by any earlier codex session - it attaches to that
+    /// rather than starting its own. A daemon's environment was frozen when
+    /// it spawned, so the key this launch injects into its child never
+    /// reaches the shared one and every request fails with "Missing
+    /// environment variable: HARNESSGATEWAY_API_KEY" while the identical
+    /// exec launch succeeds. Stopping it first makes the TUI spawn a fresh
+    /// daemon that inherits this launch's environment.
+    /// </para>
+    /// <para>
+    /// Best effort by contract: codex reports <c>notRunning</c> and exits 0
+    /// when there is nothing to stop, and the runner bounds the call so a
+    /// wedged daemon cannot hold the launch hostage.
+    /// </para>
+    /// </remarks>
+    private static ProcessConfiguration? BuildDaemonStopProcess(
+        ResolvedLaunch request,
+        string? printPrompt)
+    {
+        if (printPrompt is not null)
+        {
+            return null;
+        }
+
+        return new ProcessConfiguration("codex")
+        {
+            ArgumentList = ["app-server", "daemon", "stop"],
+            WorkingDirectoryPath = request.WorkingDirectory,
+            OutputRedirection = true,
+        };
     }
 
     /// <summary>

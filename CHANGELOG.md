@@ -14,6 +14,12 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Fixed
 
+- An interactive `codex` launch now stops codex's shared app-server daemon
+  before the TUI starts. The TUI attaches to an already-running daemon, whose
+  environment is fixed when it spawns, so the launch's API key never reached
+  it: every request failed with `Missing environment variable:
+  HARNESSGATEWAY_API_KEY` while the identical `-p`/`--print` launch worked.
+  The TUI now starts a fresh daemon that inherits the launch's environment.
 - Interactive TUI launches no longer paint into a hidden console on Windows:
   the child now shares the launcher's own console window, so Claude Code and
   other TUIs render where the user can see them instead of leaving a bare
