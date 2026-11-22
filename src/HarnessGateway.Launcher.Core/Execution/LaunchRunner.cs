@@ -5,30 +5,42 @@ namespace HarnessGateway.Launcher.Core.Execution;
 
 public sealed class LaunchRunner : ILaunchRunner
 {
-    public Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+    // The pre-launch step exists to clear the way for the harness, not to
+    // gate it, so it gets a short leash: a wedged daemon stop must not hold
+    // the launch open. Ten seconds is far beyond the ~0.4s a real
+    // `app-server daemon stop` takes, including the not-running case.
+    private const int PreLaunchTimeoutSeconds = 10;
+
+    public async Task<int> RunAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
     {
+        await RunPreLaunchProcessAsync(plan, cancellationToken).ConfigureAwait(false);
+
         // No exit configuration of our own: the process library's graceful
         // default applies, timeout policy included.
-        return RunBufferedAndEchoAsync(
+        return await RunBufferedAndEchoAsync(
             BuildProcessConfiguration(plan, outputRedirection: true),
             exitConfiguration: null,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
+    public async Task<int> RunWithoutTimeoutAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
     {
+        await RunPreLaunchProcessAsync(plan, cancellationToken).ConfigureAwait(false);
+
         // The graceful default in every respect but the timeout: its policy is
         // replaced with ProcessTimeoutPolicy.None, so the child is never
         // interrupted or killed on a clock. Cancellation and every other exit
         // behaviour stay exactly as the default carries them.
-        return RunBufferedAndEchoAsync(
+        return await RunBufferedAndEchoAsync(
             BuildProcessConfiguration(plan, outputRedirection: true),
             ProcessExitConfiguration.CreateGraceful(ProcessTimeoutPolicy.None),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<int> RunInteractiveAsync(LaunchPlan plan, CancellationToken cancellationToken = default)
     {
+        await RunPreLaunchProcessAsync(plan, cancellationToken).ConfigureAwait(false);
+
         // Console-shared, not buffered: the child inherits this process's
         // standard handles, so a TUI draws on the user's terminal and reads
         // their keystrokes, and nothing is captured to echo later. No
@@ -44,6 +56,49 @@ public sealed class LaunchRunner : ILaunchRunner
             ProcessExitConfiguration.CreateGraceful(ProcessTimeoutPolicy.None),
             cancellationToken).ConfigureAwait(false);
         return result.ExitCode;
+    }
+
+    /// <summary>
+    /// Runs the plan's optional pre-launch process to completion before the
+    /// harness spawns. Best effort by contract: a non-zero exit, a spawn
+    /// failure, or a hang bounded below never fails the launch, because the
+    /// step exists to improve the odds for the harness rather than to gate
+    /// it. Cancellation is the one fault that propagates - it is the caller
+    /// saying this launch is over.
+    /// </summary>
+    private static async Task RunPreLaunchProcessAsync(
+        LaunchPlan plan,
+        CancellationToken cancellationToken)
+    {
+        ProcessConfiguration? preLaunch = plan.PreLaunchProcess;
+        if (preLaunch is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // Buffered rather than console-shared: the step's output is
+            // diagnostics, not the harness session, and the interactive
+            // path must not write into the terminal the TUI is about to
+            // draw on.
+            await CliRun.RunBufferedAsync(
+                preLaunch,
+                ProcessExitConfiguration.CreateGraceful(
+                    ProcessTimeoutPolicy.FromTimeSpan(
+                        TimeSpan.FromSeconds(PreLaunchTimeoutSeconds),
+                        ProcessExitBehaviour.GracefulExit)),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Nothing to stop, nothing on PATH, or the bound was reached:
+            // carry on and let the harness report what it sees.
+        }
     }
 
     /// <summary>
@@ -65,6 +120,19 @@ public sealed class LaunchRunner : ILaunchRunner
 
     public int Handoff(LaunchPlan plan)
     {
+        // The detached path returns a pid immediately, so there is no point
+        // at which a pre-launch process could run - and silently skipping
+        // it would recreate the exact silent gap the step exists to close.
+        // GUI adapters never plan one; a future one that does must fail
+        // loudly here instead of launching unprepared.
+        if (plan.PreLaunchProcess is not null)
+        {
+            throw new InvalidOperationException(
+                "a detached handoff cannot run the plan's pre-launch process; "
+                + "a GUI launch must carry what it needs as configuration "
+                + "actions or environment variables instead.");
+        }
+
         // Detached start, so output redirection is off: there is no reader
         // here to echo buffers, and the caller does not wait for an exit
         // code - it wants the process id and nothing else. Sync-honest on

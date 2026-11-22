@@ -54,6 +54,23 @@ public class LaunchRunnerHandoffTests
         }
     }
 
+    [Test]
+    public async Task Handoff_refuses_a_plan_that_carries_a_prerun_process()
+    {
+        // The detached path returns a pid immediately, so there is no point
+        // at which a pre-launch process could run. Skipping it silently
+        // would recreate the exact gap the step exists to close, so a plan
+        // that carries one is refused loudly instead of launched
+        // unprepared.
+        LaunchRunner runner = new();
+        LaunchPlan plan = new(SleepingShellCommand(), [], SleepingShellCommand());
+
+        await Assert.That(() =>
+        {
+            _ = runner.Handoff(plan);
+        }).Throws<InvalidOperationException>();
+    }
+
     // CI runs on Linux, where "cmd" does not exist; /bin/sh is rooted so
     // CliInvoke's PATH/PATHEXT probing cannot mis-resolve it on Unix either.
     // Windows has no sleep(1), so ping ticks out the same duration instead.
