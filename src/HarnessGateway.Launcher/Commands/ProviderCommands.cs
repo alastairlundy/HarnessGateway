@@ -6,15 +6,13 @@
  */
 
 using HarnessGateway.Launcher.Input.Abstractions;
-using HarnessGateway.Launcher.Models;
 
 namespace HarnessGateway.Launcher.Commands;
 
 internal sealed class ProviderCommands : Command
 {
     /// <summary>
-    /// One description for both credential verbs' <c>--key-env</c> option, so
-    /// the two spellings of the flag can never drift apart.
+    /// One description for both credential verbs' <c>--key-env</c> option, so the two spellings of the flag can never drift apart.
     /// </summary>
     private const string KeyEnvOptionDescription =
         "Environment variable holding the API key to save in the platform credential store; " +
@@ -68,7 +66,7 @@ internal sealed class ProviderCommands : Command
             Description = KeyEnvOptionDescription,
         };
 
-        Command cmd = new("add", "Create or replace a saved provider entry")
+        Command command = new("add", "Create or replace a saved provider entry")
         {
             nameArg,
             endpointOption,
@@ -77,7 +75,7 @@ internal sealed class ProviderCommands : Command
             keyEnvOption,
         };
 
-        cmd.SetAction(async (result, cancellationToken) =>
+        command.SetAction(async (result, cancellationToken) =>
         {
             string name = result.GetRequiredValue(nameArg);
             string? endpoint = result.GetValue(endpointOption);
@@ -194,7 +192,7 @@ internal sealed class ProviderCommands : Command
             return 0;
         });
 
-        return cmd;
+        return command;
     }
 
     private Command CreateListCommand()
@@ -356,8 +354,7 @@ internal sealed class ProviderCommands : Command
             string? key = result.GetValue(keyOption);
             string? keyEnv = result.GetValue(keyEnvOption);
 
-            // Same shared sourcing rule as provider add: a failure here exits
-            // before the settings file is even loaded, so nothing is stored
+            // Same shared sourcing rule as provider add: a failure here exits before the settings file is even loaded, so nothing is stored
             // and nothing is saved, and the prompt never runs.
             ApiKeySourceResult keySource = _apiKeySource.Resolve(key, keyEnv);
             int? keySourceExitCode = await ReportKeySourceFailureAsync(keySource).ConfigureAwait(true);
@@ -401,8 +398,7 @@ internal sealed class ProviderCommands : Command
                 return (int)LaunchExitCode.ConfigRestoreFailure;
             }
 
-            // Only the credential record changes here: endpoint, protocol, and
-            // default model are never touched by set-key.
+            // Only the credential record changes here: endpoint, protocol, and default model are never touched by set-key.
             Provider updated = entry with { ApiKey = reference };
             ConfigCommand.UpdateProvider(settings, updated);
             _settingsStore.Save(settings);
@@ -450,8 +446,7 @@ internal sealed class ProviderCommands : Command
                 return 0;
             }
 
-            // A legacy plaintext key predates the store and has no entry there,
-            // so only a reference is worth deleting from the credential store.
+            // A legacy plaintext key predates the store and has no entry there, so only a reference is worth deleting from the credential store.
             if (KeyReference.IsReference(entry.ApiKey))
             {
                 try
@@ -546,10 +541,8 @@ internal sealed class ProviderCommands : Command
                 protocolOverride = kind;
             }
 
-            // Same absolute-URL rule provider add enforces through
-            // LaunchCommand.ParseEndpoint: an endpoint that does not parse as
-            // absolute is a usage error here, before the entry is resolved or
-            // anything is written.
+            // Same absolute-URL rule provider add enforces through LaunchCommand.ParseEndpoint: an endpoint that does not parse as
+            // absolute is a usage error here, before the entry is resolved or anything is written.
             Uri? endpointOverride = null;
             if (endpoint is not null)
             {
@@ -573,8 +566,7 @@ internal sealed class ProviderCommands : Command
                 return resolutionExitCode;
             }
 
-            // Entry names are unique within a provider, matched with the
-            // same case-insensitive rule launch resolution uses.
+            // Entry names are unique within a provider, matched with the same case-insensitive rule launch resolution uses.
             if (entry.Models.Any(m => string.Equals(m.Name, modelName, StringComparison.OrdinalIgnoreCase)))
             {
                 await Console.Error.WriteLineAsync(
@@ -593,7 +585,7 @@ internal sealed class ProviderCommands : Command
                         Name = modelName,
                         Protocol = protocolOverride,
                         Endpoint = endpointOverride,
-                    }
+                    },
                 ],
             };
             ConfigCommand.UpdateProvider(settings, updated);
@@ -724,12 +716,10 @@ internal sealed class ProviderCommands : Command
     }
 
     /// <summary>
-    /// Binds a no-override resolution to the saved entry for the config verbs
-    /// (remove, set-key, clear-key) and the model sub-verbs: the <c>Resolved</c>
-    /// variant proves the provider case non-null, <c>Failed</c> carries its own
-    /// message and typed exit code, and <c>EmptySettings</c> is unreachable here
-    /// - these verbs always pass the required name argument, so resolution
-    /// either finds the entry or fails with the unknown-name class.
+    /// Binds a no-override resolution to the saved entry for the config verbs (remove, set-key, clear-key) and the model
+    /// sub-verbs: the <c>Resolved</c> variant proves the provider case non-null, <c>Failed</c> carries its own
+    /// message and typed exit code, and <c>EmptySettings</c> is unreachable here - these verbs always pass the required
+    /// name argument, so resolution either finds the entry or fails with the unknown-name class.
     /// </summary>
     private static async Task<(Provider? Entry, int ExitCode)> TryResolveEntryAsync(
         ProviderResolutionResult resolution)
@@ -750,10 +740,8 @@ internal sealed class ProviderCommands : Command
     }
 
     /// <summary>
-    /// Maps a failed key source to stderr plus the usage-error exit code -
-    /// the command layer's side of the sourcing contract, shared by both
-    /// credential verbs so no verb grows its own copy. Returns null when a
-    /// source resolved or no source flag was given, so the caller continues.
+    /// Maps a failed key source to stderr plus the usage-error exit code - the command layer's side of the sourcing contract, shared by both
+    /// credential verbs so no verb grows its own copy. Returns null when a source resolved or no source flag was given, so the caller continues.
     /// </summary>
     private static async Task<int?> ReportKeySourceFailureAsync(ApiKeySourceResult source)
     {
@@ -767,9 +755,8 @@ internal sealed class ProviderCommands : Command
     }
 
     /// <summary>
-    /// The secret to store for <paramref name="entry"/>: the resolved source
-    /// value when a flag supplied one, otherwise the interactive prompt. A
-    /// failed source never reaches here - <see cref="ReportKeySourceFailureAsync"/>
+    /// The secret to store for <paramref name="entry"/>: the resolved source value when a flag supplied one, otherwise the
+    /// interactive prompt. A failed source never reaches here - <see cref="ReportKeySourceFailureAsync"/>
     /// returns first - so there is no prompt fallback on failure.
     /// </summary>
     private string? SecretOrPrompt(ApiKeySourceResult source, Provider entry) =>

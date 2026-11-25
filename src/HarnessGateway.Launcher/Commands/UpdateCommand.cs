@@ -6,23 +6,18 @@
  */
 
 using HarnessGateway.Launcher.Core.Update;
-using HarnessGateway.Launcher.Models;
 
 namespace HarnessGateway.Launcher.Commands;
 
 /// <summary>
-/// The <c>update</c> top-level command and its <c>check</c> subcommand.
-/// The check compares this build against the latest GitHub release
-/// and maps the outcome onto the documented exit codes; it never
-/// downloads, installs, or applies anything. Bare <c>update</c>
-/// refuses with a suggestion naming <c>update check</c> instead of
-/// defaulting to a behaviour.
+/// The <c>update</c> top-level command and its <c>check</c> subcommand. The check compares this build against the latest GitHub release
+/// and maps the outcome onto the documented exit codes; it never downloads, installs, or applies anything. Bare <c>update</c>
+/// refuses with a suggestion naming <c>update check</c> instead of defaulting to a behaviour.
 /// </summary>
 public sealed class UpdateCommand : Command
 {
     /// <summary>
-    /// Force-check flag: bypasses the 10-minute cooldown window. The
-    /// name is implementation-chosen here and documented for users with the
+    /// Force-check flag: bypasses the 10-minute cooldown window. The name is implementation-chosen here and documented for users with the
     /// rest of the command surface.
     /// </summary>
     public static readonly Option<bool> ForceOption = new("--force")
@@ -33,8 +28,7 @@ public sealed class UpdateCommand : Command
     private readonly UpdateChecker _checker;
 
     /// <summary>
-    /// Production wiring: the system clock, the per-OS config directory the
-    /// settings file lives in, and this build's pinned version. Constructed
+    /// Production wiring: the system clock, the per-OS config directory the settings file lives in, and this build's pinned version. Constructed
     /// for every CLI run, so it touches no file and no network here.
     /// </summary>
     public UpdateCommand()
@@ -68,8 +62,7 @@ public sealed class UpdateCommand : Command
 
         Add(checkCommand);
 
-        // Bare `update` must not guess: refuse with the subcommand
-        // name and run nothing - no network call, no cooldown stamp.
+        // Standalone `update` must not guess: refuse with the subcommand name and run nothing - no network call, no cooldown stamp.
         SetAction(async (result, cancellationToken) =>
         {
             await Console.Error.WriteLineAsync(
@@ -80,8 +73,7 @@ public sealed class UpdateCommand : Command
     }
 
     /// <summary>
-    /// Prints the outcome and returns its documented exit code: up to date
-    /// and the cooldown notice are 0; update available and check
+    /// Prints the outcome and returns its documented exit code: up to date and the cooldown notice are 0; update available and check
     /// failed are the two appended contract codes.
     /// </summary>
     private async Task<int> ReportAsync(UpdateCheckResult check)
@@ -89,8 +81,7 @@ public sealed class UpdateCommand : Command
         switch (check.Outcome)
         {
             case UpdateCheckOutcome.CooldownActive:
-                // The notice exits 0 with the remaining time on stdout;
-                // scripts wanting a fresh check pass --force.
+                // The notice exits 0 with the remaining time on stdout; scripts wanting a fresh check pass --force.
                 Console.WriteLine(
                     $"Update check is cooling down ({FormatRemaining(check.CooldownRemaining)} remaining); " +
                     "run 'harnessgateway update check --force' to check now.");
@@ -121,8 +112,7 @@ public sealed class UpdateCommand : Command
     }
 
     /// <summary>
-    /// The remaining window as whole minutes and seconds, rounded up so a
-    /// skipped check never reports "0s remaining" while still inside it.
+    /// The remaining window as whole minutes and seconds, rounded up so a skipped check never reports "0s remaining" while still inside it.
     /// </summary>
     private static string FormatRemaining(TimeSpan remaining)
     {

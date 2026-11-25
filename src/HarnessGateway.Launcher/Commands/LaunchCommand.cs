@@ -5,8 +5,6 @@
     file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-using HarnessGateway.Launcher.Models;
-
 namespace HarnessGateway.Launcher.Commands;
 
 public sealed class LaunchCommand : Command

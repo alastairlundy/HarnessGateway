@@ -5,9 +5,6 @@
     file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-using HarnessGateway.Launcher.Core.Launch;
-using HarnessGateway.Launcher.Models;
-
 namespace HarnessGateway.Launcher.Commands;
 
 /// <summary>
@@ -150,7 +147,7 @@ public sealed class LaunchOrchestrator
         LaunchRefusalKind.ConfirmUnsupportedForHarness
             or LaunchRefusalKind.PrintUnsupportedForHarness
             or LaunchRefusalKind.PrintPromptMissing => (int)LaunchExitCode.UsageError,
-        // An interactive launch with no terminal to run in is its own
+        // An interactive launch with no terminal to run in is its own-
         // appended code: the launch is correctly requested but cannot run
         // in this context, which a usage error would misreport as a bad
         // flag and an unavailable harness would misreport as a bad install.

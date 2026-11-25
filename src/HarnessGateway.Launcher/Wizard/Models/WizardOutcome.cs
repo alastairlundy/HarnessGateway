@@ -7,9 +7,8 @@ namespace HarnessGateway.Launcher.Wizard.Models;
 public abstract record WizardOutcome
 {
     /// <summary>
-    /// Convenience conversion so callers that only care about the collected
-    /// result (and treat an abort as <c>null</c>) keep working. Production
-    /// code should pattern-match the derived types to recover the abort reason.
+    /// Convenience conversion so callers that only care about the collected result (and treat an abort as <c language="">null</c>)
+    /// keep working. Production code should pattern-match the derived types to recover the abort reason.
     /// </summary>
     public static implicit operator WizardResult?(WizardOutcome outcome) =>
         outcome is WizardCompleted completed ? completed.Result : null;
