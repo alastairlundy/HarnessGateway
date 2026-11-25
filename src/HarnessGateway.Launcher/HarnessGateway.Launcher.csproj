@@ -15,7 +15,7 @@
         <Nullable>enable</Nullable>
         <!-- Pinned build identity: surfaced by the version flag and asserted
              against the release tag. Distinct from settings `schemaVersion`. -->
-        <Version>0.1.1</Version>
+        <Version>0.1.2</Version>
         <!-- The SDK's built-in SourceLink stamps SourceRevisionId (the git
              commit SHA) onto the informational version as "+<sha>" whenever a
              build runs in a checkout. Off: the version flag prints the pin
@@ -36,8 +36,8 @@
         <Copyright>Copyright (c) 2026 Alastair Lundy</Copyright>
         <RepositoryType>git</RepositoryType>
         <PackageReleaseNotes>Initial Release</PackageReleaseNotes>
-        <AssemblyVersion>0.1.1</AssemblyVersion>
-        <FileVersion>0.1.1</FileVersion>
+        <AssemblyVersion>0.1.2</AssemblyVersion>
+        <FileVersion>0.1.2</FileVersion>
     </PropertyGroup>
 
     <ItemGroup>
