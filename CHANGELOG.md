@@ -9,8 +9,8 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Added
 
 - One-shot non-interactive mode via `-p`/`--print` for harnesses that
-  implement it (claude-code, opencode, kilo, copilot, codex). A prompt comes
-  from the flag value or stdin; `pi` and GUI harnesses refuse.
+  implement it (claude-code, opencode, kilo, copilot, codex, pi). A prompt comes
+  from the flag value or stdin; GUI harnesses refuse.
 
 ### Fixed
 

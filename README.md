@@ -220,8 +220,8 @@ alternative.
 `-p PROMPT` (or `--print PROMPT`) runs the harness in its own
 non-interactive mode instead: the prompt goes to the harness's one-shot
 spelling (`claude -p`, `opencode run`, `kilo run`, `codex exec`,
-`copilot -p`), and the run's output is printed when it finishes. No terminal
-is needed, so this is the form for scripts and CI:
+`copilot -p`, `pi -p`), and the run's output is printed when it finishes. No
+terminal is needed, so this is the form for scripts and CI:
 
 ```bash
 harnessgateway launch claude-code -p "summarize the git history"
@@ -230,7 +230,7 @@ echo "fix the failing test" | harnessgateway launch claude-code -p
 
 `-p` with no value reads the prompt from stdin. Two misuses exit with exit
 code 2: a harness with no one-shot mode the launcher knows how to drive (the
-GUI harness, and `pi`), and `-p` with no prompt available - none passed as an
+GUI harness), and `-p` with no prompt available - none passed as an
 argument and none readable from stdin. Everything else about the launch - the
 provider, key, model, and `--persist` behaviour - is unchanged from an
 interactive session.

@@ -160,18 +160,18 @@ public class ShippedAdapterContractTests
     {
         IHarnessAdapter[] shipped = ShippedAdapters();
 
-        // The -p/--print capability map: the five harnesses whose one-shot
+        // The -p/--print capability map: the six harnesses whose one-shot
         // spelling is researched and implemented (claude -p, opencode run,
-        // kilo run, codex exec, copilot -p), and the two that have none -
-        // the GUI app has no CLI one-shot mode, and pi's is not implemented
-        // (unverified), so it must refuse rather than guess at argv.
+        // kilo run, codex exec, copilot -p, pi -p), and the one that has
+        // none - the GUI app has no CLI one-shot mode, so it must refuse
+        // rather than guess at argv.
         Dictionary<string, bool> expected = new()
         {
             ["OpenCode"] = true,
             ["OpenCode Desktop"] = false,
             ["Kilo"] = true,
             ["GitHub Copilot CLI"] = true,
-            ["Pi"] = false,
+            ["Pi"] = true,
             ["Codex CLI"] = true,
             ["Claude Code"] = true
         };

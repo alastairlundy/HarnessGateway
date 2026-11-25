@@ -6,7 +6,7 @@ namespace HarnessGateway.Launcher.Core.Adapters.Abstractions;
 /// Optional per-harness capability: the harness has a documented one-shot
 /// non-interactive mode the launcher can drive with a prompt, in the
 /// harness's own spelling of it (<c>claude -p</c>, <c>opencode run</c>,
-/// <c>kilo run</c>, <c>codex exec</c>, <c>copilot -p</c>). Adapters opt in
+/// <c>kilo run</c>, <c>codex exec</c>, <c>copilot -p</c>, <c>pi -p</c>). Adapters opt in
 /// by implementing this; the flow refuses <c>-p/--print</c> against anything
 /// else instead of guessing at argv.
 /// </summary>

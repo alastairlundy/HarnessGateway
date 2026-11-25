@@ -168,6 +168,63 @@ public class PiAdapterTests
     }
 
     [Test]
+    public async Task PlanNonInteractive_puts_the_prompt_after_pis_print_flag()
+    {
+        // pi -p "<prompt>": -p/--print is pi's boolean print-mode flag and
+        // the prompt is the message positional after it - not the flag's
+        // own value.
+        PiAdapter adapter = new PiAdapter();
+        ResolvedLaunch request = CreateRequest(model: null);
+
+        LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+        await Assert.That(plan.Process.TargetFilePath).IsEqualTo("pi");
+        await Assert.That(plan.Process.ArgumentList).IsEquivalentTo(["-p", "fix the failing test"]);
+    }
+
+    [Test]
+    public async Task PlanNonInteractive_keeps_the_model_flag()
+    {
+        // The one-shot plan differs from the interactive one only by the
+        // print flag and the prompt: the model still rides --model.
+        PiAdapter adapter = new PiAdapter();
+        ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");
+
+        LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
+
+        await Assert.That(plan.Process.ArgumentList)
+            .IsEquivalentTo(["--model", "claude-sonnet-5", "-p", "fix the failing test"]);
+    }
+
+    [Test]
+    public async Task PlanNonInteractive_keeps_the_interactive_env_vars()
+    {
+        // -p changes how pi reads its input, not how it is configured:
+        // the emission's base URL and key reach the child exactly as the
+        // interactive launch plans them.
+        PiAdapter adapter = new PiAdapter();
+        ResolvedLaunch request = CreateRequest();
+
+        LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "summarize the git history");
+
+        await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("OPENAI_BASE_URL");
+        await Assert.That(plan.Process.EnvironmentVariables).ContainsKey("OPENAI_API_KEY");
+    }
+
+    [Test]
+    public async Task PlanLaunch_omits_the_print_flag()
+    {
+        // The interactive plan never carries -p: only the one-shot member
+        // adds it, so an interactive launch can't be misread as print mode.
+        PiAdapter adapter = new PiAdapter();
+        ResolvedLaunch request = CreateRequest();
+
+        LaunchPlan plan = await adapter.PlanLaunchAsync(request);
+
+        await Assert.That(plan.Process.ArgumentList).DoesNotContain("-p");
+    }
+
+    [Test]
     public async Task PlanLaunch_warn_and_launch_when_no_model()
     {
         PiAdapter adapter = new PiAdapter();

@@ -4,7 +4,7 @@ using HarnessGateway.Launcher.Core.Launch;
 
 namespace HarnessGateway.Launcher.Core.Adapters;
 
-public sealed class PiAdapter : IHarnessAdapter
+public sealed class PiAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 {
     public HarnessMetadata Metadata { get; } = new(
         Name: "Pi",
@@ -39,7 +39,25 @@ public sealed class PiAdapter : IHarnessAdapter
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("pi", cancellationToken);
 
-    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
+    public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, printPrompt: null));
+
+    /// <summary>
+    /// The one-shot mode: <c>pi -p "&lt;prompt&gt;"</c> - pi's own spelling.
+    /// <c>-p</c>/<c>--print</c> is a boolean mode flag ("print response and
+    /// exit"), not a prompt-taking one: the prompt rides as the message
+    /// positional after it, exactly as <c>pi -p "Summarize this
+    /// codebase"</c> is written in pi's CLI reference. Everything else
+    /// (base URL, key, model) plans exactly as the interactive launch does,
+    /// because -p changes how pi reads its input, not how it is configured.
+    /// </summary>
+    public Task<LaunchPlan> PlanNonInteractiveAsync(
+        ResolvedLaunch request,
+        string prompt,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(BuildPlan(request, prompt));
+
+    private static LaunchPlan BuildPlan(ResolvedLaunch request, string? printPrompt)
     {
         // Direct case branching: each case hands over its own
         // effective protocol, base URL, and model - no stored-looking
@@ -75,6 +93,16 @@ public sealed class PiAdapter : IHarnessAdapter
             args.Add(model);
         }
 
+        if (printPrompt is not null)
+        {
+            // -p is pi's boolean print-mode flag and the prompt is the
+            // message positional after it. Both ride ArgumentList so the
+            // prompt stays one argv element whatever it contains (and a
+            // non-empty list makes the process library ignore Arguments).
+            args.Add("-p");
+            args.Add(printPrompt);
+        }
+
         ProcessConfiguration config = new("pi")
         {
             ArgumentList = args,
@@ -83,7 +111,7 @@ public sealed class PiAdapter : IHarnessAdapter
             EnvironmentVariables = envVars,
         };
 
-        return Task.FromResult(new LaunchPlan(config, []));
+        return new LaunchPlan(config, []);
     }
 
     private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)
