@@ -103,7 +103,7 @@ public sealed class ConfigCommand : Command
             ConfigKeyResult read = ConfigKeyResolver.Get(settings, key);
             if (!read.IsSuccess)
             {
-                Console.Error.WriteLine(read.Message);
+                await Console.Error.WriteLineAsync(read.Message).ConfigureAwait(true);
                 return ExitCodeFor(read.Failure);
             }
 
@@ -127,9 +127,9 @@ public sealed class ConfigCommand : Command
             Description = "The new value for the key",
         };
 
-        Command cmd = new("set", "Write a non-secret setting by its typed key") { keyArg, valueArg };
+        Command command = new("set", "Write a non-secret setting by its typed key") { keyArg, valueArg };
 
-        cmd.SetAction(async (result, cancellationToken) =>
+        command.SetAction(async (result, cancellationToken) =>
         {
             string key = result.GetRequiredValue(keyArg);
             string value = result.GetRequiredValue(valueArg);
@@ -144,7 +144,7 @@ public sealed class ConfigCommand : Command
             ConfigKeyResult write = ConfigKeyResolver.Set(settings, key, value);
             if (!write.IsSuccess)
             {
-                Console.Error.WriteLine(write.Message);
+                await Console.Error.WriteLineAsync(write.Message).ConfigureAwait(true);
                 return ExitCodeFor(write.Failure);
             }
 
@@ -154,8 +154,7 @@ public sealed class ConfigCommand : Command
             {
                 if (write.Settings is not { } toSave)
                 {
-                    throw new InvalidOperationException(
-                        "A successful config set must carry the settings snapshot to persist.");
+                    throw new InvalidOperationException("A successful config set must carry the settings snapshot to persist.");
                 }
 
                 _settingsStore.Save(toSave);
@@ -165,7 +164,7 @@ public sealed class ConfigCommand : Command
             return 0;
         });
 
-        return cmd;
+        return command;
     }
 
     /// <summary>
@@ -194,7 +193,7 @@ public sealed class ConfigCommand : Command
         }
         catch (SecureKeyStoreException ex)
         {
-            Console.Error.WriteLine(ex.Message);
+            await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(true);
             return (new LauncherSettings(), (int)LaunchExitCode.ConfigRestoreFailure);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -204,7 +203,7 @@ public sealed class ConfigCommand : Command
             // message - no stack trace - and mapped to the documented
             // ConfigRestoreFailure rather than escaping as an unhandled
             // exception with an exit code outside the contract.
-            Console.Error.WriteLine($"Settings load failed: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Settings load failed: {ex.Message}").ConfigureAwait(true);
             return (new LauncherSettings(), (int)LaunchExitCode.ConfigRestoreFailure);
         }
     }
