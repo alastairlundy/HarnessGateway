@@ -48,25 +48,19 @@ public sealed class LaunchCommand : Command
 
     public static readonly Option<bool> ConfirmRunningOption = new("--confirm-running")
     {
-        // A flag, not a valued option: it carries a yes/no the terminal would
-        // otherwise collect, so the token is the whole spelling. Deliberately
-        // no harness-kind gate here either - whether the flag is misused
-        // against a Kind=Cli harness is the flow's refusal to make, not a
+        // A flag, not a valued option: it carries a yes/no the terminal would otherwise collect, so the token is the whole spelling. Deliberately
+        // no harness-kind gate here either - whether the flag is misused against a Kind=Cli harness is the flow's refusal to make, not a
         // parse error.
         Description = "Confirm a running instance of the harness instead of being prompted (GUI harnesses)",
     };
 
     public static readonly Option<string?> PrintOption = new("-p", "--print")
     {
-        // ZeroOrOne on purpose: the prompt may be the option's value
-        // (-p "<prompt>") or come from stdin when the value is omitted
-        // (-p alone with a pipe). Presence - not the value - is what makes
-        // this a print launch, so the action reads the option's result
-        // rather than only its value. Which harnesses can even run
-        // one-shot, and whether a prompt arrived, are the flow's refusals
+        // ZeroOrOne on purpose: the prompt may be the option's value (-p "<prompt>") or come from stdin when the value is omitted
+        // (-p alone with a pipe). Presence - not the value - is what makes this a print launch, so the action reads the option's result
+        // rather than only its value. Which harnesses can even run one-shot, and whether a prompt arrived, are the flow's refusals
         // to make, not parse errors - the same split --confirm-running uses.
-        Description = "Run the harness non-interactively with a prompt: "
-            + "-p \"<prompt>\", or -p alone to read the prompt from stdin",
+        Description = "Run the harness non-interactively with a prompt: -p \"<prompt>\", or -p alone to read the prompt from stdin",
         Arity = ArgumentArity.ZeroOrOne,
     };
 
@@ -79,16 +73,13 @@ public sealed class LaunchCommand : Command
     {
     }
 
-    internal LaunchCommand(
-        LaunchOrchestrator? orchestrator,
-        Func<CancellationToken, Task<int>>? wizardAction = null,
-        IEnumerable<IHarnessAdapter>? adapters = null)
+    internal LaunchCommand(LaunchOrchestrator? orchestrator,
+        Func<CancellationToken, Task<int>>? wizardAction = null, IEnumerable<IHarnessAdapter>? adapters = null)
         : base("launch", "Launch an agent harness with the specified provider configuration")
     {
-        var wizardAction1 = wizardAction;
+        Func<CancellationToken, Task<int>>? wizardAction1 = wizardAction;
 
-        // Built from the registry so the help text cannot advertise an
-        // identifier the lookup rejects, or omit one it accepts.
+        // Built from the registry so the help text cannot advertise an identifier the lookup rejects, or omit one it accepts.
         HarnessArgument.Description = BuildHarnessDescription(adapters);
 
         Add(HarnessArgument);
@@ -136,44 +127,35 @@ public sealed class LaunchCommand : Command
                 }
             }
 
-            // Options without a harness stay a parse error, so the bare-`launch`
-            // wizard fallback can never silently drop a flag the user typed.
-            // Presence, not value, detects -p/--print: the prompt is optional
-            // at parse time (it may come from stdin), so a valueless -p must
+            // Options without a harness stay a parse error, so the standalone `launch` wizard fallback can never silently drop a flag the user typed.
+            // Presence, not value, detects -p/--print: the prompt is optional at parse time (it may come from stdin), so a valueless -p must
             // still count as an option the wizard path cannot honor.
-            if (result.GetValue(HarnessArgument) is null &&
-                (result.GetValue(ProviderOption) is not null
-                 || result.GetValue(EndpointOption) is not null
-                 || result.GetValue(ProtocolOption) is not null
-                 || result.GetValue(ModelOption) is not null
-                 || result.GetValue(PersistOption) is { Length: > 0 }
-                 || result.GetValue(ConfirmRunningOption)
-                 || result.GetResult(PrintOption) is not null))
+            if (result.GetValue(HarnessArgument) is null && (result.GetValue(ProviderOption) is not null ||
+                                                             result.GetValue(EndpointOption) is not null
+                                                             || result.GetValue(ProtocolOption) is not null
+                                                             || result.GetValue(ModelOption) is not null
+                                                             || result.GetValue(PersistOption) is { Length: > 0 }
+                                                             || result.GetValue(ConfirmRunningOption)
+                                                             || result.GetResult(PrintOption) is not null))
             {
                 result.AddError(
-                    "A harness identifier is required when launch options are specified: " +
-                    "harnessgateway launch <harness> [options]. Run 'harnessgateway launch' " +
-                    "with no options to use the interactive wizard.");
+                    "A harness identifier is required when launch arguments are specified: harnessgateway launch <harness> [arguments]. " +
+                    "Run 'harnessgateway launch' with no arguments to use the interactive wizard.");
             }
         });
 
         TreatUnmatchedTokensAsErrors = true;
 
-        // The launch path's invocation seam: when the `launch` subcommand
-        // matches, this action runs with the subcommand's own parsed symbols
-        // and drives the orchestrator. Without it, System.CommandLine's
-        // no-action fallback silently succeeds with exit 0 - the root action
+        // The launch path's invocation seam: when the `launch` subcommand matches, this action runs with the subcommand's own parsed symbols
+        // and drives the orchestrator. Without it, System.CommandLine's no-action fallback silently succeeds with exit 0 - the root action
         // can never see a child command's tokens.
         SetAction(async (result, cancellationToken) =>
         {
             string? harness = result.GetValue(HarnessArgument);
 
-            // Bare `launch` is the second wizard entry point: no harness
-            // identifier and no options (options without a harness fail
-            // validation above), so nothing the user typed can be dropped
-            // here. When no wizard is wired - parse-only constructions - fail
-            // loudly instead of falling through to the orchestrator with a
-            // null identifier.
+            // Bare `launch` is the second wizard entry point: no harness identifier and no options (options without a harness fail
+            // validation above), so nothing the user typed can be dropped here. When no wizard is wired - parse-only constructions - fail
+            // loudly instead of falling through to the orchestrator with a null identifier.
             if (harness is null)
             {
                 if (wizardAction1 is not null)
@@ -197,10 +179,8 @@ public sealed class LaunchCommand : Command
                 ? ParsePersistValues(persistValues)
                 : new List<string>();
 
-            // -p/--print: presence decides, the value may be absent. A
-            // valueless -p reads the prompt from stdin here, at the edge,
-            // so the flow only ever sees a prompt value (or null, which it
-            // refuses) and never has to decide whether the console's stdin
+            // -p/--print: presence decides, the value may be absent. A valueless -p reads the prompt from stdin here, at the edge,
+            // so the flow only ever sees a prompt value (or null, which it refuses) and never has to decide whether the console's stdin
             // is worth reading.
             bool print = result.GetResult(PrintOption) is not null;
             string? printPrompt = result.GetValue(PrintOption);
@@ -212,12 +192,10 @@ public sealed class LaunchCommand : Command
 
             if (orchestrator is null)
             {
-                // Check the constructor parameter, then invoke it: flow analysis
-                // clears the nullable dereference, and the guard delivers the
+                // Check the constructor parameter, then invoke it: flow analysis clears the nullable dereference, and the guard delivers the
                 // loud failure the seam contract promises instead of a bare NRE.
                 throw new InvalidOperationException(
-                    "LaunchCommand was constructed without an orchestrator; " +
-                    "wire one via the internal constructor before invoking 'launch <harness>'.");
+                    "LaunchCommand was constructed without an orchestrator; wire one via the internal constructor before invoking 'launch <harness>'.");
             }
 
             return await orchestrator.RunAsync(

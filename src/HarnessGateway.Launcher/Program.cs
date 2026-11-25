@@ -187,7 +187,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
         wizardResult.Endpoint,
         LaunchCommand.ProtocolName(wizardResult.Protocol),
         wizardResult.Model,
-        Persist: [],
+        [],
         SessionKey: wizardResult.ApiKey);
 
     LaunchOutcome outcome = await flow.ExecuteAsync(request, cancellationToken)

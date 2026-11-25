@@ -39,10 +39,8 @@ public sealed class ModelStep
         IReadOnlySet<ProtocolKind>? harnessProtocols = null,
         CancellationToken cancellationToken = default)
     {
-        // One catalogue request, made with the provider's own wire protocol so
-        // the authentication header matches the endpoint it is sent to. Chat
-        // and responses share the same /v1/models request, so both kinds are
-        // tagged from that single result; Anthropic gets its own request shape.
+        // One catalogue request, made with the provider's own wire protocol so the authentication header matches the endpoint it is sent to. Chat
+        // and responses share the same /v1/models request, so both kinds are tagged from that single result; Anthropic gets its own request shape.
         Dictionary<string, HashSet<ProtocolKind>> found = new(StringComparer.OrdinalIgnoreCase);
 
         if (_fetchModels is not null && _provider is not null)
@@ -75,7 +73,7 @@ public sealed class ModelStep
             catch
             {
                 await Task.Run(() => _console.WriteError(
-                        "Could not fetch model catalogue. Endpoint may be unreachable."),
+                        "Could not fetch model catalog. Endpoint may be unreachable."),
                     cancellationToken).ConfigureAwait(false);
             }
         }
@@ -119,12 +117,9 @@ public sealed class ModelStep
                 annotationParts.Add("saved default");
             }
 
-            // Indication, never filtering: a model whose every listed
-            // protocol tag the harness cannot speak gets the harness list's
-            // "incompatible: <protocols>" vocabulary appended to the
-            // annotation, and the structured state rides along so the
-            // presenter can colour it. A model with at least one speakable
-            // tag stays unmarked - the partial-match blind spot is accepted -
+            // Indication, never filtering: a model whose every listed protocol tag the harness cannot speak gets the harness list's
+            // "incompatible: <protocols>" vocabulary appended to the annotation, and the structured state rides along so the
+            // presenter can colour it. A model with at least one speakable tag stays unmarked - the partial-match blind spot is accepted -
             // and no choice is ever dropped from the list.
             string? incompatible = null;
             if (harnessProtocols is not null && !entry.Value.Overlaps(harnessProtocols))
@@ -155,8 +150,7 @@ public sealed class ModelStep
             return new ModelSelection(selected, Protocol: null);
         }
 
-        // Determine the effective protocol: prompt only when more than one
-        // protocol was found, preselecting the provider default when present.
+        // Determine the effective protocol: prompt only when more than one protocol was found, preselecting the provider default when present.
         ProtocolKind effectiveProtocol;
         if (selectedProtocols.Count > 1)
         {
@@ -164,13 +158,13 @@ public sealed class ModelStep
             [
                 .. selectedProtocols
                     .OrderBy(p => p == _provider?.DefaultProtocol ? 0 : 1)
-                    .ThenBy(p => p)
+                    .ThenBy(p => p),
             ];
 
             List<ConsoleChoice> protocolChoices =
             [
                 .. ordered
-                    .Select(p => new ConsoleChoice(ProviderResolution.ProtocolName(p)))
+                    .Select(p => new ConsoleChoice(ProviderResolution.ProtocolName(p))),
             ];
 
             string protocolStr = await _console.PromptChoiceAsync(
@@ -215,7 +209,7 @@ public sealed class ModelStep
                 Protocol: null);
         }
 
-        string skip = await _console.PromptChoiceAsync("Model catalogue unavailable:", [
+        string skip = await _console.PromptChoiceAsync("Model catalog unavailable:", [
             new ConsoleChoice("[skip]", "do not set a model"),
             new ConsoleChoice("[manual]", "enter a model name manually"),
         ], cancellationToken).ConfigureAwait(true);
