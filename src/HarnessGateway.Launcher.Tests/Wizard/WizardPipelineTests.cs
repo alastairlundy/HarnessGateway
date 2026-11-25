@@ -567,7 +567,7 @@ public class WizardPipelineTests
             await Assert.That(result.Model).IsEqualTo("saved-model");
             await Assert.That(console.WrittenMessages.Any(m => m.Contains("saved-model"))).IsTrue();
             await Assert.That(
-                console.Prompts.Any(p => p.Title == "Model catalogue unavailable:")).IsFalse();
+                console.Prompts.Any(p => p.Title == "Model catalog unavailable:")).IsFalse();
         }
         finally
         {
@@ -794,7 +794,7 @@ public class WizardPipelineTests
                 console.Prompts[3].Title.StartsWith("Endpoint URL", StringComparison.Ordinal)).IsTrue();
             await Assert.That(console.Prompts[4].Title).IsEqualTo("Select a harness:");
             await Assert.That(console.Prompts[5].Title).IsEqualTo("API key (will not be saved):");
-            await Assert.That(console.Prompts[6].Title).IsEqualTo("Model catalogue unavailable:");
+            await Assert.That(console.Prompts[6].Title).IsEqualTo("Model catalog unavailable:");
             await Assert.That(
                     console.Prompts[4].Choices.Single(c => c.Name == "OpenAiOnly").Annotation)
                 .IsEqualTo("incompatible: anthropic");
@@ -842,7 +842,7 @@ public class WizardPipelineTests
                 console.Prompts[2].Title.StartsWith("Endpoint URL", StringComparison.Ordinal)).IsTrue();
             await Assert.That(console.Prompts[3].Title).IsEqualTo("Select a harness:");
             await Assert.That(console.Prompts[4].Title).IsEqualTo("API key (will not be saved):");
-            await Assert.That(console.Prompts[5].Title).IsEqualTo("Model catalogue unavailable:");
+            await Assert.That(console.Prompts[5].Title).IsEqualTo("Model catalog unavailable:");
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("anthropic");
             await Assert.That(
@@ -907,7 +907,7 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts[0].Title).IsEqualTo("Select a harness:");
             await Assert.That(console.Prompts[1].Title).IsEqualTo("Select a provider:");
             await Assert.That(console.Prompts[2].Title).IsEqualTo("API key (will not be saved):");
-            await Assert.That(console.Prompts[3].Title).IsEqualTo("Model catalogue unavailable:");
+            await Assert.That(console.Prompts[3].Title).IsEqualTo("Model catalog unavailable:");
         }
         finally
         {
@@ -981,7 +981,7 @@ public class WizardPipelineTests
                 console.Prompts.Count(p => p.Title == "Enter model name (required):")).IsEqualTo(1);
             // Skip is never offered when the harness requires a model.
             await Assert.That(
-                console.Prompts.Any(p => p.Title == "Model catalogue unavailable:")).IsFalse();
+                console.Prompts.Any(p => p.Title == "Model catalog unavailable:")).IsFalse();
         }
         finally
         {
@@ -1010,7 +1010,7 @@ public class WizardPipelineTests
             await Assert.That(result).IsNotNull();
             await Assert.That(result.Model).IsNull();
             await Assert.That(
-                console.Prompts.Count(p => p.Title == "Model catalogue unavailable:")).IsEqualTo(1);
+                console.Prompts.Count(p => p.Title == "Model catalog unavailable:")).IsEqualTo(1);
         }
         finally
         {
