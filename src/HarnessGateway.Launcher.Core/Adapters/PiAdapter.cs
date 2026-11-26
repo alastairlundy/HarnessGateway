@@ -45,7 +45,7 @@ public sealed class PiAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
     /// <summary>
     /// The one-shot mode: <c>pi -p "&lt;prompt&gt;"</c> - pi's own spelling.
     /// <c>-p</c>/<c>--print</c> is a boolean mode flag ("print response and
-    /// exit"), not a prompt-taking one: the prompt rides as the message
+    /// exit"), not a prompt-taking one: the prompt is passed as the message
     /// positional after it, exactly as <c>pi -p "Summarize this
     /// codebase"</c> is written in pi's CLI reference. Everything else
     /// (base URL, key, model) plans exactly as the interactive launch does,
@@ -96,7 +96,7 @@ public sealed class PiAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         if (printPrompt is not null)
         {
             // -p is pi's boolean print-mode flag and the prompt is the
-            // message positional after it. Both ride ArgumentList so the
+            // message positional after it. Both go into ArgumentList so the
             // prompt stays one argv element whatever it contains (and a
             // non-empty list makes the process library ignore Arguments).
             args.Add("-p");

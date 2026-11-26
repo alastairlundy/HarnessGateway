@@ -186,7 +186,7 @@ public class PiAdapterTests
     public async Task PlanNonInteractive_keeps_the_model_flag()
     {
         // The one-shot plan differs from the interactive one only by the
-        // print flag and the prompt: the model still rides --model.
+        // print flag and the prompt: the model still goes on --model.
         PiAdapter adapter = new PiAdapter();
         ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");
 
