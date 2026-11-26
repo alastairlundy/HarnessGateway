@@ -37,7 +37,7 @@ public class EndpointTextTests
     [Test]
     public async Task TrimTrailingPathSlash_trims_before_a_fragment_only()
     {
-        // The fragment rides along untouched; the slash before it is still
+        // The fragment is left untouched; the slash before it is still
         // part of the path and is trimmed.
         await Assert.That(
             EndpointText.TrimTrailingPathSlash(new Uri("https://host/v1/#top")))
@@ -65,7 +65,7 @@ public class EndpointTextTests
     public async Task TrimTrailingResponsesSuffix_is_segment_exact_and_case_insensitive()
     {
         // A partial match (/responsesfoo) is not a segment; the casing of
-        // the real segment is not load-bearing on the wire.
+        // the real segment does not matter on the wire.
         await Assert.That(
             EndpointText.TrimTrailingResponsesSuffix(new Uri("https://host/v1/responsesfoo")))
             .IsEqualTo("https://host/v1/responsesfoo");

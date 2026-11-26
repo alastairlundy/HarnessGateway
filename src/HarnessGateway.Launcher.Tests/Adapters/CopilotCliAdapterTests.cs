@@ -27,7 +27,7 @@ public class CopilotCliAdapterTests
         };
 
         // The provider case carries the stored entry; the ad-hoc case is the
-        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // keyless raw-URL arm of the family. The launch-scoped key goes on the
         // payload either way - a wizard session key can credential an
         // ad-hoc launch.
         LaunchResolution launch = adHoc
@@ -118,7 +118,7 @@ public class CopilotCliAdapterTests
     {
         // Copilot's provider type has no Responses surface - both OpenAI
         // protocols collapse to "openai" - so the adapter never trims: the
-        // endpoint rides COPILOT_PROVIDER_BASE_URL exactly as configured.
+        // endpoint goes on COPILOT_PROVIDER_BASE_URL exactly as configured.
         CopilotCliAdapter adapter = new CopilotCliAdapter();
         ResolvedLaunch request = CreateRequest(
             ProtocolKind.OpenAiResponses,

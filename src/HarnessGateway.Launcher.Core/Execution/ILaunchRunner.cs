@@ -11,7 +11,7 @@ public interface ILaunchRunner
     /// process library's 2-minute timeout - a bound that would force-terminate
     /// a GUI application the user is still working in - so a blocking GUI run
     /// takes this member instead. Start failures and wait faults throw; the
-    /// flow is what folds them into a launch outcome.
+    /// flow folds them into a launch outcome.
     /// </summary>
     Task<int> RunWithoutTimeoutAsync(Launch.LaunchPlan plan, CancellationToken cancellationToken = default);
 
@@ -24,7 +24,7 @@ public interface ILaunchRunner
     /// process was started from, which is exactly why the flow only
     /// dispatches here after its terminal gate has confirmed there is a
     /// terminal on the other end. Start failures and wait faults throw; the
-    /// flow is what folds them into a launch outcome.
+    /// flow folds them into a launch outcome.
     /// </summary>
     Task<int> RunInteractiveAsync(Launch.LaunchPlan plan, CancellationToken cancellationToken = default);
 
@@ -34,7 +34,7 @@ public interface ILaunchRunner
     /// blocks on the child and returns its exit code. There is deliberately no
     /// cancellation token: a detached start is not cancelable, and the
     /// synchronous library call it wraps takes none. Start failures throw; the
-    /// flow is what folds them into a launch outcome.
+    /// flow folds them into a launch outcome.
     /// </summary>
     int Handoff(Launch.LaunchPlan plan);
 }

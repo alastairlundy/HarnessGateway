@@ -5,7 +5,7 @@ namespace HarnessGateway.Launcher.Core.Toml;
 
 /// <summary>
 /// Structural TOML editor built on Tomlyn's full-fidelity syntax tree.
-/// Untouched parts of the document - comments, whitespace, key order and section
+/// Untouched parts of the document - comments, whitespace, key order, and section
 /// order - serialise back byte-for-byte; an edit only rewrites the block or key it
 /// targets, so splices are a minimal diff against the original file.
 /// </summary>
@@ -308,7 +308,7 @@ public sealed class TomlDocumentEditor
     /// exactly the end-of-line token, its trailing trivia, the node's trailing
     /// trivia, the carrying table's trailing trivia, and the document's trailing
     /// trivia, in serialization order - so the same
-    /// <c>EndsWith</c> checks the full text used to satisfy run over the tail alone.
+    /// <c>EndsWith</c> checks run over the tail alone instead of the full text.
     /// </remarks>
     private List<SyntaxTrivia>? BuildAppendSeparator()
     {

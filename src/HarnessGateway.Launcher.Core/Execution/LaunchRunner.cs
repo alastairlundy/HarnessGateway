@@ -6,7 +6,7 @@ namespace HarnessGateway.Launcher.Core.Execution;
 public sealed class LaunchRunner : ILaunchRunner
 {
     // The pre-launch step exists to clear the way for the harness, not to
-    // gate it, so it gets a short leash: a wedged daemon stop must not hold
+    // gate it, so it gets a tight time bound: a wedged daemon stop must not hold
     // the launch open. Ten seconds is far beyond the ~0.4s a real
     // `app-server daemon stop` takes, including the not-running case.
     private const int PreLaunchTimeoutSeconds = 10;
@@ -135,7 +135,7 @@ public sealed class LaunchRunner : ILaunchRunner
 
         // Detached start, so output redirection is off: there is no reader
         // here to echo buffers, and the caller does not wait for an exit
-        // code - it wants the process id and nothing else. Sync-honest on
+        // code - it wants the process id and nothing else. Synchronous on
         // purpose: the library call is synchronous, and a detached start
         // takes no cancellation token because it is not cancelable. A start
         // failure throws here; folding it into a launch outcome belongs to

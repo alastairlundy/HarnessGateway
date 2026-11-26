@@ -10,7 +10,7 @@ namespace HarnessGateway.Launcher.Core.Settings.Security;
 /// the base64 ciphertext is persisted as <c>{ "hgkey:&lt;name&gt;": "&lt;base64&gt;" }</c>
 /// in <c>HarnessGateway-keys.json</c>, a sibling of the settings file. A copy of
 /// that file on another machine fails decryption, which surfaces as a dangling
-/// reference (exit 7) - keys don't travel.
+/// reference (exit 7) - keys are bound to this machine.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class DpapiSecureKeyStore : ISecureKeyStore

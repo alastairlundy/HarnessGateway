@@ -6,7 +6,7 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// Core-side; this seam only collects the answer.
 /// </summary>
 /// <remarks>
-/// Implementations answer honestly for both non-interactive cases: a decline
+/// Implementations answer the same way in both non-interactive cases: a decline
 /// and an unanswerable prompt (no interactive terminal) both return
 /// <c>false</c>, because the flow maps either to the same user-rectifiable
 /// refusal. The scripted override (<c>--confirm-running</c>) never reaches

@@ -118,7 +118,7 @@ public sealed class ModelStep
             }
 
             // Indication, never filtering: a model whose every listed protocol tag the harness cannot speak gets the harness list's
-            // "incompatible: <protocols>" vocabulary appended to the annotation, and the structured state rides along so the
+            // "incompatible: <protocols>" vocabulary appended to the annotation, and the structured state is carried along so the
             // presenter can colour it. A model with at least one speakable tag stays unmarked - the partial-match blind spot is accepted -
             // and no choice is ever dropped from the list.
             string? incompatible = null;

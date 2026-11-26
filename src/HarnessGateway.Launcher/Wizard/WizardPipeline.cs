@@ -104,7 +104,7 @@ public sealed class WizardPipeline
                 // check and forces the pick back, forever (neither dead-end guard fires, because some harness speaks each protocol).
                 bool establishingPass = providerResult.endpoint is null;
 
-                // The endpoint test is repeated rather than keyed off the flag: testing the value itself is what keeps endpoint provably
+                // The endpoint test is repeated rather than keyed off the flag: testing the value itself keeps endpoint provably
                 // non-null past this block for the session below.
                 if (providerResult.endpoint is null)
                 {
@@ -349,7 +349,7 @@ public sealed class WizardPipeline
             if (!isAvailable) annotations.Add("not installed");
             if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
 
-            // The structured state rides alongside the raw annotation so the presenter can colour the line (whole-line red when unavailable,
+            // The structured state accompanies the raw annotation so the presenter can colour the line (whole-line red when unavailable,
             // orange for the incompatible segment) without parsing the text.
             choices.Add(new ConsoleChoice(
                 adapter.Metadata.Name,
@@ -555,7 +555,7 @@ public sealed class WizardPipeline
                 input = input.Trim();
 
                 // Note: schemeless ("api.example.com/v1") and scheme-invalid ("http://", "ftp://...") entries are refused here, where the
-                // user can still retype them, instead of downstream: reaching `new Uri(providerResult.endpoint)` with either means a
+                // user can still retype them, instead of downstream. Reaching `new Uri(providerResult.endpoint)` with either means a
                 // UriFormatException that escapes RunWizardAsync (its guard catches only I/O and schema faults), while a non-http value
                 // that does parse would only surface much later as the vague "Could not fetch model catalogue" (or an
                 // InvalidOperationException in the model URI builder).

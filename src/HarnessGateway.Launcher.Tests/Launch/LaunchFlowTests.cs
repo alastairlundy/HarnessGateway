@@ -255,7 +255,7 @@ public class LaunchFlowTests
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
 
-            // The headline pin: the fault does not leak as an exception, and
+            // The primary pin: the fault does not leak as an exception, and
             // the finally still restored the launcher-written config.
             LaunchFailed failed = (LaunchFailed)outcome;
             await Assert.That(failed.Kind).IsEqualTo(LaunchFailureKind.Unexpected);
@@ -996,7 +996,7 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
             // The payload carries the family itself: the stored entry the
-            // default pointer selected rides the provider case.
+            // default pointer selected is carried by the provider case.
             LaunchResolution.ProviderCase providerCase =
                 (LaunchResolution.ProviderCase)adapter.LastRequest.Launch;
             await Assert.That(providerCase.Provider.Name).IsEqualTo("default");
@@ -1093,7 +1093,7 @@ public class LaunchFlowTests
         CallbackLaunchRunner runner = new(plan =>
         {
             contentDuringLaunch = File.ReadAllText(configPath);
-            // The saved key rides on the plan's process configuration,
+            // The saved key is carried on the plan's process configuration,
             // scoped to the spawned codex process under the env_key
             // variable's name.
             plan.Process.EnvironmentVariables.TryGetValue(
@@ -1413,7 +1413,7 @@ public class LaunchFlowTests
 
             string fileBytes = await File.ReadAllTextAsync(
                 Path.Combine(settingsDir, "HarnessGateway-launcher.json"));
-            // The at-rest reference is what a later Save rewrites; the
+            // A later Save rewrites the at-rest reference; the
             // resolved secret never lands on disk.
             await Assert.That(fileBytes.Contains("hgkey:")).IsTrue();
             await Assert.That(fileBytes.Contains("sk-never-on-disk")).IsFalse();
@@ -1432,7 +1432,7 @@ public class LaunchFlowTests
     {
         // First-run wizard shape: no saved backend at all, so resolution
         // builds the ad-hoc override entry with no key. The key the wizard
-        // collected must ride the invocation, and the ad-hoc launch must
+        // collected must go with the invocation, and the ad-hoc launch must
         // never create a settings file.
         TestHarnessAdapter adapter = new("TestAgent");
         (LaunchFlow flow, string tempDir, string settingsDir, _) = CreateFlow(adapter: adapter);
@@ -1451,7 +1451,7 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             // The first-run launch arrives as the ad-hoc case - keyless by
-            // design - with the wizard's session key riding beside it.
+            // design - with the wizard's session key alongside it.
             await Assert.That(adapter.LastRequest?.Launch)
                 .IsTypeOf<LaunchResolution.AdHocCase>();
             await Assert.That(adapter.LastRequest?.ApiKey).IsEqualTo("sk-wizard-only");
@@ -1557,7 +1557,7 @@ public class LaunchFlowTests
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(adapter.LastRequest).IsNotNull();
-            // The stored entry rides the provider case of the payload...
+            // The stored entry is carried by the provider case of the payload...
             LaunchResolution.ProviderCase providerCase =
                 (LaunchResolution.ProviderCase)adapter.LastRequest.Launch;
             await Assert.That(providerCase.Provider.Name).IsEqualTo("secondary");

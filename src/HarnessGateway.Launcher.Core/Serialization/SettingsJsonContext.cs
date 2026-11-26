@@ -10,8 +10,8 @@ namespace HarnessGateway.Launcher.Core.Serialization;
 /// </summary>
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(LauncherSettings))]
-// The legacy read model is deliberately obsolete (removed first release after
-// v1); the source-generated context is its production reader.
+// The legacy read model is deliberately obsolete (removed in the first release
+// after v1); the source-generated context is its production reader.
 #pragma warning disable CS0618
 [JsonSerializable(typeof(LegacySettings))]
 #pragma warning restore CS0618

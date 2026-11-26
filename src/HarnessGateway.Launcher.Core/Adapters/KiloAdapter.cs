@@ -75,14 +75,14 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         Dictionary<string, string> envVars = new(StringComparer.Ordinal);
         EmissionMerge.MergeInto(envVars, emission, request.ApiKey);
 
-        // The model registration rides KILO_CONFIG_CONTENT, the inline
+        // The model registration goes into KILO_CONFIG_CONTENT, the inline
         // session-config env var Kilo loads between global and project
         // configuration - it never touches a file on disk and is treated as
         // trusted config, so the {env:...} key reference resolves. The
         // launch-scoped endpoint override replaces the provider's own base
         // URL there, and the model entry registers the launch's model id so
         // --model provider_id/model_id resolves whatever Kilo's bundled
-        // catalog knows. `kilo run` reads the same configuration, so the
+        // catalog knows. `kilo run` reads the same configuration, and the
         // one-shot plan sets the same variable.
         if (providerId is not null && model is { Length: > 0 })
         {
@@ -138,7 +138,7 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
     {
         // Kilo's built-in provider registry only accepts --model values of
         // the form provider_id/model_id, and the model must exist in that
-        // provider's list - a bare id is rejected as `Model not found:
+        // provider's list - an unprefixed id is rejected as `Model not found:
         // <id>/`, and a catalog provider id paired with a model Kilo does
         // not know is rejected too. The launch therefore registers the
         // model under the protocol's own provider id through
@@ -189,7 +189,7 @@ public sealed class KiloAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
     }
 
     /// <summary>
-    /// The argv for the launch: the model rides -m/--model in the global
+    /// The argv for the launch: the model goes on -m/--model in the global
     /// slot for the interactive launch, while the one-shot subcommand
     /// <c>kilo run</c> takes the message as its positional and its own
     /// -m/--model flag, so the model goes after <c>run</c> there. The

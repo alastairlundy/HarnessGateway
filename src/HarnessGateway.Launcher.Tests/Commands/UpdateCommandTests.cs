@@ -15,8 +15,8 @@ namespace HarnessGateway.Launcher.Tests.Commands;
 /// <summary>
 /// Parse-and-invoke tests for `update`: the command
 /// is driven through the real System.CommandLine pipeline over a stub HTTP
-/// layer and a fake clock, so exit codes and the cooldown's remaining time
-/// are what these tests pin - message wording is user experience, not
+/// layer and a fake clock, so these tests pin exit codes and the
+/// cooldown's remaining time - message wording is user experience, not
 /// contract, and is deliberately not asserted beyond naming the subcommand.
 /// </summary>
 public class UpdateCommandTests

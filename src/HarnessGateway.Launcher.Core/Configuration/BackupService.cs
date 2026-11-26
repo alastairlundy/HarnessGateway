@@ -87,7 +87,7 @@ public sealed class BackupService
     }
 
     /// <summary>
-    /// Commits one target's backup: the file as written stands (it is never
+    /// Commits one target's backup: the file as written remains (it is never
     /// restored) and its marker is deleted, while every other pending record
     /// keeps its restore obligation. Used by the settings migration, whose
     /// load-time rewrite must be durable without disturbing a launch's
@@ -153,7 +153,7 @@ public sealed class BackupService
 
     private string GetBackupPath(string targetPath)
     {
-        // SHA-256 hex: a fixed 64 path-safe chars ([0-9A-F]). The previous
+        // SHA-256 hex: 64 fixed path-safe chars ([0-9A-F]). The previous
         // raw-hex-of-path scheme doubled the target path's length, which
         // broke the platform's per-filename limit (255 chars) for longer
         // targets such as the settings file under a deep temp directory.

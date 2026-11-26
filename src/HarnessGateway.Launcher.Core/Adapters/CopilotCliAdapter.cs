@@ -91,7 +91,7 @@ public sealed class CopilotCliAdapter : IHarnessAdapter, INonInteractiveLaunchAd
         if (printPrompt is not null)
         {
             // -p/--prompt is this harness's non-interactive flag; the text
-            // rides ArgumentList so it stays one argv element.
+            // goes into ArgumentList so it stays one argv element.
             args.Add("-p");
             args.Add(printPrompt);
         }

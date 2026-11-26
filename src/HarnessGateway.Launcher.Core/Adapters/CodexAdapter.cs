@@ -90,7 +90,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         TomlDocumentEditor editor = ApplyProviderConfig(
             existing, configPath, emission.BaseUrlValue, model);
 
-        // The emission's base-url variable rides the spawned process
+        // The emission's base-url variable goes into the spawned process
         // environment too, so every launch carries exactly one base-url
         // variable. The key slot's canonical name is not this
         // harness's: codex reads the variable its config block names
@@ -117,14 +117,14 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             OutputRedirection = true,
             EnvironmentVariables = envVars,
             // `codex exec [PROMPT]` is the one-shot subcommand; the prompt
-            // rides ArgumentList so it stays one argv element. When
+            // goes into ArgumentList so it stays one argv element. When
             // ArgumentList is non-empty the process library ignores the
             // Arguments string - which `exec` wants. An empty list (the
             // interactive launch) is the property's default.
             ArgumentList = printPrompt is null ? [] : ["exec", "--skip-git-repo-check", printPrompt],
         };
 
-        // The interactive launch additionally plans a daemon stop; the
+        // The interactive launch also plans a daemon stop; the
         // reasoning lives with the helper it calls.
         return new LaunchPlan(config, actions, BuildDaemonStopProcess(request, printPrompt));
     }

@@ -90,7 +90,7 @@ public class VersionFlagTests
     [Test]
     public async Task Informational_version_carries_the_pinned_version()
     {
-        // The csproj pins Version, AssemblyVersion and FileVersion to the same
+        // The csproj pins Version, AssemblyVersion, and FileVersion to the same
         // value, and that pin is the whole informational version: SourceLink's
         // "+<sha>" suffix is switched off by
         // IncludeSourceRevisionInInformationalVersion=false, so exact equality

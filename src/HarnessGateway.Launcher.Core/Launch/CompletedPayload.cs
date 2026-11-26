@@ -1,7 +1,7 @@
 namespace HarnessGateway.Launcher.Core.Launch;
 
 /// <summary>
-/// Mode-honest terminal fact of a completed launch: exactly what actually
+/// A terminal fact of a completed launch: exactly what actually
 /// happened, by launch mode. The family is closed - a blocking run carries
 /// the harness's exit status, a detached start carries the process id it
 /// handed off to - so no completed result can claim an exit status that was

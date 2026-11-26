@@ -5,7 +5,7 @@ namespace HarnessGateway.Launcher.Tests;
 /// in-memory writer and hands back whatever was written. Console.Error is
 /// process-global while TUnit runs tests in parallel, so captures are
 /// serialized and always restored: an overlapping test capturing a writer this
-/// scope later disposes is what turns into a cascading ObjectDisposedException.
+/// scope later disposes turns into a cascading ObjectDisposedException.
 /// <see cref="ConsoleOutputCapture"/> shares this class's gate - never add a
 /// second independent gate.
 /// </summary>

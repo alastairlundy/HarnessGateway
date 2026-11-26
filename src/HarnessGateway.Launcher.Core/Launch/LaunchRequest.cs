@@ -3,7 +3,7 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// <summary>
 /// Declarative launch submission: what the caller asked for, before any
 /// resolution. Provider lookup, endpoint/protocol pairing, key resolution, and
-/// the working directory all derive downstream from these fields —
+/// the working directory all derive downstream from these fields.
 /// <c>SessionKey</c> (the wizard-entered key override) is the only
 /// secret-adjacent field, and nothing here carries resolved material.
 /// </summary>

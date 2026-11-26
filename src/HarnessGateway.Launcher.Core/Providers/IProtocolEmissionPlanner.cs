@@ -5,7 +5,7 @@ namespace HarnessGateway.Launcher.Core.Providers;
 /// needs, so the mapping exists and is tested exactly once instead of
 /// once per adapter. The caller computes the effective protocol before
 /// calling; the plain-value inputs keep the mapping pure and fakeable,
-/// so tests substitute this interface rather than shimming statics.
+/// which lets tests substitute this interface rather than shimming statics.
 /// Registration at the composition root lands with the adapter-consumption
 /// ticket, not here.
 /// </summary>

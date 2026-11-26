@@ -34,10 +34,10 @@ public sealed class LaunchOrchestrator
     /// never carries a launch-time key - keys are a stored-entry concern here
     /// (set via <c>provider set-key</c>) - so the request always builds
     /// with a null <see cref="LaunchRequest.SessionKey"/>. The
-    /// <paramref name="confirmRunning"/> fact rides verbatim from the flag: the
+    /// <paramref name="confirmRunning"/> fact is passed verbatim from the flag: the
     /// request builder never inspects the harness kind, because the misuse
     /// refusal (flag against a Kind=Cli harness) belongs to the flow.
-    /// <paramref name="print"/> and <paramref name="printPrompt"/> ride the
+    /// <paramref name="print"/> and <paramref name="printPrompt"/> are passed the
     /// same way - whether the harness has a one-shot mode or a prompt
     /// arrived are the flow's refusals, never this mapping layer's.
     /// </summary>
@@ -78,7 +78,7 @@ public sealed class LaunchOrchestrator
         switch (outcome)
         {
             case LaunchCompleted completed:
-                // The payload is mode-honest: a blocking run's exit status
+                // The payload matches the mode: a blocking run's exit status
                 // passes through untouched, and a detached start reports the
                 // handoff it already succeeded at as Ok - there is no exit
                 // code to wait for.
@@ -147,8 +147,8 @@ public sealed class LaunchOrchestrator
         LaunchRefusalKind.ConfirmUnsupportedForHarness
             or LaunchRefusalKind.PrintUnsupportedForHarness
             or LaunchRefusalKind.PrintPromptMissing => (int)LaunchExitCode.UsageError,
-        // An interactive launch with no terminal to run in is its own-
-        // appended code: the launch is correctly requested but cannot run
+        // An interactive launch with no terminal to run in is an appended
+        // code of its own: the launch is correctly requested but cannot run
         // in this context, which a usage error would misreport as a bad
         // flag and an unavailable harness would misreport as a bad install.
         LaunchRefusalKind.TerminalRequired => (int)LaunchExitCode.TerminalRequired,

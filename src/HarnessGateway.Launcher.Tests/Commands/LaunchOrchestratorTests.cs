@@ -15,7 +15,7 @@ namespace HarnessGateway.Launcher.Tests.Commands;
 /// Thin mapping and wiring suite for the CLI-side adapter:
 /// every <see cref="LaunchRefusalKind"/> and <see cref="LaunchFailureKind"/>
 /// maps to its contract exit code byte-for-byte, the "Launch failed:" prefix
-/// is single-honest-source (Unexpected only), and <c>RunAsync</c> wires parsed
+/// has exactly one source (Unexpected only), and <c>RunAsync</c> wires parsed
 /// flags into a <see cref="LaunchRequest"/> the flow executes. End-to-end
 /// launch behaviour is pinned in LaunchFlowTests - no duplication here.
 /// </summary>
@@ -40,12 +40,12 @@ public class LaunchOrchestratorTests
     // README table keeps its size.
     [Arguments(LaunchRefusalKind.UnlistedModel, (int)LaunchExitCode.UnknownAgent)]
     // The three GUI kinds are producer additions to existing families:
-    // unconfirmed instance and incapable surface both ride the
-    // unavailable-harness number, flag misuse rides the usage number.
+    // unconfirmed instance and incapable surface both reuse the
+    // unavailable-harness number, flag misuse reuses the usage number.
     [Arguments(LaunchRefusalKind.RunningInstanceUnconfirmed, (int)LaunchExitCode.HarnessUnavailable)]
     [Arguments(LaunchRefusalKind.GuiProviderUnsupported, (int)LaunchExitCode.HarnessUnavailable)]
     [Arguments(LaunchRefusalKind.ConfirmUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
-    // The two -p/--print misuses ride the usage number like every other
+    // The two -p/--print misuses reuse the usage number like every other
     // bad-flag stop; an interactive launch with no terminal is the one new
     // number (13) - correctly requested, wrong context.
     [Arguments(LaunchRefusalKind.PrintUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
@@ -77,7 +77,7 @@ public class LaunchOrchestratorTests
             LaunchOrchestrator.MapOutcomeAsync(new LaunchFailed(kind, message)));
 
         await Assert.That(exitCode).IsEqualTo(expectedExitCode);
-        // Single-honest-source prefix rule: only Unexpected may wear
+        // Single-source prefix rule: only Unexpected may carry
         // "Launch failed:"; every other failure prints the outcome's message
         // exactly as composed.
         await Assert.That(errorOutput).IsEqualTo(message + Environment.NewLine);
@@ -169,8 +169,8 @@ public class LaunchOrchestratorTests
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
             // Parsed flags reached the adapter as a resolved launch: the
             // orchestrator is a request-building adapter over the flow, and
-            // the default-backend pointer is what the request resolved to -
-            // the stored entry riding the payload's provider case.
+            // the request resolved to the default-backend pointer -
+            // the stored entry carried in the payload's provider case.
             await Assert.That(adapter.LastRequest).IsNotNull();
             LaunchResolution.ProviderCase providerCase =
                 (LaunchResolution.ProviderCase)adapter.LastRequest.Launch;
@@ -243,7 +243,7 @@ public class LaunchOrchestratorTests
 
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.Ok);
 
-            // The parsed --persist tokens rode the request: the flow's model
+            // The parsed --persist tokens were carried in the request: the flow's model
             // persist ran after run and restore.
             string settingsDir = Path.Combine(tempDir, "settings");
             LauncherSettings savedSettings = (await new SettingsStore(settingsDir).LoadAsync());

@@ -18,7 +18,7 @@ public sealed record ProtocolEmission
     public required string BaseUrlValue { get; init; }
 
     /// <summary>
-    /// The protocol's additional variables. The API-key variable name rides
+    /// The protocol's additional variables. The API-key variable name is listed
     /// here as a key with an empty-string value: the planner receives
     /// no key, so it carries the naming only and the adapter that holds the
     /// secret fills the value. An adapter must skip any slot still empty

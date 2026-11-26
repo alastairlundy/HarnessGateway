@@ -172,7 +172,7 @@ public class LaunchCommandFlagParsingTests
     {
         // ZeroOrOne: -p alone parses - the prompt may come from stdin, which
         // is the edge's business, not the parser's. Presence, not the value,
-        // is what marks this launch as a print launch.
+        // marks this launch as a print launch.
         LaunchCommand command = new LaunchCommand();
         ParseResult result = command.Parse("launch claude-code -p");
 

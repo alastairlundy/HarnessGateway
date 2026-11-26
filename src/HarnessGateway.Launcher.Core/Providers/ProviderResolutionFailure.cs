@@ -14,7 +14,7 @@ public enum ProviderResolutionFailure
     /// <summary>The default-provider pointer is set but names no saved entry.</summary>
     DanglingDefaultProvider,
 
-    /// <summary>The pointer is empty while saved entries exist — no first-entry fallback.</summary>
+    /// <summary>The pointer is empty while saved entries exist, so there is no first-entry fallback.</summary>
     AbsentDefaultProvider,
 
     /// <summary>--protocol was given without --endpoint.</summary>

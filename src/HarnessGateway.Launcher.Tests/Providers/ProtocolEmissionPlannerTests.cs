@@ -27,7 +27,7 @@ public class ProtocolEmissionPlannerTests
         await Assert.That(emission.BaseUrlVariable).IsEqualTo(expectedBaseUrlVariable);
         await Assert.That(emission.BaseUrlValue).IsEqualTo("https://gw.example/v1");
 
-        // The API-key variable name rides in ExtraVariables: an empty
+        // The API-key variable name is in ExtraVariables: an empty
         // value is the key slot - the planner receives no key, so the
         // adapter that has the secret fills the value.
         await Assert.That(emission.ExtraVariables.ContainsKey(expectedApiKeyVariable)).IsTrue();

@@ -119,8 +119,8 @@ internal sealed class ProviderCommands : Command
 
             // Parse the flags once, before the create-vs-update branch: the
             // both-flags guard above and Resolve's pairing and format checks
-            // have already accepted both values; this single pattern is what
-            // proves their non-nullness to the compiler.
+            // have already accepted both values; this single pattern proves
+            // their non-nullness to the compiler.
             (Uri BaseUri, ProtocolKind DefaultProtocol)? overridePair =
                 endpoint is { } endpointValue && protocol is { } protocolValue
                     ? (LaunchCommand.ParseEndpoint(endpointValue), LaunchCommand.ParseProtocol(protocolValue))
@@ -741,7 +741,7 @@ internal sealed class ProviderCommands : Command
 
     /// <summary>
     /// Maps a failed key source to stderr plus the usage-error exit code - the command layer's side of the sourcing contract, shared by both
-    /// credential verbs so no verb grows its own copy. Returns null when a source resolved or no source flag was given, so the caller continues.
+    /// credential verbs so no verb grows its own copy. Returns null when a source resolved or no source flag was given, letting the caller continue.
     /// </summary>
     private static async Task<int?> ReportKeySourceFailureAsync(ApiKeySourceResult source)
     {

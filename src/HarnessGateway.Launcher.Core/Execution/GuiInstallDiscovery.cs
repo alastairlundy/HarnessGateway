@@ -2,7 +2,7 @@ namespace HarnessGateway.Launcher.Core.Execution;
 
 /// <summary>
 /// The shipped install discovery: resolver-first, then the current OS's
-/// conventional installation roots, then an honest miss. Neither pass writes to
+/// conventional installation roots, then a miss. Neither pass writes to
 /// disk, starts a process, or depends on adapter-declared paths - the declared
 /// identity strings are the only per-harness input, and the roots are
 /// launcher-owned operating-system facts, so one implementation serves every

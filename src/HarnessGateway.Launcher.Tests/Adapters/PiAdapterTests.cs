@@ -27,7 +27,7 @@ public class PiAdapterTests
         };
 
         // The provider case carries the stored entry; the ad-hoc case is the
-        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // keyless raw-URL arm of the family. The launch-scoped key goes on the
         // payload either way - a wizard session key can credential an
         // ad-hoc launch.
         LaunchResolution launch = adHoc
