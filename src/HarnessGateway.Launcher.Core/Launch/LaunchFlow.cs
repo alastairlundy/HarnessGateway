@@ -140,7 +140,7 @@ public sealed class LaunchFlow
 
             // Availability takes the Kind's own mechanism: Kind=Cli keeps
             // the detection-command probe, Kind=Gui asks the operating
-            // system through discovery. An exhausted search is an honest
+            // system through discovery. An exhausted search is a
             // HarnessUnavailable refusal, never a crash.
             bool isAvailable = adapter.Metadata.Kind == HarnessKind.Gui
                 ? _installDiscovery.Discover(adapter.Metadata.InstanceProcessNames).Found
@@ -162,7 +162,7 @@ public sealed class LaunchFlow
                     + "CLI. Re-run without --confirm-running.");
             }
 
-            // How this launch runs, decided before anything else is resolved
+            // How this launch runs is decided before anything else is resolved
             // for it. Two modes: -p/--print is a one-shot non-interactive
             // run and needs a harness that has one plus a prompt to run
             // with; without it a CLI harness runs as an interactive
@@ -197,7 +197,7 @@ public sealed class LaunchFlow
             if (!adapter.Metadata.SupportedProtocols.Contains(launch.Protocol))
             {
                 // The refusal prose quotes a provider name: the stored
-                // entry's for the provider case, and the "override"
+                // entry's name for the provider case, and the "override"
                 // spelling today's synthesised bridge printed for a
                 // raw-URL launch for the ad-hoc case.
                 string providerName = launch switch
@@ -271,7 +271,7 @@ public sealed class LaunchFlow
                 }
 
                 // Capability check, still before planning: what this launch
-                // asks to deliver must ride a surface the harness declares.
+                // asks to deliver must go on a surface the harness declares.
                 LaunchRefused? surfaceRefusal = DeclaredSurfaceRefusal(adapter, request, apiKey);
                 if (surfaceRefusal is not null)
                 {
@@ -301,10 +301,10 @@ public sealed class LaunchFlow
 
             if (adapter.Metadata.Kind == HarnessKind.Gui)
             {
-                // Configuration rides only the surfaces the harness declares:
+                // Configuration goes only on the surfaces the harness declares:
                 // a file write needs Files and a flag action needs Flags.
-                // (Key material is already gated above - it only ever rides
-                // environment variables, and only when Environment is
+                // (Key material is already gated above - it only ever goes
+                // on environment variables, and only when Environment is
                 // declared - and the launcher never writes keys to disk.)
                 plan = FilterToDeclaredSurfaces(plan, adapter.Metadata.SupportedSurfaces);
             }
@@ -343,7 +343,7 @@ public sealed class LaunchFlow
                     // default 2-minute bound would kill the app mid-session.
                     // A -p/--print launch runs without that bound too (a
                     // one-shot agent run legitimately outlives two minutes)
-                    // and stays buffered, so its output is captured and
+                    // and stays buffered; its output is captured and
                     // echoed when it exits. An interactive CLI launch hands
                     // the terminal over instead: no redirection, no clock -
                     // the gate above already proved there is a terminal to
@@ -517,7 +517,7 @@ public sealed class LaunchFlow
 
     /// <summary>
     /// The declared-surface capability gate for a Kind=Gui launch: what this
-    /// launch asks to deliver must ride a surface the harness declares.
+    /// launch asks to deliver must go on a surface the harness declares.
     /// Key material is delivered only as environment variables on the child
     /// process - never written to disk - so a key against a harness without
     /// that surface refuses, as does a backend or model override against a
@@ -544,7 +544,7 @@ public sealed class LaunchFlow
             return new LaunchRefused(
                 LaunchRefusalKind.GuiProviderUnsupported,
                 $"Refusing to launch {name}: this launch carries a saved API key, but the "
-                + "harness declares no environment surface to receive it. Keys ride child "
+                + "harness declares no environment surface to receive it. Keys go on child "
                 + "process environment variables only, and the launcher never writes key "
                 + "material to a configuration file. Launch this harness with a key-free "
                 + "provider, or use a harness that accepts environment configuration.");
@@ -631,8 +631,8 @@ public sealed class LaunchFlow
                     Directory.CreateDirectory(directory);
                 }
 
-                // Backup before write: the marker is what the finally's
-                // restore (or SelfHealAsync after a crash) replays.
+                // Backup before write: the finally's restore (or SelfHealAsync
+                // after a crash) replays the marker.
                 await _backupService.BackupAsync(fileWrite.TargetPath, cancellationToken).ConfigureAwait(false);
                 await File.WriteAllTextAsync(fileWrite.TargetPath, fileWrite.Content, cancellationToken).ConfigureAwait(false);
                 break;
@@ -645,7 +645,7 @@ public sealed class LaunchFlow
     private void PersistDefaultModel(LauncherSettings settings, string providerName, string model)
     {
         // Persist onto the stored entry by name only: per-launch field
-        // overrides (--endpoint/--protocol/--model layering) never ride back
+        // overrides (--endpoint/--protocol/--model layering) never go back
         // into settings, and a --provider launch never re-points DefaultProvider.
         // Only the provider case calls this - an ad-hoc launch has no stored
         // entry to persist onto and never reaches this method.

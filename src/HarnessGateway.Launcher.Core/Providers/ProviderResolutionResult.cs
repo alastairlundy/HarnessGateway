@@ -31,7 +31,7 @@ public abstract record ProviderResolutionResult
     /// <see cref="ProviderResolutionFailure.DanglingDefaultProvider"/> (the
     /// default-provider pointer is set but names no saved entry) versus
     /// <see cref="ProviderResolutionFailure.AbsentDefaultProvider"/> (the
-    /// pointer is empty while saved entries exist — no first-entry fallback).
+    /// pointer is empty while saved entries exist, so there is no first-entry fallback).
     /// </summary>
     public sealed record Failed(ProviderResolutionFailure Failure, string Message) : ProviderResolutionResult;
 }

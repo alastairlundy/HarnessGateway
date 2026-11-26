@@ -81,13 +81,13 @@ public sealed class OpenCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAdap
 
         // opencode v2 has no top-level --model flag: `opencode --model <id>`
         // is rejected outright ("Unrecognized flag: --model", exit 1), so the
-        // model cannot ride on argv for the TUI launch. It reaches the
+        // model cannot go on argv for the TUI launch. It reaches the
         // session through the inline-config env var instead, which opencode
         // loads between global and project configuration and which never
         // touches a file on disk. Provider options use {env:...} references
         // rather than literals - the key never gets duplicated into a second
         // channel, and the TUI prompts for auth when no key is set. `opencode
-        // run` reads the same configuration, so the one-shot plan sets the
+        // run` reads the same configuration, and the one-shot plan sets the
         // same variable.
         if (providerId is not null && model is { Length: > 0 })
         {
@@ -102,7 +102,7 @@ public sealed class OpenCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAdap
             OutputRedirection = true,
             EnvironmentVariables = envVars,
             // `opencode run [message...]` is the one-shot subcommand; the
-            // message rides ArgumentList so it stays one argv element. When
+            // message goes into ArgumentList so it stays one argv element. When
             // ArgumentList is non-empty the process library ignores the
             // Arguments string - which is exactly what `run` wants. An empty
             // list (the interactive launch) is the property's default.

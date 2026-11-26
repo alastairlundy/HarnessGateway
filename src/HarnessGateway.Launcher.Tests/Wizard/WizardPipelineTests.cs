@@ -1386,7 +1386,7 @@ public class WizardPipelineTests
     {
         // The model step carries no protocol of its own on the degraded path,
         // so the stored entry's override supplies it - the same entry the
-        // endpoint swap reads, which is what keeps the returned pair agreed.
+        // endpoint swap reads, which keeps the returned pair agreed.
         LauncherSettings settings = CreateStoredOverrideSettings();
         (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) =
             WizardTestHelper.CreateTestEnvironment(settings);

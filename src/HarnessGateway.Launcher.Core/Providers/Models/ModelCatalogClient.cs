@@ -34,7 +34,7 @@ public sealed class ModelCatalogClient
     /// <c>/openai/models</c> instead of silently dropping the prefix, and a base
     /// already ending in <c>/models</c> is not doubled. A bare origin (no path)
     /// keeps the conventional <c>/v1/models</c> target it has always fetched.
-    /// The base's query and fragment ride along unchanged (gated proxies using
+    /// The base's query and fragment stay unchanged (gated proxies using
     /// <c>?key=...</c> keep working, as they do on the launch path), and a path
     /// starting with <c>//</c> is collapsed to a single leading <c>/</c> so it can
     /// never resolve scheme-relative against the authority and swap the host.

@@ -103,7 +103,7 @@ public sealed class UpdateChecker
         // One deadline over the whole exchange, linked to the caller's token:
         // the caller's cancellation must still rethrow, while the deadline's
         // own firing is a failed check with a nameable cause. The deadline
-        // rides the real clock (CancellationTokenSource takes no
+        // uses the real clock (CancellationTokenSource takes no
         // TimeProvider), so tests simulate the firing with a stubbed throw.
         using CancellationTokenSource deadline =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

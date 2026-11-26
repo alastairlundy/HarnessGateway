@@ -25,7 +25,7 @@ namespace HarnessGateway.Launcher.Core.Adapters;
 /// /opt/OpenCode/ai.opencode.desktop (packages/desktop/resources/linux/), and
 /// electron-builder's after-install template symlinks that into /usr/bin.
 /// The lowercase "opencode" token stays with the CLI sibling
-/// (<see cref="OpenCodeAdapter"/>): casing is what keeps the two apart on a
+/// (<see cref="OpenCodeAdapter"/>): casing keeps the two apart on a
 /// case-sensitive filesystem, while on Windows the two names compare equal
 /// case-insensitively, so discovery and detection cannot tell them apart
 /// there - a collision the launcher knowingly accepts rather than papering
@@ -60,7 +60,7 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
     /// <summary>
     /// The macOS start target: the executable inside the bundle discovery
     /// matches under /Applications. Launching the inner binary instead of
-    /// `open -a` is what keeps the environment surface honest - LaunchServices
+    /// `open -a` keeps the environment surface working - LaunchServices
     /// starts an app with a fresh environment, so the endpoint, key, and model
     /// handed over here would never reach the sidecar through `open`.
     /// </summary>
@@ -129,8 +129,8 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
     /// The launch flow never reads this member for a Kind=Gui harness - it
     /// asks install discovery itself - but the wizard has no discovery
     /// collaborator of its own and probes every adapter through here before
-    /// it will offer one. So this delegates to the very same discovery the
-    /// flow runs over the very same declared names: one implementation, one
+    /// it will offer one. So this delegates to the same discovery the
+    /// flow runs over the same declared names: one implementation, one
     /// answer, and no way for "offered by the wizard" and "startable by the
     /// launch" to drift apart.
     /// </summary>
@@ -180,7 +180,7 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
         };
 
         // Same channel the CLI sibling uses: the desktop app takes no --model
-        // flag of its own (it is not a CLI), so the model rides the inline
+        // flag of its own (it is not a CLI), so the model goes into the inline
         // config environment variable the embedded server loads, and the
         // provider options reference the key by env name so the secret exists
         // in exactly one place - the child's environment.

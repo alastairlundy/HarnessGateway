@@ -57,7 +57,7 @@ public sealed class LaunchCommand : Command
     public static readonly Option<string?> PrintOption = new("-p", "--print")
     {
         // ZeroOrOne on purpose: the prompt may be the option's value (-p "<prompt>") or come from stdin when the value is omitted
-        // (-p alone with a pipe). Presence - not the value - is what makes this a print launch, so the action reads the option's result
+        // (-p alone with a pipe). Presence - not the value - makes this a print launch, so the action reads the option's result
         // rather than only its value. Which harnesses can even run one-shot, and whether a prompt arrived, are the flow's refusals
         // to make, not parse errors - the same split --confirm-running uses.
         Description = "Run the harness non-interactively with a prompt: -p \"<prompt>\", or -p alone to read the prompt from stdin",

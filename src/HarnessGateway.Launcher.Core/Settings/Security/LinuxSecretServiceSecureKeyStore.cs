@@ -34,7 +34,7 @@ public sealed class LinuxSecretServiceSecureKeyStore : ISecureKeyStore
     {
         string providerName = KeyReference.RequireProviderName(reference);
 
-        // The secret rides on stdin, never on argv.
+        // The secret goes on stdin, never on argv.
         using MemoryStream payload = new(Encoding.UTF8.GetBytes(secret));
         using StreamWriter writer = new(
             payload,

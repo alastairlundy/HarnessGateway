@@ -307,7 +307,7 @@ public class ModelCatalogClientTests
         // A prefixed endpoint (/openai, /api, /v1beta, ...) must keep its
         // prefix: dropping it made the wizard fetch a different host path
         // than the harness would use, and the model step failed for a
-        // perfectly valid endpoint.
+        // valid endpoint.
         var openAiResponse = new
         {
             data = new[]

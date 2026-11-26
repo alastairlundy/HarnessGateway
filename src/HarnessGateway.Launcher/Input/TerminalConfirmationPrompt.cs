@@ -16,7 +16,7 @@ namespace HarnessGateway.Launcher.Input;
 /// redirected standard input or output there is no interactive terminal to
 /// ask, so this reports a decline instead of prompting into a pipe. The flow
 /// maps that to the same user-rectifiable refusal an explicit decline gets,
-/// which is what makes scripted non-interactive launches deterministic.
+/// which makes scripted non-interactive launches deterministic.
 /// </remarks>
 internal sealed class TerminalConfirmationPrompt : IConfirmationPrompt
 {

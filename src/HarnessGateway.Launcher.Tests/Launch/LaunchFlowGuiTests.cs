@@ -14,8 +14,8 @@ namespace HarnessGateway.Launcher.Tests.Launch;
 /// Pins the GUI branches of the flow itself: discovery-backed availability,
 /// the <c>--confirm-running</c> misuse check, the live-instance confirmation
 /// chain (proceed, decline, bypass), declared-surface gating for keys and
-/// overrides, mode dispatch by persist, and the mode-honest completed
-/// payload - with the restore guarantee holding across every new branch.
+/// overrides, mode dispatch by persist, and the completed payload each
+/// mode reports - with the restore guarantee holding across every new branch.
 /// The GUI test adapter stands in for a Kind=Gui registry entry; no test here
 /// starts a real process or touches a real harness.
 /// </summary>
@@ -169,7 +169,7 @@ public class LaunchFlowGuiTests
 
             LaunchRefused refused = (LaunchRefused)outcome;
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.HarnessUnavailable);
-            // The installation hint is what an exhausted search tells the user.
+            // An exhausted search tells the user the installation hint.
             await Assert.That(refused.Message).Contains("Install the GUI app");
         }
         finally
@@ -419,8 +419,8 @@ public class LaunchFlowGuiTests
 
             LaunchCompleted completed = (LaunchCompleted)outcome;
             await Assert.That(completed.Payload).IsEqualTo(new CompletedPayload.ExitStatus(7));
-            // The runner saw the plan after filtering: no flag action rode
-            // an undeclared surface, while the declared file write ran and
+            // The runner saw the plan after filtering: no flag action was
+            // applied on an undeclared surface, while the declared file write ran and
             // was restored on exit.
             await Assert.That(runner.LastPlan).IsNotNull();
             await Assert.That(
@@ -437,7 +437,7 @@ public class LaunchFlowGuiTests
         }
     }
 
-    // --- Mode dispatch and the mode-honest payload ---
+    // --- Mode dispatch and the completed payload per mode ---
 
     [Test]
     public async Task ExecuteAsync_persist_config_hands_off_and_carries_the_process_id()

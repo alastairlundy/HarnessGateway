@@ -143,7 +143,7 @@ public class UpdateCheckerTests
 
             // The expectation under test: one update check never takes
             // longer than 30 seconds - the deadline ends a hung endpoint
-            // instead of riding the HTTP client's 100-second default or
+            // instead of using the HTTP client's 100-second default or
             // hanging forever.
             await Assert.That(async () => { await check; }).CompletesWithin(TimeSpan.FromSeconds(30));
 
@@ -306,7 +306,7 @@ public class UpdateCheckerTests
             await Assert.That(handler.LastRequest.RequestUri).IsEqualTo(
                 new Uri("https://api.github.com/repos/alastairlundy/HarnessGateway/releases/latest"));
 
-            // Unauthenticated only: no credential rides along, and the
+            // Unauthenticated only: no credential is sent, and the
             // User-Agent GitHub's API requires is present.
             await Assert.That(handler.LastRequest.Headers.Authorization).IsNull();
             await Assert.That(handler.LastRequest.Headers.UserAgent.ToString()).IsNotEmpty();

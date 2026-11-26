@@ -38,7 +38,7 @@ internal static class EndpointText
     /// Like <see cref="TrimTrailingPathSlash"/> but also drops a single
     /// trailing <c>/responses</c> segment, so a base URL that already names
     /// the Responses endpoint is not doubled by harnesses that append it
-    /// themselves. Query and fragment ride along unchanged.
+    /// themselves. Query and fragment stay unchanged.
     /// </summary>
     public static string TrimTrailingResponsesSuffix(Uri baseUri)
     {

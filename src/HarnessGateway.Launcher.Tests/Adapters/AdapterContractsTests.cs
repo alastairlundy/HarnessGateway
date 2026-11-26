@@ -259,8 +259,8 @@ public class GuiAdapterContractTests
         foreach (IHarnessAdapter adapter in ShippedAdapters().Where(a => a.Metadata.Kind == HarnessKind.Cli))
         {
             // Empty, not absent: discovery and detection read these members
-            // unconditionally, so a CLI adapter passing empties is what
-            // keeps it out of both mechanisms rather than a null special
+            // unconditionally, so a CLI adapter passing empties keeps it
+            // out of both mechanisms rather than a null special
             // case somewhere in the flow.
             await Assert.That(adapter.Metadata.SupportedSurfaces).IsEmpty();
             await Assert.That(adapter.Metadata.InstanceProcessNames).IsEmpty();
@@ -345,7 +345,7 @@ public class ConfigurationActionTests
     public async Task ConfigurationAction_is_abstract_base()
     {
         // The closed family is exactly CliArgumentAction and ConfigFileWriteAction;
-        // env vars ride on LaunchPlan.Process.EnvironmentVariables.
+        // env vars go on LaunchPlan.Process.EnvironmentVariables.
         ConfigurationAction cli = new CliArgumentAction("--flag", string.Empty);
         ConfigurationAction file = new ConfigFileWriteAction("/tmp", "content");
 
@@ -372,7 +372,7 @@ public class ResolvedLaunchTests
         ResolvedLaunch request = new ResolvedLaunch(
             launch, "sk-test", "/home/user/project", planner);
 
-        // The family rides directly - no synthesized stored-looking provider
+        // The family passes straight through - no synthesized stored-looking provider
         // between the resolution and the adapter.
         await Assert.That(request.Launch).IsSameReferenceAs(launch);
         // The launch-scoped secret, never the at-rest key reference.

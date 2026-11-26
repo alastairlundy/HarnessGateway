@@ -158,7 +158,7 @@ public class LaunchCommandInvocationTests
 
             // The flag is consumed flow-side now: on a Kind=Cli harness it
             // surfaces as the misuse refusal, and reaching that refusal is
-            // itself the proof the parsed flag rode into the LaunchRequest -
+            // itself the proof the parsed flag made it into the LaunchRequest -
             // without it this launch would have exited 0 and run the adapter.
             await Assert.That(exitCode).IsEqualTo((int)LaunchExitCode.UsageError);
             await Assert.That(errorOutput).Contains("--confirm-running");
@@ -227,7 +227,7 @@ public class LaunchCommandInvocationTests
     {
         // Same proof shape as --confirm-running: FakeHarnessAdapter has no
         // one-shot mode, so a parsed -p surfaces as the flow's capability
-        // refusal - reaching that refusal is itself the proof the flag rode
+        // refusal - reaching that refusal is itself the proof the flag made it
         // into the LaunchRequest. Without it this launch would have exited 0
         // and run the adapter interactively.
         FakeHarnessAdapter adapter = new("TestAgent");

@@ -59,7 +59,7 @@ public class CodexAdapterTests
         };
 
         // The provider case carries the stored entry; the ad-hoc case is the
-        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // keyless raw-URL arm of the family. The launch-scoped key goes on the
         // payload either way - a wizard session key can credential an
         // ad-hoc launch.
         LaunchResolution launch = adHoc
@@ -291,7 +291,7 @@ public class CodexAdapterTests
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
             await Assert.That(plan.ConfigurationActions.Count).IsEqualTo(1);
-            // The shared emission's base-url variable still rides the
+            // The shared emission's base-url variable still lands in the
             // environment; only the key is omitted.
             await Assert.That(plan.Process.EnvironmentVariables.Count).IsEqualTo(1);
             await Assert.That(plan.Process.EnvironmentVariables)
@@ -586,7 +586,7 @@ public class CodexAdapterTests
             LaunchPlan plan = await adapter.PlanNonInteractiveAsync(request, "fix the failing test");
 
             // `codex exec [PROMPT]` is the harness's one-shot subcommand; the
-            // provider block still rides the config write it always did.
+            // provider block still goes into the config write it always did.
             await Assert.That(plan.Process.ArgumentList)
                 .IsEquivalentTo(["exec", "--skip-git-repo-check", "fix the failing test"]);
             List<ConfigFileWriteAction> writes =
@@ -610,7 +610,7 @@ public class CodexAdapterTests
 
             LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
-            // The TUI rides codex's managed app-server daemon, so an
+            // The TUI runs on codex's managed app-server daemon, so an
             // interactive launch plans the stop that forces a fresh one -
             // the only way this launch's key reaches that daemon at all.
             ProcessConfiguration? preLaunch = plan.PreLaunchProcess;

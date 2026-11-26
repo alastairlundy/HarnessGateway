@@ -26,7 +26,7 @@ public class OpenCodeAdapterTests
         };
 
         // The provider case carries the stored entry; the ad-hoc case is the
-        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // keyless raw-URL arm of the family. The launch-scoped key goes on the
         // payload either way - a wizard session key can credential an
         // ad-hoc launch.
         LaunchResolution launch = adHoc
@@ -123,7 +123,7 @@ public class OpenCodeAdapterTests
         // The AI SDK behind opencode posts Responses-API requests to
         // {baseURL}/responses itself, so an endpoint that already ends in
         // the segment would be doubled. The trimmed value reaches both
-        // channels the base URL rides: the env var and the inline config.
+        // channels the base URL goes into: the env var and the inline config.
         OpenCodeAdapter adapter = new OpenCodeAdapter();
         ResolvedLaunch request = CreateRequest(
             ProtocolKind.OpenAiResponses,
@@ -169,7 +169,7 @@ public class OpenCodeAdapterTests
     [Test]
     public async Task PlanLaunch_with_model_sets_inline_config_env_var()
     {
-        // opencode v2 rejects a top-level --model flag, so the model rides on
+        // opencode v2 rejects a top-level --model flag, so the model goes on
         // OPENCODE_CONFIG_CONTENT and the plan stays flag-free.
         OpenCodeAdapter adapter = new OpenCodeAdapter();
         ResolvedLaunch request = CreateRequest(model: "claude-sonnet-5");

@@ -32,7 +32,7 @@ public class ClaudeCodeAdapterTests
         };
 
         // The provider case carries the stored entry; the ad-hoc case is the
-        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // keyless raw-URL arm of the family. The launch-scoped key goes on the
         // payload either way - a wizard session key can credential an
         // ad-hoc launch.
         LaunchResolution launch = adHoc
@@ -202,7 +202,7 @@ public class ClaudeCodeAdapterTests
         List<ConfigFileWriteAction> fileWrites = [.. plan.ConfigurationActions.OfType<ConfigFileWriteAction>()];
         await Assert.That(fileWrites).IsEmpty();
         // The whole action surface is the optional --model argument: env-var
-        // configuration rides on Process.EnvironmentVariables, never on the
+        // configuration goes on Process.EnvironmentVariables, never on the
         // action family, and a config file write is never planned.
         await Assert.That(plan.ConfigurationActions.All(action => action is CliArgumentAction))
             .IsTrue();
@@ -258,7 +258,7 @@ public class ClaudeCodeAdapterTests
         // -p "<prompt>" is claude's own one-shot spelling; the prompt stays
         // one argv element whatever it contains.
         await Assert.That(plan.Process.ArgumentList).IsEquivalentTo(["-p", "fix the failing test"]);
-        // One-shot changes argv only: base URL, token and model plan exactly
+        // One-shot changes argv only: base URL, token, and model plan exactly
         // as the interactive launch plans them.
         await Assert.That(plan.Process.EnvironmentVariables["ANTHROPIC_BASE_URL"])
             .IsEqualTo("https://api.example.com/v1");

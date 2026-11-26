@@ -11,7 +11,7 @@ namespace HarnessGateway.Launcher.Core.Adapters.Helpers;
 /// equality against <see cref="HarnessMetadata.CommandName"/> and
 /// <see cref="HarnessMetadata.Aliases"/>. The display
 /// <see cref="HarnessMetadata.Name"/> is deliberately NOT matchable: it exists
-/// for labels and prose, and treating it as an input token is what let
+/// for labels and prose, and treating it as an input token let
 /// `launch copilot` fail while the help text advertised it.
 /// </remarks>
 public static class HarnessLookup

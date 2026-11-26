@@ -31,7 +31,7 @@ public class OpenCodeDesktopAdapterTests
         };
 
         // The provider case carries the stored entry; the ad-hoc case is the
-        // keyless raw-URL arm of the family. The launch-scoped key rides the
+        // keyless raw-URL arm of the family. The launch-scoped key goes on the
         // payload either way - a wizard session key can credential an
         // ad-hoc launch.
         LaunchResolution launch = adHoc
@@ -95,7 +95,7 @@ public class OpenCodeDesktopAdapterTests
     {
         // Same engine as the CLI sibling: the AI SDK posts Responses-API
         // requests to {baseURL}/responses itself, so the segment must not
-        // ride the base URL it is handed - the env var and the inline
+        // go on the base URL it is handed - the env var and the inline
         // config carry the trimmed value.
         OpenCodeDesktopAdapter adapter = new OpenCodeDesktopAdapter();
         ResolvedLaunch request = CreateRequest(

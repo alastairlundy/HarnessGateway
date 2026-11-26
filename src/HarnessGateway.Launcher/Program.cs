@@ -174,7 +174,7 @@ async Task<int> RunWizardAsync(CancellationToken cancellationToken)
 
     WizardResult wizardResult = ((WizardCompleted)wizardOutcome).Result;
 
-    // The collected ApiKey must ride as SessionKey - without it the launch
+    // The collected ApiKey must be passed as SessionKey - without it the launch
     // proceeds with no credential at all on a first run, and the harness
     // fails auth downstream with no clue that the key the user typed was
     // dropped. Persist stays empty: a wizard-driven launch obeys the same

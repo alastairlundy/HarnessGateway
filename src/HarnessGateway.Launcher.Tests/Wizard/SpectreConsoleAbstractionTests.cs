@@ -36,7 +36,7 @@ public class SpectreConsoleAbstractionTests
     [Test]
     public async Task BuildDisplayText_display_parses_as_markup_and_renders_text_literally()
     {
-        // The display string is what SelectionPrompt.AddChoice receives, and
+        // SelectionPrompt.AddChoice receives the display string, and
         // Spectre renders choices through its markup parser. Prove the string
         // parses to the literal choice text instead of being read as a style.
         ConsoleChoice choice = new ConsoleChoice("[add new provider]", "create a session entry");

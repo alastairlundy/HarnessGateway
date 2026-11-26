@@ -60,7 +60,7 @@ public sealed class SettingsStore
         }
 
         // One parse: the version probe and the body deserialization read the
-        // same document instead of hammering the file text twice.
+        // same document instead of reading the file text twice.
         string json = await File.ReadAllTextAsync(_settingsFilePath, cancellationToken).ConfigureAwait(false);
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
@@ -180,7 +180,7 @@ public sealed class SettingsStore
         int declaredVersion,
         CancellationToken cancellationToken)
     {
-#pragma warning disable CS0618 // the legacy read model is deliberately obsolete (removed first release after v1)
+#pragma warning disable CS0618 // the legacy read model is deliberately obsolete (removed in the first release after v1)
         LegacySettings legacy = root.Deserialize(SettingsJsonContext.Default.LegacySettings)
                                 ?? new LegacySettings();
 
@@ -234,7 +234,7 @@ public sealed class SettingsStore
         await File.WriteAllTextAsync(tempPath, json, cancellationToken).ConfigureAwait(false);
         File.Move(tempPath, _settingsFilePath, overwrite: true);
 
-        // Commit semantics: the migrated file stands as written and its
+        // Commit semantics: the migrated file remains as written and its
         // marker is dropped, so neither the launch-time restore nor the next
         // SelfHeal replay can undo the migration. Scoped to this target only:
         // a shared BackupService may still hold a launch's pending config
@@ -242,7 +242,7 @@ public sealed class SettingsStore
         _backupService.CommitBackup(_settingsFilePath);
     }
 
-#pragma warning disable CS0618 // sweeps the deliberately-obsolete read model (removed first release after v1)
+#pragma warning disable CS0618 // sweeps the deliberately-obsolete read model (removed in the first release after v1)
     /// <summary>
     /// Moves a v1 file's plaintext API keys into the credential store,
     /// replacing each with its opaque <c>hgkey:&lt;name&gt;</c> reference in
