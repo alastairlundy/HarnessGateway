@@ -19,7 +19,7 @@ public class HarnessMetadataTests
             ["oc"],
             Kind: HarnessKind.Cli,
             RequiresModel: true,
-            InstallHint: "Install via: npm install -g @anthropic-ai/opencode",
+            InstallHint: "Install via: npm install -g @opencode/cli",
             DetectionCommand: "opencode --version",
             [".opencode/config.json", "~/.config/opencode/config.json"],
             new HashSet<ProtocolKind>
@@ -36,7 +36,7 @@ public class HarnessMetadataTests
         await Assert.That(metadata.AcceptedTokens).IsEquivalentTo(["opencode", "oc"]);
         await Assert.That(metadata.Kind).IsEqualTo(HarnessKind.Cli);
         await Assert.That(metadata.RequiresModel).IsTrue();
-        await Assert.That(metadata.InstallHint).IsEqualTo("Install via: npm install -g @anthropic-ai/opencode");
+        await Assert.That(metadata.InstallHint).IsEqualTo("Install via: npm install -g @opencode/cli");
         await Assert.That(metadata.DetectionCommand).IsEqualTo("opencode --version");
         await Assert.That(metadata.ConfigFileCandidates).Count().IsEqualTo(2);
         await Assert.That(metadata.SupportedProtocols)
@@ -52,7 +52,7 @@ public class HarnessMetadataTests
             [],
             Kind: HarnessKind.Cli,
             RequiresModel: false,
-            InstallHint: "Install from kilo.dev",
+            InstallHint: "<install hint>",
             DetectionCommand: "kilo --version",
             [],
             new HashSet<ProtocolKind>(),

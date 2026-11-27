@@ -37,7 +37,8 @@ public class CodexAdapterTests
     private static CodexAdapter CreateAdapter(string? codexHome, bool available = true)
     {
         return new CodexAdapter(
-            (_, _) => Task.FromResult(available),
+            (_, _) => Task.FromResult(
+                available ? AvailabilityResult.Found : AvailabilityResult.Absent),
             name => name == "CODEX_HOME" ? codexHome : null);
     }
 
@@ -169,17 +170,54 @@ public class CodexAdapterTests
     }
 
     [Test]
-    public async Task IsAvailable_returns_true_when_on_path()
+    public async Task IsAvailable_returns_found_when_on_path()
     {
         CodexAdapter adapter = CreateAdapter(codexHome: null);
-        await Assert.That(adapter.IsAvailableAsync()).IsTrue();
+        await Assert.That(await adapter.IsAvailableAsync()).IsEqualTo(AvailabilityResult.Found);
     }
 
     [Test]
-    public async Task IsAvailable_returns_false_when_not_on_path()
+    public async Task IsAvailable_returns_absent_when_not_on_path()
     {
         CodexAdapter adapter = CreateAdapter(codexHome: null, available: false);
-        await Assert.That(adapter.IsAvailableAsync()).IsFalse();
+        await Assert.That(await adapter.IsAvailableAsync()).IsEqualTo(AvailabilityResult.Absent);
+    }
+
+    [Test]
+    public async Task DetectOnPath_reports_found_when_the_probe_finds_the_command()
+    {
+        // A command every supported platform ships: the probe's own
+        // success path, with no adapter or PATH stub involved.
+        string command = OperatingSystem.IsWindows() ? "cmd" : "sh";
+
+        AvailabilityResult result = await CodexAdapter.DetectOnPath(command, CancellationToken.None);
+
+        await Assert.That(result).IsEqualTo(AvailabilityResult.Found);
+    }
+
+    [Test]
+    public async Task DetectOnPath_reports_absent_when_the_probe_runs_and_finds_nothing()
+    {
+        AvailabilityResult result = await CodexAdapter.DetectOnPath(
+            "harnessgateway-definitely-not-a-command", CancellationToken.None);
+
+        await Assert.That(result).IsEqualTo(AvailabilityResult.Absent);
+    }
+
+    [Test]
+    public async Task DetectOnPath_reports_unknown_when_the_probe_cannot_run()
+    {
+        // A cancelled token stops the probe before it can establish
+        // anything. This is the case the old boolean folded into "not
+        // installed", which is what made an installed harness answer with
+        // an install instruction.
+        using CancellationTokenSource cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        AvailabilityResult result = await CodexAdapter.DetectOnPath("cmd", cancellation.Token);
+
+        await Assert.That(result.Status).IsEqualTo(AvailabilityStatus.Unknown);
+        await Assert.That(result.Cause).IsNotNull();
     }
 
     [Test]

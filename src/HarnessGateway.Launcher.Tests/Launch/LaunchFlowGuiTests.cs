@@ -170,7 +170,7 @@ public class LaunchFlowGuiTests
             LaunchRefused refused = (LaunchRefused)outcome;
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.HarnessUnavailable);
             // An exhausted search tells the user the installation hint.
-            await Assert.That(refused.Message).Contains("Install the GUI app");
+            await Assert.That(refused.Message).Contains("<install hint>");
         }
         finally
         {
@@ -614,7 +614,7 @@ public class LaunchFlowGuiTests
                 [],
                 HarnessKind.Gui,
                 RequiresModel: false,
-                InstallHint: "Install the GUI app from the vendor site.",
+                InstallHint: "<install hint>",
                 DetectionCommand: "N/A",
                 [],
                 AllProtocols,
@@ -625,10 +625,10 @@ public class LaunchFlowGuiTests
                 instanceProcessNames ?? ["gui-agent-process"]);
         }
 
-        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+        public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default)
         {
             AvailabilityProbed = true;
-            return Task.FromResult(false);
+            return Task.FromResult(AvailabilityResult.Absent);
         }
 
         public Task<LaunchPlan> PlanLaunchAsync(
@@ -662,9 +662,9 @@ public class LaunchFlowGuiTests
             new HashSet<ConfigurationSurface>(),
             []);
 
-        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+        public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(true);
+            return Task.FromResult(AvailabilityResult.Found);
         }
 
         public Task<LaunchPlan> PlanLaunchAsync(

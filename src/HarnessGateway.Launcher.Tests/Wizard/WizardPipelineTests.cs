@@ -47,8 +47,8 @@ public class WizardPipelineTests
         try
         {
             TestConsole console = new TestConsole();
-            IHarnessAdapter available = WizardTestHelper.CreateTestAdapter("AvailableAgent", isAvailable: true);
-            IHarnessAdapter unavailable = WizardTestHelper.CreateTestAdapter("UnavailableAgent", isAvailable: false);
+            IHarnessAdapter available = WizardTestHelper.CreateTestAdapter("AvailableAgent", availability: AvailabilityResult.Found);
+            IHarnessAdapter unavailable = WizardTestHelper.CreateTestAdapter("UnavailableAgent", availability: AvailabilityResult.Absent);
             WizardPipeline pipeline = new WizardPipeline(console, [available, unavailable], store, keyStore);
 
             console.EnqueueChoice("AvailableAgent");
@@ -76,7 +76,7 @@ public class WizardPipelineTests
         try
         {
             TestConsole console = new TestConsole();
-            IHarnessAdapter unavailable = WizardTestHelper.CreateTestAdapter("UnavailableAgent", isAvailable: false);
+            IHarnessAdapter unavailable = WizardTestHelper.CreateTestAdapter("UnavailableAgent", availability: AvailabilityResult.Absent);
             IHarnessAdapter available = WizardTestHelper.CreateTestAdapter("AvailableAgent");
             WizardPipeline pipeline = new WizardPipeline(console, [unavailable, available], store, keyStore);
 
@@ -96,7 +96,7 @@ public class WizardPipelineTests
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("Refusing to launch UnavailableAgent");
             await Assert.That(console.ErrorMessages[0]).Contains("not installed");
-            await Assert.That(console.ErrorMessages[0]).Contains("Install UnavailableAgent");
+            await Assert.That(console.ErrorMessages[0]).Contains("<install hint for UnavailableAgent>");
             await Assert.That(
                 console.Prompts.TakeWhile(p => p.Title == "Select a harness:").Count()).IsEqualTo(2);
         }
@@ -113,8 +113,8 @@ public class WizardPipelineTests
         try
         {
             TestConsole console = new TestConsole();
-            IHarnessAdapter first = WizardTestHelper.CreateTestAdapter("AgentA", isAvailable: false);
-            IHarnessAdapter second = WizardTestHelper.CreateTestAdapter("AgentB", isAvailable: false);
+            IHarnessAdapter first = WizardTestHelper.CreateTestAdapter("AgentA", availability: AvailabilityResult.Absent);
+            IHarnessAdapter second = WizardTestHelper.CreateTestAdapter("AgentB", availability: AvailabilityResult.Absent);
             WizardPipeline pipeline = new WizardPipeline(console, [first, second], store, keyStore);
 
             WizardResult? result = await pipeline.RunAsync();
@@ -123,8 +123,116 @@ public class WizardPipelineTests
             await Assert.That(console.Prompts).IsEmpty();
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0]).Contains("No agent harness is installed");
-            await Assert.That(console.ErrorMessages.Any(m => m.Contains("Install AgentA"))).IsTrue();
-            await Assert.That(console.ErrorMessages.Any(m => m.Contains("Install AgentB"))).IsTrue();
+            await Assert.That(console.ErrorMessages.Any(m => m.Contains("<install hint for AgentA>"))).IsTrue();
+            await Assert.That(console.ErrorMessages.Any(m => m.Contains("<install hint for AgentB>"))).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_no_harness_confirmed_says_the_checks_failed_rather_than_nothing_installed()
+    {
+        // Every probe failed, so nothing was found and nothing was ruled
+        // out: "no agent harness is installed" would claim more than the
+        // run established.
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter first = WizardTestHelper.CreateTestAdapter(
+                "AgentA", availability: AvailabilityResult.Unknown("probe blew up"));
+            IHarnessAdapter second = WizardTestHelper.CreateTestAdapter(
+                "AgentB", availability: AvailabilityResult.Unknown("probe blew up"));
+            WizardPipeline pipeline = new WizardPipeline(console, [first, second], store, keyStore);
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNull();
+            await Assert.That(console.Prompts).IsEmpty();
+            await Assert.That(console.ErrorMessages[0])
+                .Contains("No agent harness could be confirmed installed");
+            await Assert.That(console.ErrorMessages[0])
+                .DoesNotContain("No agent harness is installed");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_picking_a_harness_whose_check_failed_reports_the_failure_not_an_install()
+    {
+        // Third availability state at the picker: the probe could not run,
+        // so the wizard must not tell the user to install anything - it
+        // never established that anything is missing.
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter checkFailed = WizardTestHelper.CreateTestAdapter(
+                "UncheckedAgent",
+                availability: AvailabilityResult.Unknown("Win32Exception: Access is denied."));
+            IHarnessAdapter available = WizardTestHelper.CreateTestAdapter("AvailableAgent");
+            WizardPipeline pipeline = new WizardPipeline(console, [checkFailed, available], store, keyStore);
+
+            console.EnqueueChoice("UncheckedAgent");
+            console.EnqueueChoice("AvailableAgent");
+            console.EnqueueChoice("openai-chat");
+            console.EnqueueText("https://api.example.com/v1");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.AgentCommandName).IsEqualTo("AvailableAgent");
+            await Assert.That(console.ErrorMessages).IsNotEmpty();
+            await Assert.That(console.ErrorMessages[0])
+                .Contains("Could not check whether UncheckedAgent is installed");
+            await Assert.That(console.ErrorMessages[0]).Contains("Win32Exception: Access is denied.");
+            await Assert.That(console.ErrorMessages[0]).DoesNotContain("<install hint for UncheckedAgent>");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_annotates_a_failed_check_as_check_failed_rather_than_not_installed()
+    {
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment();
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter checkFailed = WizardTestHelper.CreateTestAdapter(
+                "UncheckedAgent",
+                availability: AvailabilityResult.Unknown("probe blew up"));
+            IHarnessAdapter available = WizardTestHelper.CreateTestAdapter("AvailableAgent");
+            WizardPipeline pipeline = new WizardPipeline(console, [checkFailed, available], store, keyStore);
+
+            console.EnqueueChoice("AvailableAgent");
+            console.EnqueueChoice("openai-chat");
+            console.EnqueueText("https://api.example.com/v1");
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNotNull();
+            await Assert.That(result.AgentCommandName).IsEqualTo("AvailableAgent");
+
+            // The list labels a harness the probe never got an answer about
+            // as unverified, not as missing - and still refuses to offer it.
+            await Assert.That(
+                    console.Prompts[0].Choices.Single(c => c.Name == "UncheckedAgent").Annotation)
+                .IsEqualTo("check failed");
+            await Assert.That(
+                    console.Prompts[0].Choices.Single(c => c.Name == "UncheckedAgent").Unavailable)
+                .IsTrue();
+            await Assert.That(
+                    console.Prompts[0].Choices.Single(c => c.Name == "UncheckedAgent").Annotation)
+                .DoesNotContain("not installed");
         }
         finally
         {
@@ -148,7 +256,7 @@ public class WizardPipelineTests
                 supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
             IHarnessAdapter anthropicCapable = WizardTestHelper.CreateTestAdapter(
                 "AnthropicCapable",
-                isAvailable: false,
+                availability: AvailabilityResult.Absent,
                 supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.Anthropic });
             WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
 
@@ -159,8 +267,43 @@ public class WizardPipelineTests
             await Assert.That(console.ErrorMessages).IsNotEmpty();
             await Assert.That(console.ErrorMessages[0])
                 .Contains("No installed agent harness supports the anthropic protocol");
-            await Assert.That(console.ErrorMessages.Any(m => m.Contains("Install AnthropicCapable")))
+            await Assert.That(console.ErrorMessages.Any(m => m.Contains("<install hint for AnthropicCapable>")))
                 .IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task RunAsync_protocol_abort_reports_a_failed_check_as_unconfirmed_rather_than_absent()
+    {
+        // Same abort, different claim: the only anthropic-capable harness
+        // has a probe that never ran, so "no installed harness supports
+        // it" would be a finding this run never made.
+        LauncherSettings settings = WizardTestHelper.CreateDefaultSettings(protocol: ProtocolKind.Anthropic);
+        (string tempDir, SettingsStore store, FakeSecureKeyStore keyStore) = WizardTestHelper.CreateTestEnvironment(settings);
+        try
+        {
+            TestConsole console = new TestConsole();
+            IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
+                "OpenAiOnly",
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.OpenAiChat });
+            IHarnessAdapter anthropicCapable = WizardTestHelper.CreateTestAdapter(
+                "AnthropicCapable",
+                availability: AvailabilityResult.Unknown("probe blew up"),
+                supportedProtocols: new HashSet<ProtocolKind> { ProtocolKind.Anthropic });
+            WizardPipeline pipeline = new WizardPipeline(console, [openAiOnly, anthropicCapable], store, keyStore);
+
+            WizardResult? result = await pipeline.RunAsync();
+
+            await Assert.That(result).IsNull();
+            await Assert.That(console.Prompts).IsEmpty();
+            await Assert.That(console.ErrorMessages[0])
+                .Contains("No agent harness could be confirmed as supporting the anthropic protocol");
+            await Assert.That(console.ErrorMessages[0])
+                .DoesNotContain("No installed agent harness supports");
         }
         finally
         {
@@ -636,7 +779,7 @@ public class WizardPipelineTests
             TestConsole console = new TestConsole();
             IHarnessAdapter openAiOnly = WizardTestHelper.CreateTestAdapter(
                 "OpenAiOnly",
-                isAvailable: true,
+                availability: AvailabilityResult.Found,
                 supportedProtocols: new HashSet<ProtocolKind>
                 {
                     ProtocolKind.OpenAiChat,
@@ -646,7 +789,7 @@ public class WizardPipelineTests
             // parts once the incompatible re-prompt turns annotations on.
             IHarnessAdapter unavailableOpenAi = WizardTestHelper.CreateTestAdapter(
                 "UnavailableOpenAi",
-                isAvailable: false,
+                availability: AvailabilityResult.Absent,
                 supportedProtocols: new HashSet<ProtocolKind>
                 {
                     ProtocolKind.OpenAiChat,

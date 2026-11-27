@@ -26,19 +26,19 @@ public sealed class CopilotCliAdapter : IHarnessAdapter, INonInteractiveLaunchAd
         new HashSet<ConfigurationSurface>(),
         []);
 
-    private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
+    private readonly Func<string, CancellationToken, Task<AvailabilityResult>> _detectCommand;
 
     public CopilotCliAdapter()
         : this(DetectOnPath)
     {
     }
 
-    internal CopilotCliAdapter(Func<string, CancellationToken, Task<bool>> detectCommand)
+    internal CopilotCliAdapter(Func<string, CancellationToken, Task<AvailabilityResult>> detectCommand)
     {
         _detectCommand = detectCommand;
     }
 
-    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
+    public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("copilot", cancellationToken);
 
     public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
@@ -125,7 +125,7 @@ public sealed class CopilotCliAdapter : IHarnessAdapter, INonInteractiveLaunchAd
                 $"unexpected launch resolution case '{request.Launch.GetType().Name}'"),
         };
 
-    private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)
+    internal static async Task<AvailabilityResult> DetectOnPath(string command, CancellationToken cancellationToken)
     {
         try
         {
@@ -136,11 +136,14 @@ public sealed class CopilotCliAdapter : IHarnessAdapter, INonInteractiveLaunchAd
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return result.ExitCode == 0;
+            return result.ExitCode == 0 ? AvailabilityResult.Found : AvailabilityResult.Absent;
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            // A probe that could not run has established nothing: report
+            // no answer, carrying why, rather than a negative that was
+            // never measured.
+            return AvailabilityResult.Unknown($"{ex.GetType().Name}: {ex.Message}");
         }
     }
 }

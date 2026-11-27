@@ -134,8 +134,11 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
     /// answer, and no way for "offered by the wizard" and "startable by the
     /// launch" to drift apart.
     /// </summary>
-    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(_discovery.Discover(Metadata.InstanceProcessNames).Found);
+    public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default)
+    {
+        bool found = _discovery.Discover(Metadata.InstanceProcessNames).Found;
+        return Task.FromResult(found ? AvailabilityResult.Found : AvailabilityResult.Absent);
+    }
 
     /// <summary>
     /// Plans the launch through the environment surface only: the endpoint,

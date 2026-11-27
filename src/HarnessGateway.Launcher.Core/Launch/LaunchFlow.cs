@@ -141,13 +141,34 @@ public sealed class LaunchFlow
             // Availability takes the Kind's own mechanism: Kind=Cli keeps
             // the detection-command probe, Kind=Gui asks the operating
             // system through discovery. An exhausted search is a
-            // HarnessUnavailable refusal, never a crash.
-            bool isAvailable = adapter.Metadata.Kind == HarnessKind.Gui
-                ? _installDiscovery.Discover(adapter.Metadata.InstanceProcessNames).Found
-                : await adapter.IsAvailableAsync(ct).ConfigureAwait(false);
-            if (!isAvailable)
+            // HarnessUnavailable refusal, never a crash - and which of the
+            // two non-found states it is decides the message: a probe that
+            // ran and found nothing carries the install guidance, while a
+            // probe that could not run carries what went wrong, because it
+            // never established that the harness is missing.
+            AvailabilityResult availability;
+            if (adapter.Metadata.Kind == HarnessKind.Gui)
             {
-                return new LaunchRefused(LaunchRefusalKind.HarnessUnavailable, adapter.Metadata.InstallHint);
+                bool discovered = _installDiscovery.Discover(adapter.Metadata.InstanceProcessNames).Found;
+                availability = discovered ? AvailabilityResult.Found : AvailabilityResult.Absent;
+            }
+            else
+            {
+                availability = await adapter.IsAvailableAsync(ct).ConfigureAwait(false);
+            }
+
+            if (availability.Status == AvailabilityStatus.Absent)
+            {
+                return new LaunchRefused(
+                    LaunchRefusalKind.HarnessUnavailable,
+                    AvailabilityMessages.NotInstalled(adapter.Metadata));
+            }
+
+            if (availability.Status == AvailabilityStatus.Unknown)
+            {
+                return new LaunchRefused(
+                    LaunchRefusalKind.HarnessUnavailable,
+                    AvailabilityMessages.CheckFailed(adapter.Metadata, availability.Cause));
             }
 
             // Misuse check, before anything is resolved for it:

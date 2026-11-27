@@ -284,7 +284,7 @@ public class LaunchCommandInvocationTests
                 [],
                 HarnessKind.Cli,
                 RequiresModel: false,
-                InstallHint: "Install via: test-install",
+                InstallHint: "<install hint>",
                 $"{name} --version",
                 [],
                 new HashSet<ProtocolKind>
@@ -297,9 +297,9 @@ public class LaunchCommandInvocationTests
                 []);
         }
 
-        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+        public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(true);
+            return Task.FromResult(AvailabilityResult.Found);
         }
 
         public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)

@@ -266,7 +266,7 @@ public sealed class WizardPipeline
             // Probe availability once per loop iteration: the dead-end guard, the choice annotations, and the post-pick refusal all consume
             // the same results instead of each re-spawning the detection process. Re-probing per iteration (not cached across them) lets
             // a freshly installed harness show up without restarting the wizard.
-            List<(IHarnessAdapter Adapter, bool IsAvailable)> probed = [];
+            List<(IHarnessAdapter Adapter, AvailabilityResult Availability)> probed = [];
             foreach (IHarnessAdapter adapter in _adapters)
             {
                 probed.Add((adapter,
@@ -277,18 +277,24 @@ public sealed class WizardPipeline
             // harness installed at all, or none installed that supports the required protocol) has no valid pick - abort with install hints
             // instead of re-prompting forever.
             if (!probed.Exists(pair =>
-                    pair.IsAvailable
+                    pair.Availability.Status == AvailabilityStatus.Found
                     && (protocolToCheck is null
                         || pair.Adapter.Metadata.SupportedProtocols
                             .Contains(protocolToCheck.Value))))
             {
+                // A check that failed is not a harness that is absent, and the
+                // aggregate messages below claim the latter - so they say which
+                // one happened rather than always asserting an install is needed.
+                bool anyCheckFailed = probed.Exists(
+                    pair => pair.Availability.Status == AvailabilityStatus.Unknown);
+
                 if (protocolToCheck is null)
                 {
-                    WriteNoHarnessInstalled();
+                    WriteNoHarnessInstalled(anyCheckFailed);
                     return (null, WizardAbortReason.NoHarnessInstalled);
                 }
 
-                WriteNoInstalledSupports(protocolToCheck.Value);
+                WriteNoInstalledSupports(protocolToCheck.Value, anyCheckFailed);
                 return (null, WizardAbortReason.NoHarnessSupportsProtocol);
             }
 
@@ -304,12 +310,16 @@ public sealed class WizardPipeline
                 string.Equals(a.Metadata.Name, pick, StringComparison.OrdinalIgnoreCase));
 
             // Refuse an unavailable harness at selection - the launch cannot work (direct mode's orchestrator check would refuse it
-            // later anyway), so fail here with the installation hint rather than after the endpoint, key, and model steps.
-            if (selected is not null
-                && !probed.First(pair => ReferenceEquals(pair.Adapter, selected)).IsAvailable)
+            // later anyway), so fail here with what the probe established rather than after the endpoint, key, and model steps.
+            if (selected is not null)
             {
-                await Task.Run(() => _console.WriteError(BuildNotInstalledMessage(selected)), cancellationToken).ConfigureAwait(false);
-                continue;
+                AvailabilityResult availability =
+                    probed.First(pair => ReferenceEquals(pair.Adapter, selected)).Availability;
+                if (availability.Status != AvailabilityStatus.Found)
+                {
+                    await Task.Run(() => _console.WriteError(BuildUnavailableMessage(selected, availability)), cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
             }
 
             if (protocolToCheck is null
@@ -328,13 +338,13 @@ public sealed class WizardPipeline
     }
 
     private List<ConsoleChoice> BuildHarnessChoices(
-        IReadOnlyList<(IHarnessAdapter Adapter, bool IsAvailable)> probed,
+        IReadOnlyList<(IHarnessAdapter Adapter, AvailabilityResult Availability)> probed,
         ProtocolKind? protocolToCheck,
         bool showIncompatible)
     {
         List<ConsoleChoice> choices = [];
 
-        foreach ((IHarnessAdapter adapter, bool isAvailable) in probed)
+        foreach ((IHarnessAdapter adapter, AvailabilityResult availability) in probed)
         {
             string? incompatible = null;
             if (showIncompatible
@@ -345,8 +355,12 @@ public sealed class WizardPipeline
             }
 
             // Annotations are raw text: the presenter owns the parenthesised rendering, so wrapping here would print "((not installed))".
+            // The two non-found states name different things: one says the
+            // harness is absent, the other says the check did not run - so the
+            // list never claims a harness is missing when nothing was measured.
             List<string> annotations = [];
-            if (!isAvailable) annotations.Add("not installed");
+            if (availability.Status == AvailabilityStatus.Absent) annotations.Add("not installed");
+            if (availability.Status == AvailabilityStatus.Unknown) annotations.Add("check failed");
             if (incompatible is not null) annotations.Add($"incompatible: {incompatible}");
 
             // The structured state accompanies the raw annotation so the presenter can colour the line (whole-line red when unavailable,
@@ -354,7 +368,7 @@ public sealed class WizardPipeline
             choices.Add(new ConsoleChoice(
                 adapter.Metadata.Name,
                 annotations.Count > 0 ? string.Join("; ", annotations) : null,
-                Unavailable: !isAvailable,
+                Unavailable: availability.Status != AvailabilityStatus.Found,
                 IncompatibleProtocols: incompatible));
         }
 
@@ -369,36 +383,50 @@ public sealed class WizardPipeline
     private static bool HasProtocolOverride(Provider? provider) =>
         provider?.Models.Any(model => model.Protocol is not null) == true;
 
-    private void WriteNoHarnessInstalled()
+    private void WriteNoHarnessInstalled(bool anyCheckFailed)
     {
-        _console.WriteError(
-            "No agent harness is installed on this machine. Install one and re-run:");
+        _console.WriteError(anyCheckFailed
+            ? "No agent harness could be confirmed installed on this machine. Install one and re-run:"
+            : "No agent harness is installed on this machine. Install one and re-run:");
         foreach (IHarnessAdapter adapter in _adapters)
         {
             _console.WriteError($"  {adapter.Metadata.Name}: {adapter.Metadata.InstallHint}");
         }
+        _console.WriteError(AvailabilityMessages.NotOnPath);
     }
 
-    private void WriteNoInstalledSupports(ProtocolKind protocol)
+    private void WriteNoInstalledSupports(ProtocolKind protocol, bool anyCheckFailed)
     {
-        _console.WriteError(
-            $"No installed agent harness supports the {ProviderResolution.ProtocolName(protocol)} " +
-            "protocol. Install one and re-run:");
+        _console.WriteError(anyCheckFailed
+            ? $"No agent harness could be confirmed as supporting the {ProviderResolution.ProtocolName(protocol)} "
+ + "protocol. Install one and re-run:"
+            : $"No installed agent harness supports the {ProviderResolution.ProtocolName(protocol)} " +
+              "protocol. Install one and re-run:");
         foreach (IHarnessAdapter adapter in _adapters.Where(
                      a => a.Metadata.SupportedProtocols.Contains(protocol)))
         {
             _console.WriteError($"  {adapter.Metadata.Name}: {adapter.Metadata.InstallHint}");
         }
+        _console.WriteError(AvailabilityMessages.NotOnPath);
     }
 
-    private static string BuildNotInstalledMessage(IHarnessAdapter adapter)
+    private static string BuildUnavailableMessage(IHarnessAdapter adapter, AvailabilityResult availability)
     {
-        // Mirrors the direct-mode refusal's substance (name + install hint) and names the detection command so a PATH false negative is
-        // diagnosable without reading the source.
-        string detection = $" (checked with '{adapter.Metadata.DetectionCommand}')";
+        if (availability.Status == AvailabilityStatus.Unknown)
+        {
+            // The check failed, so there is no negative to report: what went
+            // wrong, instead of an install instruction the harness may not
+            // need.
+            return AvailabilityMessages.CheckFailed(adapter.Metadata, availability.Cause);
+        }
 
-        return $"Refusing to launch {adapter.Metadata.Name}: it is not installed on this machine" +
-               $"{detection}. {adapter.Metadata.InstallHint}";
+        // Mirrors the direct-mode refusal's substance (name + install hint), names the detection command so a PATH false negative is
+        // diagnosable without reading the source, and carries the PATH caveat - the probe sees this process's PATH and nothing else.
+        string notInstalled =
+            $"Refusing to launch {adapter.Metadata.Name}: it is not installed on this machine"
+            + $" (checked with '{adapter.Metadata.DetectionCommand}'). {adapter.Metadata.InstallHint}";
+
+        return AvailabilityMessages.AppendSentence(notInstalled, AvailabilityMessages.NotOnPath);
     }
 
     private void WriteNoHarnessSupports(ProtocolKind protocol) =>

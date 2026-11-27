@@ -12,7 +12,8 @@ public class ClaudeCodeAdapterTests
     private static ClaudeCodeAdapter CreateAdapter(bool available = true)
     {
         return new ClaudeCodeAdapter(
-            (_, _) => Task.FromResult(available));
+            (_, _) => Task.FromResult(
+                available ? AvailabilityResult.Found : AvailabilityResult.Absent));
     }
 
     private static ResolvedLaunch CreateRequest(
@@ -97,17 +98,17 @@ public class ClaudeCodeAdapterTests
     }
 
     [Test]
-    public async Task IsAvailable_returns_true_when_on_path()
+    public async Task IsAvailable_returns_found_when_on_path()
     {
         ClaudeCodeAdapter adapter = CreateAdapter(available: true);
-        await Assert.That(adapter.IsAvailableAsync()).IsTrue();
+        await Assert.That(await adapter.IsAvailableAsync()).IsEqualTo(AvailabilityResult.Found);
     }
 
     [Test]
-    public async Task IsAvailable_returns_false_when_not_on_path()
+    public async Task IsAvailable_returns_absent_when_not_on_path()
     {
         ClaudeCodeAdapter adapter = CreateAdapter(available: false);
-        await Assert.That(adapter.IsAvailableAsync()).IsFalse();
+        await Assert.That(await adapter.IsAvailableAsync()).IsEqualTo(AvailabilityResult.Absent);
     }
 
     [Test]

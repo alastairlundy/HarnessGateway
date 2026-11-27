@@ -137,7 +137,8 @@ public class LaunchFlowTests
         });
 
         CodexAdapter adapter = new(
-            (_, _) => Task.FromResult(codexAvailable),
+            (_, _) => Task.FromResult(
+                codexAvailable ? AvailabilityResult.Found : AvailabilityResult.Absent),
             name => name == "CODEX_HOME" ? codexHome : null);
 
         LaunchFlow flow = new(
@@ -187,7 +188,8 @@ public class LaunchFlowTests
         });
 
         // Fake detection delegate: availability never touches the real PATH.
-        ClaudeCodeAdapter adapter = new((_, _) => Task.FromResult(available));
+        ClaudeCodeAdapter adapter = new((_, _) => Task.FromResult(
+            available ? AvailabilityResult.Found : AvailabilityResult.Absent));
 
         LaunchFlow flow = new(
             settingsStore,
@@ -791,8 +793,8 @@ public class LaunchFlowTests
     {
         TestHarnessAdapter adapter = new(
             "TestAgent",
-            isAvailable: false,
-            installHint: "Install via: npm install -g test");
+            availability: AvailabilityResult.Absent,
+            installHint: "<install hint>");
         (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
             adapter: adapter,
             DefaultSettings());
@@ -803,7 +805,39 @@ public class LaunchFlowTests
 
             LaunchRefused refused = (LaunchRefused)outcome;
             await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.HarnessUnavailable);
-            await Assert.That(refused.Message).IsEqualTo("Install via: npm install -g test");
+            await Assert.That(refused.Message).IsEqualTo(
+                "<install hint>. " + AvailabilityMessages.NotOnPath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ExecuteAsync_probe_that_failed_reports_the_failure_not_an_install_hint()
+    {
+        // The third availability state: the probe could not run, so nothing
+        // was established about the harness. Answering with an install
+        // instruction would report a finding the run never made.
+        TestHarnessAdapter adapter = new(
+            "TestAgent",
+            availability: AvailabilityResult.Unknown("Win32Exception: Access is denied."),
+            installHint: "<install hint>");
+        (LaunchFlow flow, string tempDir, _, _) = CreateFlow(
+            adapter: adapter,
+            DefaultSettings());
+        try
+        {
+            LaunchOutcome outcome = await flow.ExecuteAsync(
+                new LaunchRequest("TestAgent", null, null, null, null, [], null));
+
+            LaunchRefused refused = (LaunchRefused)outcome;
+            await Assert.That(refused.Kind).IsEqualTo(LaunchRefusalKind.HarnessUnavailable);
+            await Assert.That(refused.Message)
+                .Contains("Could not check whether TestAgent is installed");
+            await Assert.That(refused.Message).Contains("Win32Exception: Access is denied.");
+            await Assert.That(refused.Message).DoesNotContain("<install hint>");
         }
         finally
         {
@@ -2200,7 +2234,7 @@ public class LaunchFlowTests
 
     private sealed class TestHarnessAdapter : IHarnessAdapter
     {
-        private readonly bool _isAvailable;
+        private readonly AvailabilityResult _availability;
         private readonly bool _requiresModel;
 
         public HarnessMetadata Metadata { get; }
@@ -2209,12 +2243,12 @@ public class LaunchFlowTests
 
         public TestHarnessAdapter(
             string name,
-            bool isAvailable = true,
-            string installHint = "Install via: test-install",
+            AvailabilityResult? availability = null,
+            string installHint = "<install hint>",
             IReadOnlySet<ProtocolKind>? supportedProtocols = null,
             bool requiresModel = false)
         {
-            _isAvailable = isAvailable;
+            _availability = availability ?? AvailabilityResult.Found;
             _requiresModel = requiresModel;
             Metadata = new HarnessMetadata(
                 name,
@@ -2230,9 +2264,9 @@ public class LaunchFlowTests
                 []);
         }
 
-        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+        public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(_isAvailable);
+            return Task.FromResult(_availability);
         }
 
         public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)
@@ -2263,9 +2297,9 @@ public class LaunchFlowTests
             new HashSet<ConfigurationSurface>(),
             []);
 
-        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+        public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(true);
+            return Task.FromResult(AvailabilityResult.Found);
         }
 
         public Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default)

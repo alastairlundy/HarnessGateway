@@ -12,6 +12,21 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
   implement it (claude-code, opencode, kilo, copilot, codex, pi). A prompt comes
   from the flag value or stdin; GUI harnesses refuse.
 
+### Changed
+
+- Availability is now three states - found, absent, unknown - instead of a
+  yes/no. A probe that could not run (a spawn failure, a cancelled launch, a
+  missing `which`) used to collapse into "not installed", so an installed
+  harness could be refused with an install instruction it did not need and
+  annotated `(not installed)` in the wizard's list. A failed check now
+  refuses with what actually went wrong - harness, cause and detection
+  command - and carries no install hint at all; the wizard annotates it
+  `(check failed)` instead.
+- Where a harness is reported as not installed, the message now carries the
+  PATH caveat: the probe sees only this process's PATH, so a harness
+  installed elsewhere is indistinguishable from one that was never
+  installed.
+
 ### Fixed
 
 - An interactive `codex` launch now stops codex's shared app-server daemon

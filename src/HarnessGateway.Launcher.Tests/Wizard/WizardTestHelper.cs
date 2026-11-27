@@ -68,26 +68,27 @@ public static class WizardTestHelper
 
     public static IHarnessAdapter CreateTestAdapter(
         string name = "TestAgent",
-        bool isAvailable = true,
+        AvailabilityResult? availability = null,
         bool requiresModel = false,
         IReadOnlySet<ProtocolKind>? supportedProtocols = null)
     {
-        return new TestHarnessAdapterForWizard(name, isAvailable, requiresModel, supportedProtocols);
+        return new TestHarnessAdapterForWizard(
+            name, availability ?? AvailabilityResult.Found, requiresModel, supportedProtocols);
     }
 
     private sealed class TestHarnessAdapterForWizard : IHarnessAdapter
     {
-        private readonly bool _isAvailable;
+        private readonly AvailabilityResult _availability;
         public HarnessMetadata Metadata { get; }
 
         public TestHarnessAdapterForWizard(
             string name,
-            bool isAvailable,
+            AvailabilityResult availability,
             bool requiresModel,
             IReadOnlySet<ProtocolKind>? supportedProtocols,
             string? commandName = null)
         {
-            _isAvailable = isAvailable;
+            _availability = availability;
             Metadata = new HarnessMetadata(
                 name,
                 // Most fakes use one string for both the wizard label and the
@@ -97,7 +98,7 @@ public static class WizardTestHelper
                 [],
                 HarnessKind.Cli,
                 requiresModel,
-                $"Install {name}",
+                $"<install hint for {name}>",
                 $"{name} --version",
                 [],
                 supportedProtocols ?? AllProtocols,
@@ -105,9 +106,9 @@ public static class WizardTestHelper
                 []);
         }
 
-        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+        public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(_isAvailable);
+            return Task.FromResult(_availability);
         }
 
         public Task<Core.Launch.LaunchPlan> PlanLaunchAsync(Core.Launch.ResolvedLaunch request, CancellationToken cancellationToken = default)

@@ -14,7 +14,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
 
     public HarnessMetadata Metadata { get; }
 
-    private readonly Func<string, CancellationToken, Task<bool>> _detectCommand;
+    private readonly Func<string, CancellationToken, Task<AvailabilityResult>> _detectCommand;
     private readonly Func<string, string?> _getEnvironmentVariable;
 
     public CodexAdapter()
@@ -23,7 +23,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
     }
 
     internal CodexAdapter(
-        Func<string, CancellationToken, Task<bool>> detectCommand,
+        Func<string, CancellationToken, Task<AvailabilityResult>> detectCommand,
         Func<string, string?>? getEnvironmentVariable = null)
     {
         _detectCommand = detectCommand;
@@ -46,7 +46,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             []);
     }
 
-    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) =>
+    public Task<AvailabilityResult> IsAvailableAsync(CancellationToken cancellationToken = default) =>
         _detectCommand("codex", cancellationToken);
 
     public async Task<LaunchPlan> PlanLaunchAsync(ResolvedLaunch request, CancellationToken cancellationToken = default) =>
@@ -246,7 +246,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             "config.toml");
     }
 
-    private static async Task<bool> DetectOnPath(string command, CancellationToken cancellationToken)
+    internal static async Task<AvailabilityResult> DetectOnPath(string command, CancellationToken cancellationToken)
     {
         try
         {
@@ -257,11 +257,14 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             };
 
             ProcessResult result = await CliRun.RunAsync(config, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return result.ExitCode == 0;
+            return result.ExitCode == 0 ? AvailabilityResult.Found : AvailabilityResult.Absent;
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            // A probe that could not run has established nothing: report
+            // no answer, carrying why, rather than a negative that was
+            // never measured.
+            return AvailabilityResult.Unknown($"{ex.GetType().Name}: {ex.Message}");
         }
     }
 }
