@@ -1300,7 +1300,7 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
-            IReadOnlyDictionary<string, string> env = planDuringLaunch.Process.EnvironmentVariables;
+            IReadOnlyDictionary<string, string?> env = planDuringLaunch.Process.EnvironmentVariables;
             await Assert.That(env["ANTHROPIC_BASE_URL"]).IsEqualTo("https://api.example.com");
             await Assert.That(env["ANTHROPIC_AUTH_TOKEN"]).IsEqualTo("sk-claude");
             await Assert.That(env["ANTHROPIC_MODEL"]).IsEqualTo("claude-sonnet-5");
@@ -1309,9 +1309,9 @@ public class LaunchFlowTests
 
             // The credential reaches the harness as the secret; the at-rest
             // reference never appears in any planned environment variable.
-            foreach (KeyValuePair<string, string> variable in env)
+            foreach (KeyValuePair<string, string?> variable in env)
             {
-                await Assert.That(variable.Value.Contains("hgkey:")).IsFalse();
+                await Assert.That(variable.Value?.Contains("hgkey:") ?? false).IsFalse();
             }
 
             List<CliArgumentAction> cliArgs =
@@ -1358,7 +1358,7 @@ public class LaunchFlowTests
             await Assert.That(ExitStatusOf(completed)).IsEqualTo(0);
             await Assert.That(planDuringLaunch).IsNotNull();
 
-            IReadOnlyDictionary<string, string> env = planDuringLaunch.Process.EnvironmentVariables;
+            IReadOnlyDictionary<string, string?> env = planDuringLaunch.Process.EnvironmentVariables;
             await Assert.That(env.ContainsKey("ANTHROPIC_BASE_URL")).IsTrue();
             // No saved key: no token variable at all, and no dummy value.
             await Assert.That(env.ContainsKey("ANTHROPIC_AUTH_TOKEN")).IsFalse();

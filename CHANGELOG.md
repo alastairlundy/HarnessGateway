@@ -31,22 +31,20 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - The `/responses` path segment is stripped only for harnesses that append it
   themselves, so an endpoint that already ends in `/responses` is not doubled
   for the OpenAI Chat Completions and Anthropic paths.
-
-### Known Issues
-
-- Windows only: any process the launcher starts - a harness, or the `where`
-  / `which` availability probe every CLI harness runs before launching -
-  can intermittently fail to spawn with `Win32Exception: Access is denied`.
-  Where it lands decides what you see: an exit-7 `Launch failed:` error; an
+- Windows-only spawn failures are gone: any process the launcher started -
+  a harness, or the `where`/`which` availability probe every CLI harness runs
+  first - could intermittently fail with `Win32Exception: Access is denied`.
+  Where it landed decided what you saw: an exit-7 `Launch failed:` error; an
   installed harness wrongly refused with the install hint (the probe
-  swallows the fault); or, on an interactive `codex` launch, the same
+  swallowed the fault); or, on an interactive `codex` launch, the same
   swallowed fault in the best-effort `codex app-server daemon stop` step,
-  after which the TUI falls back to the stale daemon and reports
-  `Missing environment variable: HARNESSGATEWAY_API_KEY` again. The cause
-  is upstream in CliInvoke, which pins every child to CPUs 0-15 from its
-  start hook; a child that exits first makes that call fail. Long-lived
-  harnesses rarely hit it, but the test suite can flake on the Windows CI
-  job until CliInvoke ships the fix and the dependency is bumped.
+  after which the TUI fell back to the stale daemon and reported `Missing
+  environment variable: HARNESSGATEWAY_API_KEY` again. The cause was
+  upstream in CliInvoke, which pinned every child to CPUs 0-15 from its
+  start hook, so a child that exited first made that call fail. CliInvoke
+  3.2.0 treats a setter failure during the exit transition as benign, and
+  the dependency is bumped to it - which also clears the intermittent
+  Windows CI flake the same cause produced in the test suite.
 
 [0.1.2]: https://github.com/alastairlundy/HarnessGateway/compare/0.1.1...HEAD
 

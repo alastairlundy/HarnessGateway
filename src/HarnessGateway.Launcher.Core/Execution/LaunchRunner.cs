@@ -15,8 +15,9 @@ public sealed class LaunchRunner : ILaunchRunner
     {
         await RunPreLaunchProcessAsync(plan, cancellationToken).ConfigureAwait(false);
 
-        // No exit configuration of our own: the process library's graceful
-        // default applies, timeout policy included.
+        // No exit configuration of our own: the process library's default
+        // applies - a graceful cancellation exit under its standard timeout
+        // policy, with unexpected-exit exceptions left to propagate.
         return await RunBufferedAndEchoAsync(
             BuildProcessConfiguration(plan, outputRedirection: true),
             exitConfiguration: null,

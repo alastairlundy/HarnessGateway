@@ -133,7 +133,7 @@ public class OpenCodeAdapterTests
 
         await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
             .IsEqualTo("https://api.example.com/v1");
-        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        string? config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
         await Assert.That(config).Contains("\"baseURL\":\"https://api.example.com/v1\"");
     }
 
@@ -177,7 +177,7 @@ public class OpenCodeAdapterTests
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
         await Assert.That(plan.Process.Arguments).IsEqualTo("");
-        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        string? config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
         await Assert.That(config).Contains("\"model\":\"openai/claude-sonnet-5\"");
         // The endpoint override and the model registration land in the
         // provider entry; the key is referenced through the env, never inlined.
@@ -195,7 +195,7 @@ public class OpenCodeAdapterTests
 
         LaunchPlan plan = await adapter.PlanLaunchAsync(request);
 
-        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        string? config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
         await Assert.That(config).Contains("\"model\":\"anthropic/claude-sonnet-5\"");
         await Assert.That(config).Contains("\"apiKey\":\"{env:ANTHROPIC_API_KEY}\"");
         await Assert.That(config).DoesNotContain("openai/claude-sonnet-5");

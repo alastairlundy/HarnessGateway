@@ -66,7 +66,7 @@ public sealed class CopilotCliAdapter : IHarnessAdapter, INonInteractiveLaunchAd
         // supplies the variable names and the emission supplies the values -
         // the plan therefore carries exactly this harness's three variables
         // and never the canonical OPENAI_*/ANTHROPIC_* spellings.
-        Dictionary<string, string> envVars = new(StringComparer.Ordinal)
+        Dictionary<string, string?> envVars = new(StringComparer.Ordinal)
         {
             ["COPILOT_PROVIDER_BASE_URL"] = emission.BaseUrlValue,
             ["COPILOT_PROVIDER_TYPE"] = emission.Protocol switch

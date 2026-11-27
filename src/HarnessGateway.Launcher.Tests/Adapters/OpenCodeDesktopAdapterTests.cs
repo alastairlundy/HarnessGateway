@@ -82,7 +82,7 @@ public class OpenCodeDesktopAdapterTests
             .IsEqualTo("sk-canned");
         await Assert.That(plan.Process.EnvironmentVariables).DoesNotContainKey("OPENAI_BASE_URL");
         // The inline session config consumes the same emission value.
-        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        string? config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
         await Assert.That(config).Contains("\"baseURL\":\"https://canned.example/v1\"");
         await Assert.That(planner.PlannedCalls.Count).IsEqualTo(1);
         await Assert.That(planner.PlannedCalls[0].Protocol).IsEqualTo(ProtocolKind.OpenAiChat);
@@ -106,7 +106,7 @@ public class OpenCodeDesktopAdapterTests
 
         await Assert.That(plan.Process.EnvironmentVariables["OPENAI_BASE_URL"])
             .IsEqualTo("https://api.example.com/v1");
-        string config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
+        string? config = plan.Process.EnvironmentVariables["OPENCODE_CONFIG_CONTENT"];
         await Assert.That(config).Contains("\"baseURL\":\"https://api.example.com/v1\"");
     }
 

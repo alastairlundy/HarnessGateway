@@ -47,8 +47,15 @@ public static class EmissionMerge
     /// supplying the value of the protocol's empty key slot (skipped when
     /// the launch carries no key).
     /// </summary>
+    /// <remarks>
+    /// The value type is <c>string?</c> because that is the process
+    /// environment's type - the same contract as
+    /// <c>ProcessStartInfo.Environment</c>, where a null value removes a
+    /// variable. Nothing here ever writes one: the launcher only ever adds
+    /// variables to a child's environment.
+    /// </remarks>
     public static void MergeInto(
-        IDictionary<string, string> environmentVariables,
+        IDictionary<string, string?> environmentVariables,
         ProtocolEmission emission,
         string? apiKey)
     {

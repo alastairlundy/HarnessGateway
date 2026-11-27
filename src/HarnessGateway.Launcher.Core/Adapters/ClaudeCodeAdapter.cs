@@ -59,7 +59,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAd
 
     private static LaunchPlan BuildPlan(ResolvedLaunch request, string? printPrompt)
     {
-        (Dictionary<string, string> envVars, List<ConfigurationAction> actions) =
+        (Dictionary<string, string?> envVars, List<ConfigurationAction> actions) =
             BuildProcessEnvironment(request);
 
         ProcessConfiguration config = new("claude")
@@ -87,7 +87,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAd
     /// durable Claude Code settings are untouched and the launcher's own
     /// process environment is never mutated.
     /// </summary>
-    private static (Dictionary<string, string> EnvVars, List<ConfigurationAction> Actions)
+    private static (Dictionary<string, string?> EnvVars, List<ConfigurationAction> Actions)
         BuildProcessEnvironment(ResolvedLaunch request)
     {
         // Direct case branching: each case hands over its own
@@ -109,7 +109,7 @@ public sealed class ClaudeCodeAdapter : IHarnessAdapter, INonInteractiveLaunchAd
         // The emission's base-url variable merges verbatim -
         // ANTHROPIC_BASE_URL is this harness's spelling too.
         List<ConfigurationAction> actions = [];
-        Dictionary<string, string> envVars = new(StringComparer.Ordinal)
+        Dictionary<string, string?> envVars = new(StringComparer.Ordinal)
         {
             [emission.BaseUrlVariable] = emission.BaseUrlValue,
         };

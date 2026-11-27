@@ -169,7 +169,7 @@ public sealed class OpenCodeDesktopAdapter : IHarnessAdapter
 
         // One shared mapping: the emission carries this protocol's
         // env-var names and values, merged by the one consumption rule.
-        Dictionary<string, string> envVars = new(StringComparer.Ordinal);
+        Dictionary<string, string?> envVars = new(StringComparer.Ordinal);
         EmissionMerge.MergeInto(envVars, emission, request.ApiKey);
 
         string? providerId = emission.Protocol switch

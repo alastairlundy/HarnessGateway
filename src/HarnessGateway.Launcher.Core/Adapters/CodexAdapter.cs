@@ -96,7 +96,7 @@ public sealed class CodexAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
         // harness's: codex reads the variable its config block names
         // (env_key), so the secret lands there and only there - never a
         // dummy value, never a second copy under another name.
-        Dictionary<string, string> envVars = new(StringComparer.Ordinal)
+        Dictionary<string, string?> envVars = new(StringComparer.Ordinal)
         {
             [emission.BaseUrlVariable] = emission.BaseUrlValue,
         };

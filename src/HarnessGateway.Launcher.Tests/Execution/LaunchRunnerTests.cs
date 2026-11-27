@@ -99,7 +99,7 @@ public class LaunchRunnerTests
         // test pins that an env-var-carrying interactive spawn starts and its
         // exit code propagates, the shape the regression hid.
         LaunchRunner runner = new LaunchRunner();
-        Dictionary<string, string> env = new(StringComparer.Ordinal)
+        Dictionary<string, string?> env = new(StringComparer.Ordinal)
         {
             ["HGW_LAUNCHER_TEST_ENV"] = "seeded",
         };
