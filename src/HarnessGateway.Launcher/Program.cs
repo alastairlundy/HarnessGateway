@@ -15,6 +15,8 @@ using HarnessGateway.Launcher.Wizard;
 using HarnessGateway.Launcher.Wizard.Abstractions;
 using HarnessGateway.Launcher.Wizard.Models;
 using Microsoft.Extensions.DependencyInjection;
+using ModelsDotDevSharp.Abstractions;
+using ModelsDotDevSharp.Extensions;
 
 // Composition root: every collaborator the launch flow and the wizard
 // consume is registered on one service collection, so the services the
@@ -76,6 +78,17 @@ services.AddSingleton<ITerminalProbe>(_ => new TerminalProbe());
 // to every adapter on the launch payload - the mapping is reached
 // through this wiring, never through statics.
 services.AddSingleton<IProtocolEmissionPlanner>(_ => new ProtocolEmissionPlanner());
+
+// The models.dev catalog behind bare-model qualification: the
+// ModelsDotDevSharp client services register through the package's own
+// extension, and the cache that owns load, the freshness window, fetch,
+// and save registers beside them. Both are singletons, so the whole
+// process shares one cache instance - the at-most-one-fetch-per-launch
+// rule is structural rather than something callers must coordinate.
+services.AddModelsDotDevSharp();
+services.AddSingleton(serviceProvider => new CatalogCache(
+    serviceProvider.GetRequiredService<ICatalogRepository>(),
+    TimeProvider.System));
 
 // One flow, both callers: the CLI-side orchestrator and the wizard
 // handoff below both submit through this one container-managed instance.
