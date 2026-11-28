@@ -548,11 +548,12 @@ exits with code 8.
 
 A `-m`/`--model` value is either a bare name (`gpt-5`) or a qualified
 `provider/model` reference (`openai/gpt-5`). A qualified reference is already
-in the harness's own namespace and reaches the harness unchanged. A bare name
-is translated at the launch handoff, after the provider and its saved model
-are resolved but before the harness starts, for harnesses that resolve model
-references in their own multi-provider catalog (today `pi` only). Other
-harnesses take the model as resolved from the provider entry.
+in the harness's own namespace and reaches the harness unchanged. The launcher
+translates a bare name at the launch handoff, after it resolves the provider
+and its saved model but before the harness starts. That happens only for
+harnesses that resolve model references in their own multi-provider catalog
+(today `pi` only). Other harnesses take the model as resolved from the provider
+entry.
 
 A Harness-side provider is a provider identity a harness uses in its own model
 catalog to resolve model references, distinct from a Provider, which is a saved
@@ -568,7 +569,7 @@ models.dev catalog:
   references you can re-run with plus a link to this section.
   `--non-interactive` forces the refusal even when a terminal is attached.
 - No match: the bare name passes through with a warning. The catalog is the
-  limitation, not the spelling: local models do not appear in the models.dev
+  limitation, not the spelling. Local models do not appear in the models.dev
   catalog.
 
 This models.dev catalog is the launcher's own view of harness-side names, not
@@ -576,9 +577,9 @@ a Provider's saved model catalog. The exit-3 unlisted-model guard still
 applies to the saved list. If the local catalog is cold or the fetch fails, the
 launch prints `Model/provider disambiguation degraded: the models.dev catalog
 is unavailable, so bare model names pass through unqualified.` and proceeds
-without qualification. A snapshot older than one hour is stale and triggers a
-refetch; the launcher fetches at most once per launch, and a failed refetch
-keeps the old snapshot.
+without qualification. The launcher refetches a snapshot older than one hour.
+It fetches at most once per launch, and a failed refetch keeps the old
+snapshot.
 
 Harnesses inherit your shell's environment unless you opt out. Ambient API
 keys can make extra Harness-side providers count as authenticated, which
@@ -593,8 +594,8 @@ values came from your shell or from this launch:
 - `ANTHROPIC_API_KEY`
 - `ZAI_API_KEY`
 
-The list is fixed at release time rather than inferred from variable names,
-and other environment variables pass through unchanged.
+The maintainers set the list in a release rather than inferring it from
+variable names. Other environment variables pass through unchanged.
 
 **Known harness quirks.** Pi resolves a bare name against its own
 models.dev-derived catalog, so a name that is unambiguous against your saved
@@ -649,9 +650,9 @@ subdirectory for config-file backup markers, and briefly, during a legacy
 migration, `HarnessGateway-launcher.json.migrating`.
 
 The models.dev catalog snapshot, `models-dev-catalog.json`, lives in the cache
-directory above rather than beside the settings file. It is reproducible data:
-a snapshot older than one hour is refetched at launch, and deleting the file
-forces a fetch on the next launch. See
+directory above rather than beside the settings file. It is reproducible data.
+The launcher refetches a snapshot older than one hour at launch, and deleting
+the file forces a fetch on the next launch. See
 [Models and provider disambiguation](#models-and-provider-disambiguation).
 
 To delete saved keys, run `harnessgateway provider clear-key <name>` or
