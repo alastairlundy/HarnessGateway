@@ -399,7 +399,7 @@ public sealed class WizardPipeline
     {
         _console.WriteError(anyCheckFailed
             ? $"No agent harness could be confirmed as supporting the {ProviderResolution.ProtocolName(protocol)} "
- + "protocol. Install one and re-run:"
+              + "protocol. Install one and re-run:"
             : $"No installed agent harness supports the {ProviderResolution.ProtocolName(protocol)} " +
               "protocol. Install one and re-run:");
         foreach (IHarnessAdapter adapter in _adapters.Where(
