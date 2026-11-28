@@ -5,6 +5,7 @@ using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Core.Settings.Security;
 using HarnessGateway.Launcher.Tests.Fakes;
@@ -91,7 +92,8 @@ public class LaunchFlowQualificationTests
             terminalProbe ?? new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir, catalog),
             QualificationDeps.Qualifier,
-            picker);
+            picker,
+            new ApiKeyScrubList());
         return (flow, tempDir, adapter);
     }
 

@@ -3,6 +3,7 @@ using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -69,7 +70,7 @@ public class LaunchFlowTests
 terminalProbe ?? new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir),
             QualificationDeps.Qualifier,
-            new ScriptedModelChoicePrompt());
+            new ScriptedModelChoicePrompt(), new ApiKeyScrubList());
         return (flow, tempDir, settingsDir, backupsDir);
     }
 
@@ -102,7 +103,7 @@ terminalProbe ?? new FakeTerminalProbe(),
 new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir),
             QualificationDeps.Qualifier,
-            new ScriptedModelChoicePrompt());
+            new ScriptedModelChoicePrompt(), new ApiKeyScrubList());
         return (flow, tempDir, configFile, settingsDir);
     }
 
@@ -160,7 +161,7 @@ new FakeTerminalProbe(),
 new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir),
             QualificationDeps.Qualifier,
-            new ScriptedModelChoicePrompt());
+            new ScriptedModelChoicePrompt(), new ApiKeyScrubList());
         return (flow, tempDir, configPath, backupsDir);
     }
 
@@ -213,7 +214,7 @@ new FakeTerminalProbe(),
 terminalProbe ?? new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir),
             QualificationDeps.Qualifier,
-            new ScriptedModelChoicePrompt());
+            new ScriptedModelChoicePrompt(), new ApiKeyScrubList());
         return (flow, tempDir, backupsDir);
     }
 
@@ -315,7 +316,7 @@ terminalProbe ?? new FakeTerminalProbe(),
 new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir),
             QualificationDeps.Qualifier,
-            new ScriptedModelChoicePrompt());
+            new ScriptedModelChoicePrompt(), new ApiKeyScrubList());
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
 
@@ -1888,7 +1889,7 @@ new FakeTerminalProbe(),
 new FakeTerminalProbe(),
                 QualificationDeps.Cache(tempDir),
                 QualificationDeps.Qualifier,
-                new ScriptedModelChoicePrompt());
+                new ScriptedModelChoicePrompt(), new ApiKeyScrubList());
             LaunchOutcome outcome = await flow.ExecuteAsync(
                 new LaunchRequest("ConfigWriter", null, null, null, null, [], null));
 
@@ -2073,7 +2074,7 @@ new FakeTerminalProbe(),
             ",",
             properties.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal));
         await Assert.That(declaredNames).IsEqualTo(
-            "ConfirmRunning,Endpoint,Harness,Model,NonInteractive,Persist,Print,PrintPrompt,Protocol,ProviderName,SessionKey");
+            "CleanEnv,ConfirmRunning,Endpoint,Harness,Model,NonInteractive,Persist,Print,PrintPrompt,Protocol,ProviderName,SessionKey");
 
         await Assert.That(
             properties.Any(p => typeof(Provider).IsAssignableFrom(p.PropertyType))).IsFalse();

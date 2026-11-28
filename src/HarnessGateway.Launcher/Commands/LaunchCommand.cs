@@ -73,6 +73,14 @@ public sealed class LaunchCommand : Command
         Description = "Never prompt for an ambiguous model; refuse with the matching references instead",
     };
 
+    public static readonly Option<bool> CleanEnvOption = new("--clean-env")
+    {
+        // A bare flag: opt in to the Environment Variable Scrub. The wizard
+        // never sets it, and whether any listed variable is actually present
+        // in the child is the flow's business, not a parse error.
+        Description = "Environment Variable Scrub: remove curated API-key environment variables from the launched harness process",
+    };
+
     public LaunchCommand() : this(orchestrator: null)
     {
     }
@@ -100,6 +108,7 @@ public sealed class LaunchCommand : Command
         Add(ConfirmRunningOption);
         Add(PrintOption);
         Add(NonInteractiveOption);
+        Add(CleanEnvOption);
 
         Validators.Add(result =>
         {
@@ -147,7 +156,8 @@ public sealed class LaunchCommand : Command
                                                              || result.GetValue(PersistOption) is { Length: > 0 }
                                                              || result.GetValue(ConfirmRunningOption)
                                                              || result.GetResult(PrintOption) is not null
-                                                             || result.GetValue(NonInteractiveOption)))
+                                                              || result.GetValue(NonInteractiveOption)
+                                                              || result.GetValue(CleanEnvOption)))
             {
                 result.AddError(
                     "A harness identifier is required when launch arguments are specified: harnessgateway launch <harness> [arguments]. " +
@@ -186,6 +196,7 @@ public sealed class LaunchCommand : Command
             string? model = result.GetValue(ModelOption);
             bool confirmRunning = result.GetValue(ConfirmRunningOption);
             bool nonInteractive = result.GetValue(NonInteractiveOption);
+            bool cleanEnv = result.GetValue(CleanEnvOption);
             string[]? persistValues = result.GetValue(PersistOption);
             IReadOnlyList<string> persist = persistValues is not null
                 ? ParsePersistValues(persistValues)
@@ -221,6 +232,7 @@ public sealed class LaunchCommand : Command
                 print,
                 printPrompt,
                 nonInteractive,
+                cleanEnv,
                 cancellationToken).ConfigureAwait(true);
         });
     }

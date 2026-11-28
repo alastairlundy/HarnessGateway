@@ -1,6 +1,7 @@
 using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -120,7 +121,7 @@ public class LaunchFlowGuiTests
 new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir),
             QualificationDeps.Qualifier,
-            new ScriptedModelChoicePrompt());
+            new ScriptedModelChoicePrompt(), new ApiKeyScrubList());
         return (flow, tempDir, backupsDir);
     }
 

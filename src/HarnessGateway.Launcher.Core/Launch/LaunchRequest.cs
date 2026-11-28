@@ -35,6 +35,13 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// is attached to a terminal, so the in-terminal picker never runs.
 /// Non-nullable with a <c>false</c> default; the wizard never sets it.
 /// </param>
+/// <param name="CleanEnv">
+/// The bare <c>--clean-env</c> flag one-for-one: <c>true</c> asks for the
+/// Environment Variable Scrub - the curated API-key variables are removed
+/// from the spawned harness process environment. Absent the flag the child
+/// inherits everything, unchanged. The launcher's own environment is never
+/// touched either way.
+/// </param>
 public sealed record LaunchRequest(
     string Harness,
     string? ProviderName,
@@ -46,4 +53,5 @@ public sealed record LaunchRequest(
     bool ConfirmRunning = false,
     bool Print = false,
     string? PrintPrompt = null,
-    bool NonInteractive = false);
+    bool NonInteractive = false,
+    bool CleanEnv = false);

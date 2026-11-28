@@ -312,6 +312,7 @@ public class LaunchOrchestratorTests
         services.AddSingleton(_ => QualificationDeps.Cache(tempDir));
         services.AddSingleton(QualificationDeps.Qualifier);
         services.AddSingleton<IModelChoicePrompt>(_ => new ScriptedModelChoicePrompt());
+        services.AddSingleton<IApiKeyScrubList>(_ => new ApiKeyScrubList());
         services.AddSingleton(serviceProvider => new LaunchFlow(
             serviceProvider.GetRequiredService<SettingsStore>(),
             serviceProvider.GetRequiredService<BackupService>(),
@@ -325,7 +326,8 @@ public class LaunchOrchestratorTests
             serviceProvider.GetRequiredService<ITerminalProbe>(),
             serviceProvider.GetRequiredService<CatalogCache>(),
             serviceProvider.GetRequiredService<ModelQualifier>(),
-            serviceProvider.GetRequiredService<IModelChoicePrompt>()));
+            serviceProvider.GetRequiredService<IModelChoicePrompt>(),
+            serviceProvider.GetRequiredService<IApiKeyScrubList>()));
         services.AddSingleton(serviceProvider =>
             new LaunchOrchestrator(serviceProvider.GetRequiredService<LaunchFlow>()));
 

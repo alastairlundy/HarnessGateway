@@ -111,6 +111,31 @@ public class LaunchCommandFlagParsingTests
         await Assert.That(LaunchCommand.PersistOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.ConfirmRunningOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.NonInteractiveOption.Aliases).IsEmpty();
+        await Assert.That(LaunchCommand.CleanEnvOption.Aliases).IsEmpty();
+    }
+
+    [Test]
+    public async Task Parse_clean_env_is_a_bare_long_form_flag_that_defaults_off()
+    {
+        LaunchCommand command = new LaunchCommand();
+        ParseResult absent = command.Parse("launch pi");
+        ParseResult present = command.Parse("launch pi --clean-env");
+
+        await Assert.That(present.Errors).IsEmpty();
+        await Assert.That(present.GetValue(LaunchCommand.CleanEnvOption)).IsTrue();
+        await Assert.That(absent.GetValue(LaunchCommand.CleanEnvOption)).IsFalse();
+    }
+
+    [Test]
+    public async Task Parse_clean_env_without_agent_fails()
+    {
+        // The wizard fallback must not swallow this flag: it never builds a
+        // scrub request, so a flag the user typed cannot be silently dropped.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch --clean-env");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+        await Assert.That(result.Errors[0].Message).Contains("A harness identifier is required");
     }
 
     [Test]

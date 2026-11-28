@@ -1,3 +1,4 @@
+using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Configuration;
@@ -50,6 +51,7 @@ public sealed class LaunchFlow
     private readonly CatalogCache _catalogCache;
     private readonly ModelQualifier _modelQualifier;
     private readonly IModelChoicePrompt _modelChoicePrompt;
+    private readonly IApiKeyScrubList _apiKeyScrubList;
 
     public LaunchFlow(
         SettingsStore settingsStore,
@@ -64,7 +66,8 @@ public sealed class LaunchFlow
         ITerminalProbe terminalProbe,
         CatalogCache catalogCache,
         ModelQualifier modelQualifier,
-        IModelChoicePrompt modelChoicePrompt)
+        IModelChoicePrompt modelChoicePrompt,
+        IApiKeyScrubList apiKeyScrubList)
     {
         _settingsStore = settingsStore;
         _backupService = backupService;
@@ -79,6 +82,7 @@ public sealed class LaunchFlow
         _catalogCache = catalogCache;
         _modelQualifier = modelQualifier;
         _modelChoicePrompt = modelChoicePrompt;
+        _apiKeyScrubList = apiKeyScrubList;
     }
 
     /// <summary>
@@ -390,6 +394,17 @@ public sealed class LaunchFlow
                 plan = FilterToDeclaredSurfaces(plan, adapter.Metadata.SupportedSurfaces);
             }
 
+            // The Environment Variable Scrub belongs at plan finalization:
+            // the plan is complete and about to be handed to the runner, so
+            // this is the last place the child's environment can still be
+            // changed. A null value is CliInvoke's variable-removal signal -
+            // omitting the key would leave the ambient value inherited - and
+            // only the plan copy is touched, never this process's environment.
+            if (request.CleanEnv)
+            {
+                plan = ScrubEnvironment(plan, _apiKeyScrubList);
+            }
+
             bool persistConfig = request.Persist.Contains("config", StringComparer.OrdinalIgnoreCase);
 
             // Mode dispatch: a Kind=Gui launch that persists its config
@@ -669,6 +684,53 @@ public sealed class LaunchFlow
             .ToArray();
 
         return plan with { ConfigurationActions = actions };
+    }
+
+    /// <summary>
+    /// Replaces the plan's process with one whose environment carries a
+    /// removal entry for every curated API-key variable. CliInvoke reads a
+    /// null value as "remove from the child's environment", which is why the
+    /// entries are added rather than simply left out: an absent key would
+    /// inherit the ambient value. Only this plan copy changes.
+    /// </summary>
+    private static LaunchPlan ScrubEnvironment(LaunchPlan plan, IApiKeyScrubList scrubList)
+    {
+        Dictionary<string, string?> environment = new(
+            plan.Process.EnvironmentVariables, StringComparer.Ordinal);
+
+        // On Windows two spellings of one name would collapse in
+        // ProcessStartInfo.Environment with an unspecified winner, so no
+        // differently-cased value may survive beside the removal entry.
+        foreach (string name in environment.Keys.Where(scrubList.Contains).ToArray())
+        {
+            environment.Remove(name);
+        }
+
+        foreach (string name in scrubList.VariableNames)
+        {
+            environment[name] = null;
+        }
+
+        ProcessConfiguration process = new(plan.Process.TargetFilePath)
+        {
+            RequiresAdministrator = plan.Process.RequiresAdministrator,
+            WorkingDirectoryPath = plan.Process.WorkingDirectoryPath,
+            Arguments = plan.Process.Arguments,
+            ArgumentList = plan.Process.ArgumentList,
+            WindowCreation = plan.Process.WindowCreation,
+            EnvironmentVariables = environment,
+            Credential = plan.Process.Credential,
+            UseShellExecution = plan.Process.UseShellExecution,
+            StandardInput = plan.Process.StandardInput,
+            RedirectStandardInput = plan.Process.RedirectStandardInput,
+            OutputRedirection = plan.Process.OutputRedirection,
+            ResourcePolicy = plan.Process.ResourcePolicy,
+            StandardInputEncoding = plan.Process.StandardInputEncoding,
+            StandardOutputEncoding = plan.Process.StandardOutputEncoding,
+            StandardErrorEncoding = plan.Process.StandardErrorEncoding,
+        };
+
+        return plan with { Process = process };
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Core.Update;
 using HarnessGateway.Launcher.Models;
@@ -267,7 +268,7 @@ public class UpdateCommandTests
 new FakeTerminalProbe(),
             QualificationDeps.Cache(tempDir),
             QualificationDeps.Qualifier,
-            new ScriptedModelChoicePrompt()));
+            new ScriptedModelChoicePrompt(), new ApiKeyScrubList()));
         RootCommand root = RootCommandFactory.Create(
             orchestrator,
             _ => Task.FromResult(0),

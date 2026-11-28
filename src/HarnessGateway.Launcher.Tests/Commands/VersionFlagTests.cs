@@ -5,6 +5,7 @@ using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Tests.Fakes;
 
@@ -47,7 +48,7 @@ public class VersionFlagTests
 new FakeTerminalProbe(),
                 QualificationDeps.Cache(tempDir),
                 QualificationDeps.Qualifier,
-                new ScriptedModelChoicePrompt()));
+                new ScriptedModelChoicePrompt(), new ApiKeyScrubList()));
         bool wizardCalled = false;
         RootCommand root = RootCommandFactory.Create(
             orchestrator,

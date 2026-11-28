@@ -79,6 +79,11 @@ services.AddSingleton<ITerminalProbe>(_ => new TerminalProbe());
 // through this wiring, never through statics.
 services.AddSingleton<IProtocolEmissionPlanner>(_ => new ProtocolEmissionPlanner());
 
+// The curated API-key list behind --clean-env: the same instance the flow
+// uses to finalize the child's environment, registered beside the other
+// provider services rather than constructed at the call site.
+services.AddSingleton<IApiKeyScrubList>(_ => new ApiKeyScrubList());
+
 // The models.dev catalog behind bare-model qualification: the
 // ModelsDotDevSharp client services register through the package's own
 // extension, and the cache that owns load, the freshness window, fetch,
@@ -112,7 +117,8 @@ services.AddSingleton(serviceProvider => new LaunchFlow(
     serviceProvider.GetRequiredService<ITerminalProbe>(),
     serviceProvider.GetRequiredService<CatalogCache>(),
     serviceProvider.GetRequiredService<ModelQualifier>(),
-    serviceProvider.GetRequiredService<IModelChoicePrompt>()));
+    serviceProvider.GetRequiredService<IModelChoicePrompt>(),
+    serviceProvider.GetRequiredService<IApiKeyScrubList>()));
 services.AddSingleton(serviceProvider =>
     new LaunchOrchestrator(serviceProvider.GetRequiredService<LaunchFlow>()));
 

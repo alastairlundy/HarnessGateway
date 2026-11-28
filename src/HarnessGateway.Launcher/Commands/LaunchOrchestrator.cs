@@ -42,6 +42,9 @@ public sealed class LaunchOrchestrator
     /// arrived are the flow's refusals, never this mapping layer's.
     /// <paramref name="nonInteractive"/> is likewise a verbatim flag: whether
     /// an ambiguity actually needs a refusal is the flow's decision.
+    /// <paramref name="cleanEnv"/> is the Environment Variable Scrub opt-in,
+    /// passed through untouched - whether any listed variable is present at
+    /// handoff is the flow's business, not this mapping layer's.
     /// </summary>
     public async Task<int> RunAsync(
         string agentName, string? providerName,
@@ -51,6 +54,7 @@ public sealed class LaunchOrchestrator
         bool print = false,
         string? printPrompt = null,
         bool nonInteractive = false,
+        bool cleanEnv = false,
         CancellationToken cancellationToken = default)
     {
         LaunchRequest request = new(
@@ -64,7 +68,8 @@ public sealed class LaunchOrchestrator
             ConfirmRunning: confirmRunning,
             Print: print,
             PrintPrompt: printPrompt,
-            NonInteractive: nonInteractive);
+            NonInteractive: nonInteractive,
+            CleanEnv: cleanEnv);
 
         LaunchOutcome outcome = await _flow.ExecuteAsync(request, cancellationToken)
             .ConfigureAwait(true);
