@@ -51,3 +51,11 @@ One named model in a provider's catalog. An entry may override the provider's de
 ## Update check
 
 An on-demand CLI verb that queries GitHub Releases for a newer HarnessGateway version and reports the result without downloading, installing, or applying anything.
+
+## Environment Variable Scrub
+
+Removal of credential-bearing environment variables from the spawned harness process environment at the caller's request. The launcher's own environment is never scrubbed, and absent the request the child inherits everything.
+
+## Harness-side provider
+
+A provider identity a harness uses in its own model catalog to resolve model references. Distinct from a Provider, which is a saved launcher entry.
