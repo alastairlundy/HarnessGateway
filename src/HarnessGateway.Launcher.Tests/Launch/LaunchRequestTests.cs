@@ -28,4 +28,14 @@ public class LaunchRequestTests
 
         await Assert.That(request.ConfirmRunning).IsTrue();
     }
+
+    [Test]
+    public async Task Non_interactive_defaults_to_false_and_is_carried_when_named()
+    {
+        LaunchRequest absent = new("TestAgent", null, null, null, null, [], null);
+        LaunchRequest present = new("TestAgent", null, null, null, null, [], null, NonInteractive: true);
+
+        await Assert.That(absent.NonInteractive).IsFalse();
+        await Assert.That(present.NonInteractive).IsTrue();
+    }
 }

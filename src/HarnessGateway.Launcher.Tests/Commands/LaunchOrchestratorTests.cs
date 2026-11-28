@@ -2,6 +2,7 @@ using CliInvoke.Core;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
@@ -53,6 +54,9 @@ public class LaunchOrchestratorTests
     [Arguments(LaunchRefusalKind.PrintUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.PrintPromptMissing, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.TerminalRequired, (int)LaunchExitCode.TerminalRequired)]
+    // The ambiguous-model refusal is the second appended number (14): it
+    // names a launch the user must re-issue with a qualified reference.
+    [Arguments(LaunchRefusalKind.AmbiguousModel, (int)LaunchExitCode.AmbiguousModel)]
     public async Task MapOutcomeAsync_refusal_kind_maps_to_its_exit_code(
         LaunchRefusalKind kind, int expectedExitCode)
     {
@@ -305,6 +309,9 @@ public class LaunchOrchestratorTests
         services.AddSingleton<IConfirmationPrompt>(_ => new FakeConfirmationPrompt());
         services.AddSingleton<IProtocolEmissionPlanner>(_ => new ProtocolEmissionPlanner());
         services.AddSingleton<ITerminalProbe>(_ => new FakeTerminalProbe());
+        services.AddSingleton(_ => QualificationDeps.Cache(tempDir));
+        services.AddSingleton(QualificationDeps.Qualifier);
+        services.AddSingleton<IModelChoicePrompt>(_ => new ScriptedModelChoicePrompt());
         services.AddSingleton(serviceProvider => new LaunchFlow(
             serviceProvider.GetRequiredService<SettingsStore>(),
             serviceProvider.GetRequiredService<BackupService>(),
@@ -315,7 +322,10 @@ public class LaunchOrchestratorTests
             serviceProvider.GetRequiredService<IRunningInstanceDetector>(),
             serviceProvider.GetRequiredService<IConfirmationPrompt>(),
             serviceProvider.GetRequiredService<IProtocolEmissionPlanner>(),
-            serviceProvider.GetRequiredService<ITerminalProbe>()));
+            serviceProvider.GetRequiredService<ITerminalProbe>(),
+            serviceProvider.GetRequiredService<CatalogCache>(),
+            serviceProvider.GetRequiredService<ModelQualifier>(),
+            serviceProvider.GetRequiredService<IModelChoicePrompt>()));
         services.AddSingleton(serviceProvider =>
             new LaunchOrchestrator(serviceProvider.GetRequiredService<LaunchFlow>()));
 

@@ -89,6 +89,13 @@ services.AddModelsDotDevSharp();
 services.AddSingleton(serviceProvider => new CatalogCache(
     serviceProvider.GetRequiredService<ICatalogRepository>(),
     TimeProvider.System));
+services.AddSingleton<ModelQualifier>();
+// The Core-side picker seam is implemented by the exe's console host so the
+// flow never depends on the wizard abstraction directly; the host resolves
+// IConsoleAbstraction lazily, which is registered below with the wizard.
+services.AddSingleton<IModelChoicePrompt>(serviceProvider =>
+    new ConsoleModelChoicePrompt(
+        serviceProvider.GetRequiredService<IConsoleAbstraction>()));
 
 // One flow, both callers: the CLI-side orchestrator and the wizard
 // handoff below both submit through this one container-managed instance.
@@ -102,7 +109,10 @@ services.AddSingleton(serviceProvider => new LaunchFlow(
     serviceProvider.GetRequiredService<IRunningInstanceDetector>(),
     serviceProvider.GetRequiredService<IConfirmationPrompt>(),
     serviceProvider.GetRequiredService<IProtocolEmissionPlanner>(),
-    serviceProvider.GetRequiredService<ITerminalProbe>()));
+    serviceProvider.GetRequiredService<ITerminalProbe>(),
+    serviceProvider.GetRequiredService<CatalogCache>(),
+    serviceProvider.GetRequiredService<ModelQualifier>(),
+    serviceProvider.GetRequiredService<IModelChoicePrompt>()));
 services.AddSingleton(serviceProvider =>
     new LaunchOrchestrator(serviceProvider.GetRequiredService<LaunchFlow>()));
 

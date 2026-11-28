@@ -2,6 +2,7 @@ using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Core.Settings.Security;
 
@@ -33,6 +34,9 @@ public sealed class LaunchFlow
         "provider add <name> --endpoint <url> --protocol <protocol>' to save one, or pass " +
         "--endpoint <url> --protocol <protocol> for a one-off launch.";
 
+    private const string DisambiguationDocsUrl =
+        "https://github.com/alastairlundy/HarnessGateway#models-and-provider-disambiguation";
+
     private readonly SettingsStore _settingsStore;
     private readonly BackupService _backupService;
     private readonly ILaunchRunner _runner;
@@ -43,6 +47,9 @@ public sealed class LaunchFlow
     private readonly IConfirmationPrompt _confirmationPrompt;
     private readonly IProtocolEmissionPlanner _emissionPlanner;
     private readonly ITerminalProbe _terminalProbe;
+    private readonly CatalogCache _catalogCache;
+    private readonly ModelQualifier _modelQualifier;
+    private readonly IModelChoicePrompt _modelChoicePrompt;
 
     public LaunchFlow(
         SettingsStore settingsStore,
@@ -54,7 +61,10 @@ public sealed class LaunchFlow
         IRunningInstanceDetector instanceDetector,
         IConfirmationPrompt confirmationPrompt,
         IProtocolEmissionPlanner emissionPlanner,
-        ITerminalProbe terminalProbe)
+        ITerminalProbe terminalProbe,
+        CatalogCache catalogCache,
+        ModelQualifier modelQualifier,
+        IModelChoicePrompt modelChoicePrompt)
     {
         _settingsStore = settingsStore;
         _backupService = backupService;
@@ -66,6 +76,9 @@ public sealed class LaunchFlow
         _confirmationPrompt = confirmationPrompt;
         _emissionPlanner = emissionPlanner;
         _terminalProbe = terminalProbe;
+        _catalogCache = catalogCache;
+        _modelQualifier = modelQualifier;
+        _modelChoicePrompt = modelChoicePrompt;
     }
 
     /// <summary>
@@ -243,6 +256,53 @@ public sealed class LaunchFlow
             }
 
             string? resolvedModel = ResolveModel(launch, adapter);
+
+            // Qualification belongs between model resolution and the plan
+            // build, and only for harnesses that resolve model references in
+            // their own multi-provider catalog (today: pi). Adapters that
+            // synthesize their own `providerId/model` reference (OpenCode,
+            // Kilo) stay out, or their reference would be qualified twice.
+            // `resolvedModel` deliberately stays the pre-qualification name:
+            // --persist model must save what the user typed, or the unchanged
+            // unlisted-model guard would reject a qualified reference that
+            // is not a member of the saved provider's own list next launch.
+            if (resolvedModel is not null && adapter.Metadata.ResolvesModelsInOwnCatalog)
+            {
+                CatalogCacheResult catalogResult = await _catalogCache
+                    .GetCatalogAsync(ct).ConfigureAwait(false);
+                ModelQualification qualification = _modelQualifier
+                    .Qualify(resolvedModel, catalogResult.Catalog);
+
+                switch (qualification)
+                {
+                    case ModelQualification.Qualified qualified:
+                        launch = WithModel(launch, qualified.Reference);
+                        break;
+
+                    case ModelQualification.Unqualified unqualified:
+                        Console.Error.WriteLine($"Warning: {unqualified.Warning}");
+                        break;
+
+                    case ModelQualification.Ambiguous ambiguous:
+                        if (request.NonInteractive || !_terminalProbe.IsInteractiveTerminal)
+                        {
+                            return new LaunchRefused(
+                                LaunchRefusalKind.AmbiguousModel,
+                                AmbiguousModelMessage(request.Harness, resolvedModel,
+                                    ambiguous.Candidates));
+                        }
+
+                        string chosen = await _modelChoicePrompt.PickAsync(
+                            $"Model '{resolvedModel}' matches several harness-side providers. Select one:",
+                            ambiguous.Candidates, ct).ConfigureAwait(false);
+                        launch = WithModel(launch, chosen);
+                        break;
+
+                    default:
+                        throw new InvalidOperationException(
+                            $"unexpected qualification variant '{qualification.GetType().Name}'");
+                }
+            }
 
             // The launch-scoped secret: the provider case's stored reference
             // resolved into the secret on this local copy only - `settings`
@@ -639,6 +699,39 @@ public sealed class LaunchFlow
         }
 
         return resolvedModel;
+    }
+
+    /// <summary>
+    /// Rebuilds the resolved launch with <paramref name="model"/> replacing its
+    /// effective model. The qualification step needs the adapter to plan from
+    /// the qualified reference without changing the provider, endpoint or
+    /// protocol the earlier resolution already decided.
+    /// </summary>
+    private static LaunchResolution WithModel(LaunchResolution launch, string model) =>
+        launch switch
+        {
+            LaunchResolution.ProviderCase stored =>
+                new LaunchResolution.ProviderCase(stored.Provider, model, stored.Protocol),
+            LaunchResolution.AdHocCase adHoc =>
+                new LaunchResolution.AdHocCase(adHoc.BaseUri, adHoc.Protocol, model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{launch.GetType().Name}'"),
+        };
+
+    /// <summary>
+    /// The non-interactive ambiguity refusal: the provider-qualified matches
+    /// the user can re-run with, plus the docs pointer that explains the
+    /// pick and the flag that forced this path.
+    /// </summary>
+    private static string AmbiguousModelMessage(
+        string harness, string bareName, IReadOnlyList<string> candidates)
+    {
+        string matches = string.Join(", ", candidates);
+        return $"Refusing to launch {harness}: model '{bareName}' matches several " +
+               $"harness-side providers in the models.dev catalog: {matches}. " +
+               "Re-run with one of these provider-qualified references, or run " +
+               "in a terminal without --non-interactive to pick interactively. " +
+               $"See {DisambiguationDocsUrl} for details.";
     }
 
     private async Task ExecuteConfigurationActionAsync(ConfigurationAction action, CancellationToken cancellationToken)

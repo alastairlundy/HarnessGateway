@@ -264,8 +264,10 @@ public class UpdateCommandTests
             new FakeRunningInstanceDetector(),
             new FakeConfirmationPrompt(),
             new ProtocolEmissionPlanner(),
-            new FakeTerminalProbe()));
-
+new FakeTerminalProbe(),
+            QualificationDeps.Cache(tempDir),
+            QualificationDeps.Qualifier,
+            new ScriptedModelChoicePrompt()));
         RootCommand root = RootCommandFactory.Create(
             orchestrator,
             _ => Task.FromResult(0),

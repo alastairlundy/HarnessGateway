@@ -29,6 +29,12 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// <c>null</c> when <c>Print</c> is false; whitespace-only content is
 /// refused by the flow rather than passed to the harness.
 /// </param>
+/// <param name="NonInteractive">
+/// The bare <c>--non-interactive</c> flag one-for-one: <c>true</c> forces
+/// the ambiguous-model refusal-with-guidance regardless of whether stdin
+/// is attached to a terminal, so the in-terminal picker never runs.
+/// Non-nullable with a <c>false</c> default; the wizard never sets it.
+/// </param>
 public sealed record LaunchRequest(
     string Harness,
     string? ProviderName,
@@ -39,4 +45,5 @@ public sealed record LaunchRequest(
     string? SessionKey,
     bool ConfirmRunning = false,
     bool Print = false,
-    string? PrintPrompt = null);
+    string? PrintPrompt = null,
+    bool NonInteractive = false);

@@ -22,4 +22,5 @@ public enum LaunchExitCode
     UpdateAvailable = 11,
     CheckFailed = 12,
     TerminalRequired = 13,
+    AmbiguousModel = 14,
 }

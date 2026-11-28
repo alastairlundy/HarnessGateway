@@ -44,8 +44,10 @@ public class VersionFlagTests
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
                 new ProtocolEmissionPlanner(),
-                new FakeTerminalProbe()));
-
+new FakeTerminalProbe(),
+                QualificationDeps.Cache(tempDir),
+                QualificationDeps.Qualifier,
+                new ScriptedModelChoicePrompt()));
         bool wizardCalled = false;
         RootCommand root = RootCommandFactory.Create(
             orchestrator,

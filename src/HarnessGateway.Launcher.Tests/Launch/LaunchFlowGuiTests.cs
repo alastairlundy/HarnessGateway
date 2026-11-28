@@ -117,7 +117,10 @@ public class LaunchFlowGuiTests
             detector ?? new FakeRunningInstanceDetector(),
             prompt ?? new FakeConfirmationPrompt(),
             new ProtocolEmissionPlanner(),
-            new FakeTerminalProbe());
+new FakeTerminalProbe(),
+            QualificationDeps.Cache(tempDir),
+            QualificationDeps.Qualifier,
+            new ScriptedModelChoicePrompt());
         return (flow, tempDir, backupsDir);
     }
 

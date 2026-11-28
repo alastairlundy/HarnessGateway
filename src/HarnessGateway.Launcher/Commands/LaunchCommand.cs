@@ -64,6 +64,15 @@ public sealed class LaunchCommand : Command
         Arity = ArgumentArity.ZeroOrOne,
     };
 
+    public static readonly Option<bool> NonInteractiveOption = new("--non-interactive")
+    {
+        // A flag: it forces the ambiguous-model refusal-with-guidance even
+        // when a terminal is attached. Whether an ambiguity actually arises
+        // (and therefore whether this flag has any visible effect) is the
+        // flow's decision, not a parse error.
+        Description = "Never prompt for an ambiguous model; refuse with the matching references instead",
+    };
+
     public LaunchCommand() : this(orchestrator: null)
     {
     }
@@ -90,6 +99,7 @@ public sealed class LaunchCommand : Command
         Add(PersistOption);
         Add(ConfirmRunningOption);
         Add(PrintOption);
+        Add(NonInteractiveOption);
 
         Validators.Add(result =>
         {
@@ -136,7 +146,8 @@ public sealed class LaunchCommand : Command
                                                              || result.GetValue(ModelOption) is not null
                                                              || result.GetValue(PersistOption) is { Length: > 0 }
                                                              || result.GetValue(ConfirmRunningOption)
-                                                             || result.GetResult(PrintOption) is not null))
+                                                             || result.GetResult(PrintOption) is not null
+                                                             || result.GetValue(NonInteractiveOption)))
             {
                 result.AddError(
                     "A harness identifier is required when launch arguments are specified: harnessgateway launch <harness> [arguments]. " +
@@ -174,6 +185,7 @@ public sealed class LaunchCommand : Command
             string? protocol = result.GetValue(ProtocolOption);
             string? model = result.GetValue(ModelOption);
             bool confirmRunning = result.GetValue(ConfirmRunningOption);
+            bool nonInteractive = result.GetValue(NonInteractiveOption);
             string[]? persistValues = result.GetValue(PersistOption);
             IReadOnlyList<string> persist = persistValues is not null
                 ? ParsePersistValues(persistValues)
@@ -208,6 +220,7 @@ public sealed class LaunchCommand : Command
                 confirmRunning,
                 print,
                 printPrompt,
+                nonInteractive,
                 cancellationToken).ConfigureAwait(true);
         });
     }

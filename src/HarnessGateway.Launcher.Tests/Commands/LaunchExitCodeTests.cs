@@ -92,6 +92,22 @@ public class LaunchExitCodeTests
     }
 
     [Test]
+    public async Task TerminalRequired_is_thirteen()
+    {
+        int code = (int)LaunchExitCode.TerminalRequired;
+        await Assert.That(code).IsEqualTo(13);
+    }
+
+    [Test]
+    public async Task AmbiguousModel_is_fourteen()
+    {
+        // Appended, never renumbered: exit 14 is the next free value after
+        // TerminalRequired, and the flow's ambiguous-model refusal owns it.
+        int code = (int)LaunchExitCode.AmbiguousModel;
+        await Assert.That(code).IsEqualTo(14);
+    }
+
+    [Test]
     public async Task All_exit_codes_are_distinct()
     {
         LaunchExitCode[] values = Enum.GetValues<LaunchExitCode>();

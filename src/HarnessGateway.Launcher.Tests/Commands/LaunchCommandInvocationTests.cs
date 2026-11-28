@@ -57,8 +57,10 @@ public class LaunchCommandInvocationTests
                 new FakeRunningInstanceDetector(),
                 new FakeConfirmationPrompt(),
                 new ProtocolEmissionPlanner(),
-                new FakeTerminalProbe()));
-
+new FakeTerminalProbe(),
+                QualificationDeps.Cache(tempDir),
+                QualificationDeps.Qualifier,
+                new ScriptedModelChoicePrompt()));
         LaunchCommand launchCommand = new LaunchCommand(orchestrator, wizardAction);
         return (new RootCommand { launchCommand }, adapter, tempDir);
     }

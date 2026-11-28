@@ -110,6 +110,31 @@ public class LaunchCommandFlagParsingTests
         await Assert.That(LaunchCommand.ProtocolOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.PersistOption.Aliases).IsEmpty();
         await Assert.That(LaunchCommand.ConfirmRunningOption.Aliases).IsEmpty();
+        await Assert.That(LaunchCommand.NonInteractiveOption.Aliases).IsEmpty();
+    }
+
+    [Test]
+    public async Task Parse_non_interactive_is_a_bare_long_form_flag()
+    {
+        LaunchCommand command = new LaunchCommand();
+        ParseResult absent = command.Parse("launch pi");
+        ParseResult present = command.Parse("launch pi --non-interactive");
+
+        await Assert.That(present.Errors).IsEmpty();
+        await Assert.That(present.GetValue(LaunchCommand.NonInteractiveOption)).IsTrue();
+        await Assert.That(absent.GetValue(LaunchCommand.NonInteractiveOption)).IsFalse();
+    }
+
+    [Test]
+    public async Task Parse_non_interactive_without_agent_fails()
+    {
+        // The wizard fallback must never swallow this flag: it cannot answer
+        // an ambiguous-model choice, and the flow needs it on the request.
+        LaunchCommand command = new LaunchCommand();
+        ParseResult result = command.Parse("launch --non-interactive");
+
+        await Assert.That(result.Errors).IsNotEmpty();
+        await Assert.That(result.Errors[0].Message).Contains("A harness identifier is required");
     }
 
     [Test]
