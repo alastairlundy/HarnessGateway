@@ -688,27 +688,37 @@ public sealed class LaunchFlow
 
     /// <summary>
     /// Replaces the plan's process with one whose environment carries a
-    /// removal entry for every curated API-key variable. CliInvoke reads a
-    /// null value as "remove from the child's environment", which is why the
-    /// entries are added rather than simply left out: an absent key would
-    /// inherit the ambient value. Only this plan copy changes.
+    /// removal entry for every curated API-key variable the plan does not
+    /// itself supply. CliInvoke reads a null value as "remove from the
+    /// child's environment", which is why the entries are added rather than
+    /// simply left out: an absent key would inherit the ambient value.
+    /// Values the plan carries - the resolved provider's key among them -
+    /// survive, so the chosen provider keeps the credential this launch
+    /// resolved for it; the scrub removes ambient credentials only. Only
+    /// this plan copy changes.
     /// </summary>
     private static LaunchPlan ScrubEnvironment(LaunchPlan plan, IApiKeyScrubList scrubList)
     {
         Dictionary<string, string?> environment = new(
             plan.Process.EnvironmentVariables, StringComparer.Ordinal);
 
-        // On Windows two spellings of one name would collapse in
-        // ProcessStartInfo.Environment with an unspecified winner, so no
-        // differently-cased value may survive beside the removal entry.
-        foreach (string name in environment.Keys.Where(scrubList.Contains).ToArray())
-        {
-            environment.Remove(name);
-        }
+        // The plan's dictionary is Ordinal, but the platform's variable
+        // names are not on Unix: on Windows two spellings of one name would
+        // collapse in ProcessStartInfo.Environment with an unspecified
+        // winner, so the supply check runs under the same platform rule the
+        // scrub list matches with. A name the plan supplies never gets a
+        // removal entry, so a differently-cased value cannot end up beside
+        // one.
+        StringComparer nameComparer = OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
         foreach (string name in scrubList.VariableNames)
         {
-            environment[name] = null;
+            if (!environment.Keys.Any(key => nameComparer.Equals(key, name)))
+            {
+                environment[name] = null;
+            }
         }
 
         ProcessConfiguration process = new(plan.Process.TargetFilePath)

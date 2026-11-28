@@ -38,9 +38,10 @@ namespace HarnessGateway.Launcher.Core.Launch;
 /// <param name="CleanEnv">
 /// The bare <c>--clean-env</c> flag one-for-one: <c>true</c> asks for the
 /// Environment Variable Scrub - the curated API-key variables are removed
-/// from the spawned harness process environment. Absent the flag the child
-/// inherits everything, unchanged. The launcher's own environment is never
-/// touched either way.
+/// from the spawned harness process environment as inherited from the
+/// caller, while values the launch itself supplies (the resolved provider's
+/// key) are kept. Absent the flag the child inherits everything, unchanged.
+/// The launcher's own environment is never touched either way.
 /// </param>
 public sealed record LaunchRequest(
     string Harness,

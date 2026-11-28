@@ -196,7 +196,7 @@ harnessgateway launch [HARNESS] [options]
 | `--confirm-running` | Assert that launching while the harness's app is already running was confirmed, skipping the prompt (GUI harnesses; see [Launching a GUI harness](#launching-a-gui-harness)) |
 | `-p PROMPT`, `--print PROMPT` | Run the harness non-interactively with a prompt instead of an interactive session; `-p` with no value reads the prompt from stdin (see [One-shot runs](#one-shot-runs)) |
 | `--non-interactive` | Never prompt for an ambiguous model; refuse with the matching references instead |
-| `--clean-env` | Environment Variable Scrub: remove curated API-key environment variables from the launched harness process |
+| `--clean-env` | Environment Variable Scrub: remove ambient curated API-key environment variables from the launched harness process |
 
 `--endpoint` and `--protocol` only make sense together; either one alone is a
 parse error. `--persist` takes both values at once (`--persist config model`)
@@ -587,8 +587,9 @@ widens model ambiguity. `--clean-env` opts in to the Environment Variable
 Scrub: removal of credential-bearing environment variables from the spawned
 harness process environment at the caller's request. The launcher's own
 environment is never scrubbed, and absent the request the child inherits
-everything. The scrub removes these three names from the child, whether their
-values came from your shell or from this launch:
+everything. The scrub removes these three names from the child's inherited
+environment. A value the launch itself supplies - the resolved provider's
+key - is kept, so the chosen provider stays authenticated:
 
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`

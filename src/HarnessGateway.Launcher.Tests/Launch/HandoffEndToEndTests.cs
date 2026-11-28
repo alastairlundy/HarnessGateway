@@ -116,8 +116,8 @@ public class HandoffEndToEndTests
     // ZAI_API_KEY is on the scrub list but is not one of the protocol keys the
     // wizard reads from this process's environment, so seeding it cannot race
     // with the wizard's key-step tests. The other listed names are seeded on
-    // the plan instead (see the adapter), which exercises the same removal at
-    // the child without touching process-global state they depend on.
+    // the plan instead (see the adapter), so they exercise the preservation
+    // side of the scrub without touching process-global state they depend on.
     private const string AmbientScrubbedName = "ZAI_API_KEY";
 
     /// <summary>
@@ -140,7 +140,7 @@ public class HandoffEndToEndTests
     // The ambient environment is process-global: share this key with the
     // other tests that mutate it so they never run concurrently.
     [NotInParallel("process-environment")]
-    public async Task Clean_env_removes_listed_variables_from_the_child()
+    public async Task Clean_env_removes_ambient_listed_variables_but_keeps_values_the_plan_supplies()
     {
         IReadOnlyCollection<string> names = new ApiKeyScrubList().VariableNames;
         string? previous = SeedAmbient();
@@ -154,12 +154,17 @@ public class HandoffEndToEndTests
 
             await Assert.That(outcome is LaunchCompleted).IsTrue();
             ChildDump dump = ChildDump.Read(dumpPath);
-            foreach (string name in names)
-            {
-                // Covers both an ambient variable (ZAI_API_KEY) and values the
-                // plan itself supplied (the protocol keys).
-                await Assert.That(dump.HasEnvironmentVariable(name)).IsFalse();
-            }
+
+            // The ambient listed variable (ZAI_API_KEY) is removed from the
+            // child, while the values the plan itself supplied - the launch's
+            // own protocol keys among them - survive, so the chosen provider
+            // keeps the credential this launch resolved for it.
+            await Assert.That(dump.HasEnvironmentVariable(AmbientScrubbedName)).IsFalse();
+            await Assert.That(dump.ValueOf("OPENAI_API_KEY")).IsEqualTo("from-plan");
+            await Assert.That(dump.ValueOf("ANTHROPIC_API_KEY")).IsEqualTo("from-plan");
+            await Assert.That(names).Contains(AmbientScrubbedName);
+            await Assert.That(names).Contains("OPENAI_API_KEY");
+            await Assert.That(names).Contains("ANTHROPIC_API_KEY");
 
             // Unlisted variables, including one put there by the plan itself,
             // survive: the scrub is a closed list, not a wholesale clear.
@@ -353,9 +358,10 @@ public class HandoffEndToEndTests
             Dictionary<string, string?> environment = new(StringComparer.Ordinal);
             EmissionMerge.MergeInto(environment, emission, request.ApiKey);
             // Values the plan itself supplies for two more listed names, so
-            // the scrub is proved against plan content as well as inheritance.
-            // ZAI_API_KEY is deliberately absent here: the test seeds it in
-            // the launcher process so the child inherits it instead.
+            // the scrub's preservation side is proved at the child as well as
+            // the ambient removal. ZAI_API_KEY is deliberately absent here:
+            // the test seeds it in the launcher process so the child inherits
+            // it instead, and that is the name the scrub removes.
             environment["OPENAI_API_KEY"] = "from-plan";
             environment["ANTHROPIC_API_KEY"] = "from-plan";
             environment["HGW_STUB_SENTINEL"] = "from-plan";

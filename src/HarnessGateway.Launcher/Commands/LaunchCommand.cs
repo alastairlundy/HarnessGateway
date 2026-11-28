@@ -78,7 +78,7 @@ public sealed class LaunchCommand : Command
         // A bare flag: opt in to the Environment Variable Scrub. The wizard
         // never sets it, and whether any listed variable is actually present
         // in the child is the flow's business, not a parse error.
-        Description = "Environment Variable Scrub: remove curated API-key environment variables from the launched harness process",
+        Description = "Environment Variable Scrub: remove ambient curated API-key environment variables from the launched harness process",
     };
 
     public LaunchCommand() : this(orchestrator: null)
@@ -156,8 +156,8 @@ public sealed class LaunchCommand : Command
                                                              || result.GetValue(PersistOption) is { Length: > 0 }
                                                              || result.GetValue(ConfirmRunningOption)
                                                              || result.GetResult(PrintOption) is not null
-                                                              || result.GetValue(NonInteractiveOption)
-                                                              || result.GetValue(CleanEnvOption)))
+                                                             || result.GetValue(NonInteractiveOption)
+                                                             || result.GetValue(CleanEnvOption)))
             {
                 result.AddError(
                     "A harness identifier is required when launch arguments are specified: harnessgateway launch <harness> [arguments]. " +
