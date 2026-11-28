@@ -75,13 +75,19 @@ new FakeTerminalProbe(),
 
             // Independent oracle: the attribute the build stamped on the
             // assembly from the csproj <Version>, not the value the factory
-            // exposes. Exact equality, not Contains - if the output carried
-            // anything else (settings schemaVersion, wizard text), this fails.
+            // exposes. Whole-stream equality is forbidden here - Console.Out
+            // is process-global and the capture gate only serializes tests
+            // that capture, so a parallel test's output can land in the
+            // window (see ConsoleOutputCapture). The version must still be
+            // its own exact line, exactly once: a foreign line carrying the
+            // settings schemaVersion or wizard text never matches, and the
+            // flag printing anything other than the bare pin fails.
             string expected = typeof(RootCommandFactory).Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
-
+            string[] lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output.Trim()).IsEqualTo(expected);
+            await Assert.That(lines).Contains(expected);
+            await Assert.That(lines.Count(line => line == expected)).IsEqualTo(1);
             await Assert.That(wizardCalled()).IsFalse();
         }
         finally

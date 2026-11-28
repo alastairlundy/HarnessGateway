@@ -331,10 +331,14 @@ public class ConfigCommandTests
                 Task.FromResult(InvokeConfig(store, "config path")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            // Exact equality, not Contains: the whole output is the path, so a
-            // label prefix, a second line, or the credential-store location
-            // (declined for this verb) fails here.
-            await Assert.That(output.Trim()).IsEqualTo(store.SettingsFilePath);
+            // The path must be its own exact line, exactly once -
+            // whole-stream equality is forbidden (see ConsoleOutputCapture
+            // on foreign output landing in the window): a label prefix, a
+            // second line, or the credential-store location (declined for
+            // this verb) fails here.
+            string[] lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            await Assert.That(lines).Contains(store.SettingsFilePath);
+            await Assert.That(lines.Count(line => line == store.SettingsFilePath)).IsEqualTo(1);
             await Assert.That(output.Contains("HarnessGateway-keys.json")).IsFalse();
         }
         finally
@@ -398,7 +402,12 @@ public class ConfigCommandTests
                 Task.FromResult(InvokeConfig(store, "config path")));
 
             await Assert.That(exitCode).IsEqualTo(0);
-            await Assert.That(output.Trim()).IsEqualTo(store.SettingsFilePath);
+            // Same exact-line rule as the sibling path test: the whole
+            // output may not carry a label, a second line, or a foreign
+            // parallel-test line, but the path itself must appear once.
+            string[] lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            await Assert.That(lines).Contains(store.SettingsFilePath);
+            await Assert.That(lines.Count(line => line == store.SettingsFilePath)).IsEqualTo(1);
             await Assert.That(Fingerprint(store)).IsEqualTo(before);
         }
         finally
