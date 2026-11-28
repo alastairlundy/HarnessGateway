@@ -88,4 +88,12 @@ public enum LaunchRefusalKind
     /// and none readable from stdin. Producers exit 2.
     /// </summary>
     PrintPromptMissing,
+
+    /// <summary>
+    /// A bare model name matched several harness-side providers in the
+    /// models.dev catalog and the session is non-interactive (no terminal,
+    /// or <c>--non-interactive</c>): the message lists the
+    /// provider-qualified matches and a docs pointer. Producers exit 14.
+    /// </summary>
+    AmbiguousModel,
 }

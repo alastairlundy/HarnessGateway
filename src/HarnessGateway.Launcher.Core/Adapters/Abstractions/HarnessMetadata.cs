@@ -43,6 +43,14 @@ namespace HarnessGateway.Launcher.Core.Adapters.Abstractions;
 /// convention only - matching never reads it - and availability stays a
 /// runtime discovery concern, so Kind=Cli adapters pass an empty list.
 /// </param>
+/// <param name="ResolvesModelsInOwnCatalog">
+/// True when the harness resolves model references in its own
+/// multi-provider catalog, so the launch flow qualifies bare model
+/// names against the models.dev catalog before handoff. Harnesses whose
+/// launcher-side adapter synthesizes the <c>providerId/model</c>
+/// reference itself (OpenCode, Kilo) stay false - qualifying for them
+/// would double-qualify the reference they build.
+/// </param>
 public sealed record HarnessMetadata(
     string Name,
     string CommandName,
@@ -54,7 +62,8 @@ public sealed record HarnessMetadata(
     IReadOnlyList<string> ConfigFileCandidates,
     IReadOnlySet<ProtocolKind> SupportedProtocols,
     IReadOnlySet<ConfigurationSurface> SupportedSurfaces,
-    IReadOnlyList<string> InstanceProcessNames)
+    IReadOnlyList<string> InstanceProcessNames,
+    bool ResolvesModelsInOwnCatalog = false)
 {
     /// <summary>Every token that resolves this harness: the command name plus aliases.</summary>
     public IEnumerable<string> AcceptedTokens

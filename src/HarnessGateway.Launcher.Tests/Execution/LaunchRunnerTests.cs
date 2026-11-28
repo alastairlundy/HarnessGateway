@@ -49,7 +49,11 @@ public class LaunchRunnerTests
         ProcessConfiguration config = ShellCommand("echo hello", outputRedirection: false);
         LaunchPlan plan = new LaunchPlan(config, []);
 
-        int exitCode = await runner.RunAsync(plan);
+        // RunAsync always buffers and echoes the child's stdout through this
+        // process's Console.Out - "hello\n" here. Capture and discard it so
+        // the echo cannot land inside a parallel capturing test's window
+        // (see ConsoleOutputCapture on foreign output).
+        (int exitCode, string _) = await ConsoleOutputCapture.RunAsync(() => runner.RunAsync(plan));
 
         await Assert.That(exitCode).IsEqualTo(0);
     }

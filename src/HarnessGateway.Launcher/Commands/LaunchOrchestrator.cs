@@ -40,6 +40,11 @@ public sealed class LaunchOrchestrator
     /// <paramref name="print"/> and <paramref name="printPrompt"/> are passed the
     /// same way - whether the harness has a one-shot mode or a prompt
     /// arrived are the flow's refusals, never this mapping layer's.
+    /// <paramref name="nonInteractive"/> is likewise a verbatim flag: whether
+    /// an ambiguity actually needs a refusal is the flow's decision.
+    /// <paramref name="cleanEnv"/> is the Environment Variable Scrub opt-in,
+    /// passed through untouched - whether any listed variable is present at
+    /// handoff is the flow's business, not this mapping layer's.
     /// </summary>
     public async Task<int> RunAsync(
         string agentName, string? providerName,
@@ -48,6 +53,8 @@ public sealed class LaunchOrchestrator
         bool confirmRunning = false,
         bool print = false,
         string? printPrompt = null,
+        bool nonInteractive = false,
+        bool cleanEnv = false,
         CancellationToken cancellationToken = default)
     {
         LaunchRequest request = new(
@@ -60,7 +67,9 @@ public sealed class LaunchOrchestrator
             SessionKey: null,
             ConfirmRunning: confirmRunning,
             Print: print,
-            PrintPrompt: printPrompt);
+            PrintPrompt: printPrompt,
+            NonInteractive: nonInteractive,
+            CleanEnv: cleanEnv);
 
         LaunchOutcome outcome = await _flow.ExecuteAsync(request, cancellationToken)
             .ConfigureAwait(true);
@@ -118,13 +127,13 @@ public sealed class LaunchOrchestrator
     }
 
     /// <summary>
-    /// Exhaustive over the nineteen refusal kinds: every kind names its
-    /// exit code explicitly so a newly added kind cannot silently land on a
-    /// catch-all default. Codes are today's values, preserved byte-for-byte;
-    /// the three GUI kinds are producer additions to existing families, the
+    /// Exhaustive over every refusal kind: each names its exit code
+    /// explicitly so a newly added kind cannot silently land on a catch-all
+    /// default. Codes are today's values, preserved byte-for-byte; the three
+    /// GUI kinds are producer additions to existing families, the
     /// unlisted-model kind reuses the UnknownAgent number, and the two print
-    /// misuse kinds reuse UsageError - TerminalRequired is the only new
-    /// number (13).
+    /// misuse kinds reuse UsageError. TerminalRequired (13) and AmbiguousModel
+    /// (14) are the only appended numbers.
     /// </summary>
     private static int ExitCodeFor(LaunchRefusalKind kind) => kind switch
     {
@@ -152,6 +161,10 @@ public sealed class LaunchOrchestrator
         // in this context, which a usage error would misreport as a bad
         // flag and an unavailable harness would misreport as a bad install.
         LaunchRefusalKind.TerminalRequired => (int)LaunchExitCode.TerminalRequired,
+        // An ambiguous model with no terminal to pick in (or the explicit
+        // --non-interactive override) is its own appended exit code: the
+        // user must name a qualified reference before this launch can run.
+        LaunchRefusalKind.AmbiguousModel => (int)LaunchExitCode.AmbiguousModel,
         LaunchRefusalKind.UnknownProviderName
             or LaunchRefusalKind.DanglingDefaultProvider
             or LaunchRefusalKind.AbsentDefaultProvider => (int)LaunchExitCode.UnknownProviderName,

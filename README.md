@@ -195,10 +195,14 @@ harnessgateway launch [HARNESS] [options]
 | `--persist model` | Save this launch's model as the entry's default for later launches |
 | `--confirm-running` | Assert that launching while the harness's app is already running was confirmed, skipping the prompt (GUI harnesses; see [Launching a GUI harness](#launching-a-gui-harness)) |
 | `-p PROMPT`, `--print PROMPT` | Run the harness non-interactively with a prompt instead of an interactive session; `-p` with no value reads the prompt from stdin (see [One-shot runs](#one-shot-runs)) |
+| `--non-interactive` | Never prompt for an ambiguous model; refuse with the matching references instead |
+| `--clean-env` | Environment Variable Scrub: remove ambient curated API-key environment variables from the launched harness process |
 
 `--endpoint` and `--protocol` only make sense together; either one alone is a
 parse error. `--persist` takes both values at once (`--persist config model`)
-or comma-separated (`--persist config,model`).
+or comma-separated (`--persist config,model`). Bare and qualified `-m`
+references, the ambiguity picker and refusal, and the Environment Variable
+Scrub are covered in [Models and provider disambiguation](#models-and-provider-disambiguation).
 
 The pair wins wholesale. When you pass it, the selected entry's stored
 endpoint and protocol are replaced for that launch, and a per-model endpoint
@@ -540,6 +544,68 @@ that guard.
 For `remove`, `set-key`, and `clear-key`, a name that matches no saved entry
 exits with code 8.
 
+### Models and provider disambiguation
+
+A `-m`/`--model` value is either a bare name (`gpt-5`) or a qualified
+`provider/model` reference (`openai/gpt-5`). A qualified reference is already
+in the harness's own namespace and reaches the harness unchanged. The launcher
+translates a bare name at the launch handoff, after it resolves the provider
+and its saved model but before the harness starts. That happens only for
+harnesses that resolve model references in their own multi-provider catalog
+(today `pi` only). Other harnesses take the model as resolved from the provider
+entry.
+
+A Harness-side provider is a provider identity a harness uses in its own model
+catalog to resolve model references, distinct from a Provider, which is a saved
+launcher entry. HarnessGateway looks up the bare name in its local copy of the
+models.dev catalog:
+
+- Exactly one match: the launcher sends the qualified reference to the
+  harness. This also applies to a model drawn from the saved provider's list
+  or stored as its default.
+- Several matches across Harness-side providers: with a terminal on stdin and
+  stdout you get a picker of the qualified references. With no terminal, or
+  with `--non-interactive`, the launch refuses with exit code 14 and prints the
+  references you can re-run with plus a link to this section.
+  `--non-interactive` forces the refusal even when a terminal is attached.
+- No match: the bare name passes through with a warning. The catalog is the
+  limitation, not the spelling. Local models do not appear in the models.dev
+  catalog.
+
+This models.dev catalog is the launcher's own view of harness-side names, not
+a Provider's saved model catalog. The exit-3 unlisted-model guard still
+applies to the saved list. If the local catalog is cold or the fetch fails, the
+launch prints `Model/provider disambiguation degraded: the models.dev catalog
+is unavailable, so bare model names pass through unqualified.` and proceeds
+without qualification. The launcher refetches a snapshot older than one hour.
+It fetches at most once per launch, and a failed refetch keeps the old
+snapshot.
+
+Harnesses inherit your shell's environment unless you opt out. Ambient API
+keys can make extra Harness-side providers count as authenticated, which
+widens model ambiguity. `--clean-env` opts in to the Environment Variable
+Scrub: removal of credential-bearing environment variables from the spawned
+harness process environment at the caller's request. The launcher's own
+environment is never scrubbed, and absent the request the child inherits
+everything. The scrub removes these three names from the child's inherited
+environment. A value the launch itself supplies - the resolved provider's
+key - is kept, so the chosen provider stays authenticated:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `ZAI_API_KEY`
+
+The maintainers set the list in a release rather than inferring it from
+variable names. Other environment variables pass through unchanged.
+
+**Known harness quirks.** Pi resolves a bare name against its own
+models.dev-derived catalog, so a name that is unambiguous against your saved
+Provider can still be ambiguous harness-side, and the other way round. Older
+pi builds print `More than one matching provider is authenticated.` when only
+one provider matches; read that as "authentication could not settle the
+ambiguity", not as a count. Maintainer detail and the source trail are in
+[docs/agents/harness-model-quirks.md](docs/agents/harness-model-quirks.md).
+
 ### Endpoint conventions
 
 The endpoint is the base URL the harness talks to, and the conventions differ
@@ -571,6 +637,7 @@ with no path fetches `/v1/models`.
 | Windows | `%APPDATA%\HarnessGateway` |
 | macOS | `~/Library/Application Support/HarnessGateway` |
 | Linux | `$XDG_CONFIG_HOME/HarnessGateway`, else `~/.config/HarnessGateway` |
+| models.dev catalog cache | `%LOCALAPPDATA%\HarnessGateway` (Windows), `~/Library/Caches/HarnessGateway` (macOS), `$XDG_CACHE_HOME/HarnessGateway` or `~/.cache/HarnessGateway` (Linux) |
 
 `HarnessGateway-launcher.json` holds the entry list, the default pointer,
 `schemaVersion`, per-entry default models, and each provider's model catalog.
@@ -582,6 +649,12 @@ where it is stored as DPAPI-encrypted ciphertext bound to your Windows user
 account. The directory also holds `update-check.timestamp`, a `backups/`
 subdirectory for config-file backup markers, and briefly, during a legacy
 migration, `HarnessGateway-launcher.json.migrating`.
+
+The models.dev catalog snapshot, `models-dev-catalog.json`, lives in the cache
+directory above rather than beside the settings file. It is reproducible data.
+The launcher refetches a snapshot older than one hour at launch, and deleting
+the file forces a fetch on the next launch. See
+[Models and provider disambiguation](#models-and-provider-disambiguation).
 
 To delete saved keys, run `harnessgateway provider clear-key <name>` or
 `harnessgateway provider remove <name>`, or delete `HarnessGateway-keys.json`
@@ -612,6 +685,7 @@ leaves it untouched.
 | 11 | UpdateAvailable | `update check` found a newer release and reports both versions; it downloads, installs, and applies nothing |
 | 12 | CheckFailed | `update check` could not complete: a network failure, an HTTP error from the releases endpoint, or a response it cannot parse |
 | 13 | TerminalRequired | An interactive CLI launch with no terminal on stdin or stdout (piped or redirected): the harness would render into handles nobody can read. Run from a real terminal, or pass `-p`/`--print` for a one-shot run |
+| 14 | AmbiguousModel | A bare model name matched several Harness-side providers in the models.dev catalog on a non-interactive launch (`--non-interactive`, or no terminal on stdin and stdout). The message lists the qualified references and points at [Models and provider disambiguation](#models-and-provider-disambiguation) |
 
 Exit codes 5 and 6 are reserved and won't appear in this release. The enum
 keeps them so that a future build can claim those numbers without

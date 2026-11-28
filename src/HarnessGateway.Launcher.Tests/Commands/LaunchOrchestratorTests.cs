@@ -2,12 +2,15 @@ using CliInvoke.Core;
 using HarnessGateway.Launcher.Commands;
 using HarnessGateway.Launcher.Core.Adapters.Abstractions;
 using HarnessGateway.Launcher.Core.Providers;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
 using HarnessGateway.Launcher.Core.Launch;
 using HarnessGateway.Launcher.Core.Settings;
+using HarnessGateway.Launcher.Core.Settings.Security;
 using HarnessGateway.Launcher.Models;
 using HarnessGateway.Launcher.Tests.Fakes;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HarnessGateway.Launcher.Tests.Commands;
 
@@ -51,6 +54,9 @@ public class LaunchOrchestratorTests
     [Arguments(LaunchRefusalKind.PrintUnsupportedForHarness, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.PrintPromptMissing, (int)LaunchExitCode.UsageError)]
     [Arguments(LaunchRefusalKind.TerminalRequired, (int)LaunchExitCode.TerminalRequired)]
+    // The ambiguous-model refusal is the second appended number (14): it
+    // names a launch the user must re-issue with a qualified reference.
+    [Arguments(LaunchRefusalKind.AmbiguousModel, (int)LaunchExitCode.AmbiguousModel)]
     public async Task MapOutcomeAsync_refusal_kind_maps_to_its_exit_code(
         LaunchRefusalKind kind, int expectedExitCode)
     {
@@ -276,26 +282,64 @@ public class LaunchOrchestratorTests
         Directory.CreateDirectory(backupsDir);
 
         FakeSecureKeyStore keyStore = new FakeSecureKeyStore();
-        SettingsStore settingsStore = new SettingsStore(settingsDir, keyStore);
+
+        // The same composition shape the executable uses: one service
+        // collection, the fakes injected at the production seams, and one
+        // flow instance out of the provider - mirroring Program.cs's
+        // registration (DECISIONS-HarnessGateway-model-provider-
+        // disambiguation #I001) so the wiring under test is the wiring
+        // that ships.
+        ServiceCollection services = new();
+        services.AddSingleton<ISecureKeyStore>(keyStore);
+        services.AddSingleton(_ => new BackupService(backupsDir));
+        services.AddSingleton(serviceProvider => new SettingsStore(
+            settingsDir,
+            serviceProvider.GetRequiredService<ISecureKeyStore>(),
+            serviceProvider.GetRequiredService<BackupService>()));
+        services.AddSingleton<ILaunchRunner>(_ => runner ?? new TestLaunchRunner());
+        if (adapter is not null)
+        {
+            services.AddSingleton<IHarnessAdapter>(adapter);
+        }
+
+        services.AddSingleton<IReadOnlyList<IHarnessAdapter>>(serviceProvider =>
+            serviceProvider.GetServices<IHarnessAdapter>().ToList());
+        services.AddSingleton<IGuiInstallDiscovery>(_ => new FakeGuiInstallDiscovery());
+        services.AddSingleton<IRunningInstanceDetector>(_ => new FakeRunningInstanceDetector());
+        services.AddSingleton<IConfirmationPrompt>(_ => new FakeConfirmationPrompt());
+        services.AddSingleton<IProtocolEmissionPlanner>(_ => new ProtocolEmissionPlanner());
+        services.AddSingleton<ITerminalProbe>(_ => new FakeTerminalProbe());
+        services.AddSingleton(_ => QualificationDeps.Cache(tempDir));
+        services.AddSingleton(QualificationDeps.Qualifier);
+        services.AddSingleton<IModelChoicePrompt>(_ => new ScriptedModelChoicePrompt());
+        services.AddSingleton<IApiKeyScrubList>(_ => new ApiKeyScrubList());
+        services.AddSingleton(serviceProvider => new LaunchFlow(
+            serviceProvider.GetRequiredService<SettingsStore>(),
+            serviceProvider.GetRequiredService<BackupService>(),
+            serviceProvider.GetRequiredService<ILaunchRunner>(),
+            serviceProvider.GetRequiredService<IReadOnlyList<IHarnessAdapter>>(),
+            serviceProvider.GetRequiredService<ISecureKeyStore>(),
+            serviceProvider.GetRequiredService<IGuiInstallDiscovery>(),
+            serviceProvider.GetRequiredService<IRunningInstanceDetector>(),
+            serviceProvider.GetRequiredService<IConfirmationPrompt>(),
+            serviceProvider.GetRequiredService<IProtocolEmissionPlanner>(),
+            serviceProvider.GetRequiredService<ITerminalProbe>(),
+            serviceProvider.GetRequiredService<CatalogCache>(),
+            serviceProvider.GetRequiredService<ModelQualifier>(),
+            serviceProvider.GetRequiredService<IModelChoicePrompt>(),
+            serviceProvider.GetRequiredService<IApiKeyScrubList>()));
+        services.AddSingleton(serviceProvider =>
+            new LaunchOrchestrator(serviceProvider.GetRequiredService<LaunchFlow>()));
+
+        ServiceProvider provider = services.BuildServiceProvider();
+
+        SettingsStore settingsStore = provider.GetRequiredService<SettingsStore>();
         if (settings is not null)
         {
             settingsStore.Save(settings);
         }
 
-        // Same collaborators the production wiring shares; the orchestrator
-        // is now a thin adapter over the concrete flow.
-        LaunchFlow flow = new LaunchFlow(
-            settingsStore,
-            new BackupService(backupsDir),
-            runner ?? new TestLaunchRunner(),
-            adapter is not null ? [adapter] : [],
-            keyStore,
-            new FakeGuiInstallDiscovery(),
-            new FakeRunningInstanceDetector(),
-            new FakeConfirmationPrompt(),
-            new ProtocolEmissionPlanner(),
-            new FakeTerminalProbe());
-        return (new LaunchOrchestrator(flow), tempDir);
+        return (provider.GetRequiredService<LaunchOrchestrator>(), tempDir);
     }
 
     // --- Minimal fakes: wiring tests need only planning and running ---

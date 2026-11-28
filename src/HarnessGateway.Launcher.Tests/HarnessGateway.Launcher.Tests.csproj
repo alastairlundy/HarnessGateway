@@ -17,4 +17,12 @@
         <ProjectReference Include="..\HarnessGateway.Launcher\HarnessGateway.Launcher.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- The stub harness is a file-based app the tests spawn as a child
+             process, not part of the test assembly. Copy it beside the test
+             binary so the path is stable on every platform. -->
+        <Compile Remove="Fixtures/StubHarness.cs" />
+        <None Include="Fixtures/StubHarness.cs" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

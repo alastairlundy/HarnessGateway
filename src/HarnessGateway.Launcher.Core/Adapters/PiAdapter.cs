@@ -22,7 +22,8 @@ public sealed class PiAdapter : IHarnessAdapter, INonInteractiveLaunchAdapter
             ProtocolKind.Anthropic,
         },
         new HashSet<ConfigurationSurface>(),
-        []);
+        [],
+        ResolvesModelsInOwnCatalog: true);
 
     private readonly Func<string, CancellationToken, Task<AvailabilityResult>> _detectCommand;
 

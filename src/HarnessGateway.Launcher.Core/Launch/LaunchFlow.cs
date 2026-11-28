@@ -1,7 +1,9 @@
+using CliInvoke.Core;
 using HarnessGateway.Launcher.Core.Adapters.Helpers;
 using HarnessGateway.Launcher.Core.Adapters;
 using HarnessGateway.Launcher.Core.Configuration;
 using HarnessGateway.Launcher.Core.Execution;
+using HarnessGateway.Launcher.Core.Providers.Models;
 using HarnessGateway.Launcher.Core.Settings;
 using HarnessGateway.Launcher.Core.Settings.Security;
 
@@ -33,6 +35,9 @@ public sealed class LaunchFlow
         "provider add <name> --endpoint <url> --protocol <protocol>' to save one, or pass " +
         "--endpoint <url> --protocol <protocol> for a one-off launch.";
 
+    private const string DisambiguationDocsUrl =
+        "https://github.com/alastairlundy/HarnessGateway#models-and-provider-disambiguation";
+
     private readonly SettingsStore _settingsStore;
     private readonly BackupService _backupService;
     private readonly ILaunchRunner _runner;
@@ -43,6 +48,10 @@ public sealed class LaunchFlow
     private readonly IConfirmationPrompt _confirmationPrompt;
     private readonly IProtocolEmissionPlanner _emissionPlanner;
     private readonly ITerminalProbe _terminalProbe;
+    private readonly CatalogCache _catalogCache;
+    private readonly ModelQualifier _modelQualifier;
+    private readonly IModelChoicePrompt _modelChoicePrompt;
+    private readonly IApiKeyScrubList _apiKeyScrubList;
 
     public LaunchFlow(
         SettingsStore settingsStore,
@@ -54,7 +63,11 @@ public sealed class LaunchFlow
         IRunningInstanceDetector instanceDetector,
         IConfirmationPrompt confirmationPrompt,
         IProtocolEmissionPlanner emissionPlanner,
-        ITerminalProbe terminalProbe)
+        ITerminalProbe terminalProbe,
+        CatalogCache catalogCache,
+        ModelQualifier modelQualifier,
+        IModelChoicePrompt modelChoicePrompt,
+        IApiKeyScrubList apiKeyScrubList)
     {
         _settingsStore = settingsStore;
         _backupService = backupService;
@@ -66,6 +79,10 @@ public sealed class LaunchFlow
         _confirmationPrompt = confirmationPrompt;
         _emissionPlanner = emissionPlanner;
         _terminalProbe = terminalProbe;
+        _catalogCache = catalogCache;
+        _modelQualifier = modelQualifier;
+        _modelChoicePrompt = modelChoicePrompt;
+        _apiKeyScrubList = apiKeyScrubList;
     }
 
     /// <summary>
@@ -244,6 +261,53 @@ public sealed class LaunchFlow
 
             string? resolvedModel = ResolveModel(launch, adapter);
 
+            // Qualification belongs between model resolution and the plan
+            // build, and only for harnesses that resolve model references in
+            // their own multi-provider catalog (today: pi). Adapters that
+            // synthesize their own `providerId/model` reference (OpenCode,
+            // Kilo) stay out, or their reference would be qualified twice.
+            // `resolvedModel` deliberately stays the pre-qualification name:
+            // --persist model must save what the user typed, or the unchanged
+            // unlisted-model guard would reject a qualified reference that
+            // is not a member of the saved provider's own list next launch.
+            if (resolvedModel is not null && adapter.Metadata.ResolvesModelsInOwnCatalog)
+            {
+                CatalogCacheResult catalogResult = await _catalogCache
+                    .GetCatalogAsync(ct).ConfigureAwait(false);
+                ModelQualification qualification = _modelQualifier
+                    .Qualify(resolvedModel, catalogResult.Catalog);
+
+                switch (qualification)
+                {
+                    case ModelQualification.Qualified qualified:
+                        launch = WithModel(launch, qualified.Reference);
+                        break;
+
+                    case ModelQualification.Unqualified unqualified:
+                        Console.Error.WriteLine($"Warning: {unqualified.Warning}");
+                        break;
+
+                    case ModelQualification.Ambiguous ambiguous:
+                        if (request.NonInteractive || !_terminalProbe.IsInteractiveTerminal)
+                        {
+                            return new LaunchRefused(
+                                LaunchRefusalKind.AmbiguousModel,
+                                AmbiguousModelMessage(request.Harness, resolvedModel,
+                                    ambiguous.Candidates));
+                        }
+
+                        string chosen = await _modelChoicePrompt.PickAsync(
+                            $"Model '{resolvedModel}' matches several harness-side providers. Select one:",
+                            ambiguous.Candidates, ct).ConfigureAwait(false);
+                        launch = WithModel(launch, chosen);
+                        break;
+
+                    default:
+                        throw new InvalidOperationException(
+                            $"unexpected qualification variant '{qualification.GetType().Name}'");
+                }
+            }
+
             // The launch-scoped secret: the provider case's stored reference
             // resolved into the secret on this local copy only - `settings`
             // keeps carrying the reference, so a later Save
@@ -328,6 +392,17 @@ public sealed class LaunchFlow
                 // on environment variables, and only when Environment is
                 // declared - and the launcher never writes keys to disk.)
                 plan = FilterToDeclaredSurfaces(plan, adapter.Metadata.SupportedSurfaces);
+            }
+
+            // The Environment Variable Scrub belongs at plan finalization:
+            // the plan is complete and about to be handed to the runner, so
+            // this is the last place the child's environment can still be
+            // changed. A null value is CliInvoke's variable-removal signal -
+            // omitting the key would leave the ambient value inherited - and
+            // only the plan copy is touched, never this process's environment.
+            if (request.CleanEnv)
+            {
+                plan = ScrubEnvironment(plan, _apiKeyScrubList);
             }
 
             bool persistConfig = request.Persist.Contains("config", StringComparer.OrdinalIgnoreCase);
@@ -612,6 +687,63 @@ public sealed class LaunchFlow
     }
 
     /// <summary>
+    /// Replaces the plan's process with one whose environment carries a
+    /// removal entry for every curated API-key variable the plan does not
+    /// itself supply. CliInvoke reads a null value as "remove from the
+    /// child's environment", which is why the entries are added rather than
+    /// simply left out: an absent key would inherit the ambient value.
+    /// Values the plan carries - the resolved provider's key among them -
+    /// survive, so the chosen provider keeps the credential this launch
+    /// resolved for it; the scrub removes ambient credentials only. Only
+    /// this plan copy changes.
+    /// </summary>
+    private static LaunchPlan ScrubEnvironment(LaunchPlan plan, IApiKeyScrubList scrubList)
+    {
+        Dictionary<string, string?> environment = new(
+            plan.Process.EnvironmentVariables, StringComparer.Ordinal);
+
+        // The plan's dictionary is Ordinal, but the platform's variable
+        // names are not on Unix: on Windows two spellings of one name would
+        // collapse in ProcessStartInfo.Environment with an unspecified
+        // winner, so the supply check runs under the same platform rule the
+        // scrub list matches with. A name the plan supplies never gets a
+        // removal entry, so a differently-cased value cannot end up beside
+        // one.
+        StringComparer nameComparer = OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
+        foreach (string name in scrubList.VariableNames)
+        {
+            if (!environment.Keys.Any(key => nameComparer.Equals(key, name)))
+            {
+                environment[name] = null;
+            }
+        }
+
+        ProcessConfiguration process = new(plan.Process.TargetFilePath)
+        {
+            RequiresAdministrator = plan.Process.RequiresAdministrator,
+            WorkingDirectoryPath = plan.Process.WorkingDirectoryPath,
+            Arguments = plan.Process.Arguments,
+            ArgumentList = plan.Process.ArgumentList,
+            WindowCreation = plan.Process.WindowCreation,
+            EnvironmentVariables = environment,
+            Credential = plan.Process.Credential,
+            UseShellExecution = plan.Process.UseShellExecution,
+            StandardInput = plan.Process.StandardInput,
+            RedirectStandardInput = plan.Process.RedirectStandardInput,
+            OutputRedirection = plan.Process.OutputRedirection,
+            ResourcePolicy = plan.Process.ResourcePolicy,
+            StandardInputEncoding = plan.Process.StandardInputEncoding,
+            StandardOutputEncoding = plan.Process.StandardOutputEncoding,
+            StandardErrorEncoding = plan.Process.StandardErrorEncoding,
+        };
+
+        return plan with { Process = process };
+    }
+
+    /// <summary>
     /// Picks the model for this launch: the case's effective model - the
     /// resolution layer already applied <c>--model</c> over the stored
     /// default before the family was built, so both cases carry the value
@@ -639,6 +771,39 @@ public sealed class LaunchFlow
         }
 
         return resolvedModel;
+    }
+
+    /// <summary>
+    /// Rebuilds the resolved launch with <paramref name="model"/> replacing its
+    /// effective model. The qualification step needs the adapter to plan from
+    /// the qualified reference without changing the provider, endpoint or
+    /// protocol the earlier resolution already decided.
+    /// </summary>
+    private static LaunchResolution WithModel(LaunchResolution launch, string model) =>
+        launch switch
+        {
+            LaunchResolution.ProviderCase stored =>
+                new LaunchResolution.ProviderCase(stored.Provider, model, stored.Protocol),
+            LaunchResolution.AdHocCase adHoc =>
+                new LaunchResolution.AdHocCase(adHoc.BaseUri, adHoc.Protocol, model),
+            _ => throw new InvalidOperationException(
+                $"unexpected launch resolution case '{launch.GetType().Name}'"),
+        };
+
+    /// <summary>
+    /// The non-interactive ambiguity refusal: the provider-qualified matches
+    /// the user can re-run with, plus the docs pointer that explains the
+    /// pick and the flag that forced this path.
+    /// </summary>
+    private static string AmbiguousModelMessage(
+        string harness, string bareName, IReadOnlyList<string> candidates)
+    {
+        string matches = string.Join(", ", candidates);
+        return $"Refusing to launch {harness}: model '{bareName}' matches several " +
+               $"harness-side providers in the models.dev catalog: {matches}. " +
+               "Re-run with one of these provider-qualified references, or run " +
+               "in a terminal without --non-interactive to pick interactively. " +
+               $"See {DisambiguationDocsUrl} for details.";
     }
 
     private async Task ExecuteConfigurationActionAsync(ConfigurationAction action, CancellationToken cancellationToken)

@@ -44,6 +44,20 @@ public class AvailabilityMessagesTests
     }
 
     [Test]
+    public async Task An_empty_hint_does_not_lead_with_a_stray_full_stop()
+    {
+        // The joiner owns the punctuation: an empty hint must yield the
+        // caveat alone, never ". If it is installed...".
+        HarnessMetadata emptyHint = CreateMetadata(installHint: "");
+        HarnessMetadata whitespaceHint = CreateMetadata(installHint: "   ");
+
+        await Assert.That(AvailabilityMessages.NotInstalled(emptyHint))
+            .IsEqualTo(AvailabilityMessages.NotOnPath);
+        await Assert.That(AvailabilityMessages.NotInstalled(whitespaceHint))
+            .IsEqualTo(AvailabilityMessages.NotOnPath);
+    }
+
+    [Test]
     public async Task CheckFailed_names_the_harness_the_cause_and_the_detection_command()
     {
         HarnessMetadata metadata = CreateMetadata();

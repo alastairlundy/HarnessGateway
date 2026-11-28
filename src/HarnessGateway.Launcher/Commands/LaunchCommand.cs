@@ -64,6 +64,23 @@ public sealed class LaunchCommand : Command
         Arity = ArgumentArity.ZeroOrOne,
     };
 
+    public static readonly Option<bool> NonInteractiveOption = new("--non-interactive")
+    {
+        // A flag: it forces the ambiguous-model refusal-with-guidance even
+        // when a terminal is attached. Whether an ambiguity actually arises
+        // (and therefore whether this flag has any visible effect) is the
+        // flow's decision, not a parse error.
+        Description = "Never prompt for an ambiguous model; refuse with the matching references instead",
+    };
+
+    public static readonly Option<bool> CleanEnvOption = new("--clean-env")
+    {
+        // A bare flag: opt in to the Environment Variable Scrub. The wizard
+        // never sets it, and whether any listed variable is actually present
+        // in the child is the flow's business, not a parse error.
+        Description = "Environment Variable Scrub: remove ambient curated API-key environment variables from the launched harness process",
+    };
+
     public LaunchCommand() : this(orchestrator: null)
     {
     }
@@ -90,6 +107,8 @@ public sealed class LaunchCommand : Command
         Add(PersistOption);
         Add(ConfirmRunningOption);
         Add(PrintOption);
+        Add(NonInteractiveOption);
+        Add(CleanEnvOption);
 
         Validators.Add(result =>
         {
@@ -136,7 +155,9 @@ public sealed class LaunchCommand : Command
                                                              || result.GetValue(ModelOption) is not null
                                                              || result.GetValue(PersistOption) is { Length: > 0 }
                                                              || result.GetValue(ConfirmRunningOption)
-                                                             || result.GetResult(PrintOption) is not null))
+                                                             || result.GetResult(PrintOption) is not null
+                                                             || result.GetValue(NonInteractiveOption)
+                                                             || result.GetValue(CleanEnvOption)))
             {
                 result.AddError(
                     "A harness identifier is required when launch arguments are specified: harnessgateway launch <harness> [arguments]. " +
@@ -174,6 +195,8 @@ public sealed class LaunchCommand : Command
             string? protocol = result.GetValue(ProtocolOption);
             string? model = result.GetValue(ModelOption);
             bool confirmRunning = result.GetValue(ConfirmRunningOption);
+            bool nonInteractive = result.GetValue(NonInteractiveOption);
+            bool cleanEnv = result.GetValue(CleanEnvOption);
             string[]? persistValues = result.GetValue(PersistOption);
             IReadOnlyList<string> persist = persistValues is not null
                 ? ParsePersistValues(persistValues)
@@ -208,6 +231,8 @@ public sealed class LaunchCommand : Command
                 confirmRunning,
                 print,
                 printPrompt,
+                nonInteractive,
+                cleanEnv,
                 cancellationToken).ConfigureAwait(true);
         });
     }

@@ -20,12 +20,18 @@ public static class AvailabilityMessages
     /// <summary>
     /// Appends <paramref name="sentence"/> as a following sentence. Install
     /// hints are written without a trailing full stop, so the joiner is
-    /// decided here rather than assumed by every caller.
+    /// decided here rather than assumed by every caller. Empty text returns
+    /// the sentence alone, never a leading full stop.
     /// </summary>
     public static string AppendSentence(string text, string sentence)
     {
         string trimmed = text.TrimEnd();
-        return trimmed.Length > 0 && trimmed[^1] is '.' or '!' or '?' or ':'
+        if (trimmed.Length == 0)
+        {
+            return sentence;
+        }
+
+        return trimmed[^1] is '.' or '!' or '?' or ':'
             ? $"{trimmed} {sentence}"
             : $"{trimmed}. {sentence}";
     }

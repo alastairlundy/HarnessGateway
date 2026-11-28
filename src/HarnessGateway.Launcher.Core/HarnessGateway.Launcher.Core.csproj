@@ -25,6 +25,7 @@
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="ModelsDotDevSharp" />
         <PackageReference Include="System.Security.Cryptography.ProtectedData" />
         <PackageReference Include="Tomlyn" />
     </ItemGroup>
